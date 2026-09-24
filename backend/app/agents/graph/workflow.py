@@ -1,4 +1,4 @@
-"""Stateful LangGraph workflow definition for the NEXUS analytical agent."""
+"""Stateful LangGraph workflow definition for the NEXUS analytical agent with Semantic Layer & RAG."""
 
 from typing import Literal
 
@@ -8,6 +8,7 @@ from app.agents.nodes.evaluation import check_evidence_node, inspect_result_node
 from app.agents.nodes.execution import execute_tool_node
 from app.agents.nodes.explanation import generate_explanation_node
 from app.agents.nodes.planning import create_plan_node, validate_plan_node
+from app.agents.nodes.semantic_node import retrieve_context_node, semantic_resolution_node
 from app.agents.nodes.specialized import handle_clarification_node, handle_unsupported_node
 from app.agents.nodes.understand import understand_request_node
 from app.agents.state.models import AgentState, EvidenceSufficiencyStatus
@@ -15,12 +16,32 @@ from app.agents.state.models import AgentState, EvidenceSufficiencyStatus
 
 def route_after_understanding(
     state: AgentState
-) -> Literal["handle_unsupported", "handle_clarification", "create_plan"]:
-    """Branch immediately if request is unsupported or ambiguous."""
+) -> Literal["handle_unsupported", "handle_clarification", "semantic_resolution"]:
+    """Branch immediately if request is out of scope or dates are ambiguous."""
     if state.get("is_unsupported"):
         return "handle_unsupported"
     if state.get("needs_clarification"):
         return "handle_clarification"
+    return "semantic_resolution"
+
+
+def route_after_semantic_resolution(
+    state: AgentState
+) -> Literal["handle_unsupported", "handle_clarification", "retrieve_context"]:
+    """Branch if semantic layer detects unsupported metrics or ambiguous business terminology."""
+    if state.get("is_unsupported"):
+        return "handle_unsupported"
+    if state.get("needs_clarification"):
+        return "handle_clarification"
+    return "retrieve_context"
+
+
+def route_after_context_retrieval(
+    state: AgentState
+) -> Literal["generate_explanation", "create_plan"]:
+    """If the query is purely definitional, skip numerical tools and explain directly."""
+    if state.get("is_definitional_only"):
+        return "generate_explanation"
     return "create_plan"
 
 
@@ -56,26 +77,37 @@ def build_agent_graph() -> StateGraph:
     understand_request
       ├── [is_unsupported] ──────────→ handle_unsupported ──→ END
       ├── [needs_clarification] ─────→ handle_clarification ─→ END
-      └── [valid] ───────────────────→ create_plan
-                                            ↓
-                                       validate_plan
-                                            ↓
-                                       [is_valid?]
-                                       ├── [no] ──→ generate_explanation ──→ END
-                                       └── [yes] ─→ execute_tool
-                                                        ↓
-                                                   inspect_result
-                                                        ↓
-                                                   check_evidence
-                                                        ↓
-                                                   [sufficient?]
-                                                   ├── [partial] ─→ execute_tool (loop)
-                                                   └── [yes/err] ─→ generate_explanation ──→ END
+      └── [valid] ───────────────────→ semantic_resolution
+                                             ↓
+                                       [ambiguous/unsupported?]
+                                       ├── [unsupported] ─────────→ handle_unsupported ──→ END
+                                       ├── [ambiguous] ───────────→ handle_clarification ─→ END
+                                       └── [valid] ───────────────→ retrieve_context
+                                                                          ↓
+                                                                    [definitional?]
+                                                                    ├── [yes] ─→ generate_explanation ──→ END
+                                                                    └── [no] ──→ create_plan
+                                                                                      ↓
+                                                                                 validate_plan
+                                                                                      ↓
+                                                                                 [is_valid?]
+                                                                                 ├── [no] ──→ generate_explanation ──→ END
+                                                                                 └── [yes] ─→ execute_tool
+                                                                                                  ↓
+                                                                                             inspect_result
+                                                                                                  ↓
+                                                                                             check_evidence
+                                                                                                  ↓
+                                                                                             [sufficient?]
+                                                                                             ├── [partial] ─→ execute_tool (loop)
+                                                                                             └── [yes/err] ─→ generate_explanation ──→ END
     """
     builder = StateGraph(AgentState)
 
     # 1. Register Nodes
     builder.add_node("understand_request", understand_request_node)
+    builder.add_node("semantic_resolution", semantic_resolution_node)
+    builder.add_node("retrieve_context", retrieve_context_node)
     builder.add_node("handle_unsupported", handle_unsupported_node)
     builder.add_node("handle_clarification", handle_clarification_node)
     builder.add_node("create_plan", create_plan_node)
@@ -94,6 +126,25 @@ def build_agent_graph() -> StateGraph:
         {
             "handle_unsupported": "handle_unsupported",
             "handle_clarification": "handle_clarification",
+            "semantic_resolution": "semantic_resolution",
+        },
+    )
+
+    builder.add_conditional_edges(
+        "semantic_resolution",
+        route_after_semantic_resolution,
+        {
+            "handle_unsupported": "handle_unsupported",
+            "handle_clarification": "handle_clarification",
+            "retrieve_context": "retrieve_context",
+        },
+    )
+
+    builder.add_conditional_edges(
+        "retrieve_context",
+        route_after_context_retrieval,
+        {
+            "generate_explanation": "generate_explanation",
             "create_plan": "create_plan",
         },
     )

@@ -4,6 +4,7 @@ import time
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.agents.graph.workflow import agent_graph
@@ -11,6 +12,7 @@ from app.agents.state.models import AgentState
 from app.analytics.evidence.models import EvidenceRecord
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.rag.retrieval.models import RAGEvidence
 from app.schemas.agent import AgentExecutionMetadata, AgentResponse
 
 logger = get_logger(__name__)
@@ -79,6 +81,10 @@ class NexusAgentService:
             "tools_used": [],
             "follow_up_questions": [],
             "errors": [],
+            "semantic_context": None,
+            "rag_evidence": [],
+            "business_context_text": None,
+            "is_definitional_only": False,
             "iteration_count": 0,
             "max_iterations": max_iters,
         }
@@ -108,8 +114,16 @@ class NexusAgentService:
         for ev in final_state.get("evidence", []):
             try:
                 evidence_records.append(EvidenceRecord.model_validate(ev))
-            except Exception as ex:
+            except (ValidationError, ValueError, TypeError) as ex:
                 logger.warning(f"Failed to validate EvidenceRecord in agent response: {ex}")
+
+        # Deserialize RAG evidence records safely
+        rag_records: list[RAGEvidence] = []
+        for r_ev in final_state.get("rag_evidence", []):
+            try:
+                rag_records.append(RAGEvidence.model_validate(r_ev))
+            except (ValidationError, ValueError, TypeError) as ex:
+                logger.warning(f"Failed to validate RAGEvidence in agent response: {ex}")
 
         # Intent label
         intent_dict = final_state.get("intent") or {}
@@ -136,6 +150,8 @@ class NexusAgentService:
             intent=intent_label,
             explanation_level=explanation_level,
             evidence=evidence_records,
+            rag_evidence=rag_records,
+            semantic_context=final_state.get("semantic_context"),
             calculations=final_state.get("calculations", []),
             assumptions=final_state.get("assumptions", []),
             limitations=final_state.get("limitations", []),

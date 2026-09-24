@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.analytics.evidence.models import EvidenceRecord
+from app.rag.retrieval.models import RAGEvidence
 
 
 class AgentAnalyzeRequest(BaseModel):
@@ -40,6 +41,14 @@ class AgentResponse(BaseModel):
     evidence: list[EvidenceRecord] = Field(
         default_factory=list,
         description="Full provenance and audit records for all underlying deterministic calculations"
+    )
+    rag_evidence: list[RAGEvidence] = Field(
+        default_factory=list,
+        description="Business context provenance records proving where definitions and policies originated"
+    )
+    semantic_context: dict[str, Any] | None = Field(
+        default=None,
+        description="Resolved KPI ontology and terminology mapping"
     )
     calculations: list[dict[str, Any]] = Field(
         default_factory=list,

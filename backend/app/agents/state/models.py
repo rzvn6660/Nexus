@@ -111,5 +111,9 @@ class AgentState(TypedDict, total=False):
     tools_used: list[str]
     follow_up_questions: list[str]
     errors: list[str]
+    semantic_context: dict[str, Any] | None
+    rag_evidence: list[dict[str, Any]]
+    business_context_text: str | None
+    is_definitional_only: bool
     iteration_count: int
     max_iterations: int

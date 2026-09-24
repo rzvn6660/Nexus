@@ -402,8 +402,11 @@ class MockLLMProvider(BaseLLMProvider):
         tool_results: list[dict[str, Any]],
         evidence: list[dict[str, Any]],
         explanation_level: ExplanationLevel,
+        business_context: str | None = None,
     ) -> str:
         if not tool_results:
+            if business_context:
+                return f"Verified Business Context:\n\n{business_context}"
             return "No analytical results were returned to synthesize an answer."
 
         # Aggregate evidence summaries and find key outputs
@@ -500,6 +503,9 @@ class MockLLMProvider(BaseLLMProvider):
             lines.append(f"Analysis completed successfully using {tools_executed[0]}.")
             if isinstance(first_res, dict):
                 lines.append(f"Key metrics: { {k: v for k, v in list(first_res.items())[:4]} }")
+
+        if business_context:
+            lines.append(f"\nBusiness Context:\n{business_context}")
 
         # Format according to requested ExplanationLevel
         if explanation_level == ExplanationLevel.SIMPLE:

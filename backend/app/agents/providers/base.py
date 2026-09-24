@@ -43,8 +43,9 @@ class BaseLLMProvider(ABC):
         tool_results: list[dict[str, Any]],
         evidence: list[dict[str, Any]],
         explanation_level: ExplanationLevel,
+        business_context: str | None = None,
     ) -> str:
         """
-        Synthesize a grounded natural language explanation based strictly on returned tool evidence.
-        Must not hallucinate or compute arithmetic independently.
+        Synthesize a grounded natural language explanation based strictly on returned tool evidence
+        and verified business context. Must not hallucinate or compute arithmetic independently.
         """

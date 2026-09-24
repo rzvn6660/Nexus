@@ -81,10 +81,14 @@ class Settings(BaseSettings):
     MAX_AGENT_ITERATIONS: int = 5
     DEFAULT_EXPLANATION_LEVEL: str = "manager"
 
-    # RAG / Semantic Layer Configuration (Placeholders)
-    EMBEDDING_PROVIDER: str = "openai"
+    # RAG / Semantic Layer Configuration
+    EMBEDDING_PROVIDER: str = "mock"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_DIMENSION: int = 1536
     VECTOR_STORE_TYPE: str = "pgvector"
+    RAG_TOP_K: int = 3
+    RAG_SIMILARITY_THRESHOLD: float = 0.2
+    MAX_DOCUMENT_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB max document size
 
     @property
     def is_production(self) -> bool:

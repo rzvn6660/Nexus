@@ -70,6 +70,24 @@ def db_session() -> Session:
 
 
 @pytest.fixture(scope="function")
+def api_client(db_session: Session) -> TestClient:
+    """Provide a TestClient with dependency override to the test db_session."""
+    from app.main import app
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    try:
+        yield client
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
 def seeded_db_session(db_session: Session) -> Session:
     """Populate test database with a small representative retail dataset."""
     for table in reversed(Base.metadata.sorted_tables):

@@ -11,13 +11,15 @@ def generate_explanation_node(state: AgentState) -> dict[str, Any]:
     Synthesize natural language explanation grounded strictly in the executed tools and evidence.
     Generates intelligent follow-up suggestions for analyst and business user workflows.
     """
+    user_query = state.get("user_query", "")
     errors = state.get("errors", [])
     tool_results = state.get("tool_results", [])
     evidence = state.get("evidence", [])
-    user_query = state.get("user_query", "")
+    business_context = state.get("business_context_text")
+    is_definitional = state.get("is_definitional_only", False)
 
-    # If critical errors occurred and no tools succeeded
-    if errors and not any(r.get("status") == "success" for r in tool_results):
+    # If critical errors occurred and no tools succeeded AND this is not a definitional question
+    if errors and not is_definitional and not any(r.get("status") == "success" for r in tool_results):
         err_text = "\n".join(errors)
         return {
             "final_answer": (
@@ -47,7 +49,18 @@ def generate_explanation_node(state: AgentState) -> dict[str, Any]:
         tool_results=tool_results,
         evidence=evidence,
         explanation_level=exp_lvl,
+        business_context=business_context,
     )
+
+    # Attach RAG provenance citations if available
+    rag_evidence = state.get("rag_evidence", [])
+    if rag_evidence and "Business Context Sources" not in explanation:
+        sources_list = []
+        for ev in rag_evidence:
+            title_part = f" — {ev.get('title')}" if ev.get("title") else ""
+            sources_list.append(f"• {ev.get('document_name')}{title_part} (ID: {ev.get('document_id')})")
+        if sources_list:
+            explanation += "\n\n**Business Context Sources:**\n" + "\n".join(sources_list)
 
     # Generate contextual follow-up questions
     follow_ups: list[str] = []
