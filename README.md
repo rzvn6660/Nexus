@@ -152,10 +152,11 @@ nexus/
 | **Data API** | **Implemented** | `GET /api/v1/data/health`, `GET /tables`, `GET /profile/{dataset}`, `GET /quality/{dataset}`, `POST /ingest/csv` |
 | **Docker Compose** | **Implemented** | Multi-service Compose environment orchestrating PostgreSQL 16, backend, and frontend |
 | **Frontend Foundation** | **Implemented** | React 18 + Vite + Tailwind CSS dashboard visualizing live telemetry, 11-step workflow, and domain entities |
-| **Test Suite** | **Implemented** | 34 Pytest tests covering health, models, generator, ingestion, profiling, quality rules, and API endpoints |
-| **Documentation** | **Implemented** | Architecture blueprints in `docs/architecture/` and comprehensive data documentation in `docs/data/` |
+| **Test Suite** | **Implemented** | 65 Pytest tests covering health, models, generator, ingestion, profiling, quality rules, financial metrics, time-series, diagnostic variance, PVM decomposition, RFM, cohorts, inventory turnover, statistical tests, and API endpoints |
+| **Documentation** | **Implemented** | Architecture blueprints in `docs/architecture/`, data specifications in `docs/data/`, and analytics documentation in `docs/analytics/` |
 | **CI Automation** | **Implemented** | GitHub Actions workflow executing backend tests, type checks, and frontend build |
-| **Deterministic Analytics** | *Planned (Phase 3)* | Descriptive KPI calculations, variance decomposition, statistics, and forecasting modules |
+| **Deterministic Analytics** | **Implemented** | 12 GAAP financial metrics, time-series rollups, Price/Volume/Mix decomposition, RFM segmentation, customer cohorts, inventory turnover, descriptive stats, correlation, and Welch's t-test with traceable `EvidenceRecord` metadata |
+| **Analytics API** | **Implemented** | Endpoints under `/api/v1/analytics/` (`/summary`, `/revenue`, `/profit`, `/sales`, `/products`, `/categories`, `/customers`, `/rfm`, `/cohorts`, `/inventory`, `/expenses`, `/timeseries`, `/variance`, `/decomposition`, `/statistics/*`) |
 | **LangGraph Agents** | *Planned (Phase 4)* | Multi-node state machine and tool calling routines |
 | **Semantic Layer** | *Planned (Phase 5)* | Explicit metric catalog and formula compiler |
 | **Evidence & HITL** | *Future (Phase 6)* | Cryptographic evidence hashing and analyst approval console |

@@ -1,4 +1,4 @@
-"""NEXUS Deterministic Analytics Engine package."""
+"""Core analytics interfaces, context types, exceptions, and models."""
 
 from app.analytics.core.types import (
     PeriodGranularity,
@@ -8,7 +8,6 @@ from app.analytics.core.types import (
     HypothesisTestType,
     SortOrder,
 )
-from app.analytics.core.context import AnalysisContext
 from app.analytics.core.exceptions import (
     AnalyticsError,
     InsufficientDataError,
@@ -16,6 +15,7 @@ from app.analytics.core.exceptions import (
     UndefinedMetricError,
     DecompositionError,
 )
+from app.analytics.core.context import AnalysisContext
 from app.analytics.core.models import (
     MetricValue,
     ComparisonResult,
@@ -35,9 +35,6 @@ from app.analytics.core.models import (
     StatisticalTestResult,
     CorrelationResult,
 )
-from app.analytics.evidence.models import EvidenceRecord
-from app.analytics.evidence.builder import EvidenceBuilder
-from app.analytics.service import AnalyticsService
 
 __all__ = [
     "PeriodGranularity",
@@ -46,12 +43,12 @@ __all__ = [
     "CorrelationMethod",
     "HypothesisTestType",
     "SortOrder",
-    "AnalysisContext",
     "AnalyticsError",
     "InsufficientDataError",
     "InvalidContextError",
     "UndefinedMetricError",
     "DecompositionError",
+    "AnalysisContext",
     "MetricValue",
     "ComparisonResult",
     "BreakdownItem",
@@ -69,7 +66,4 @@ __all__ = [
     "VarianceAnalysisResult",
     "StatisticalTestResult",
     "CorrelationResult",
-    "EvidenceRecord",
-    "EvidenceBuilder",
-    "AnalyticsService",
 ]
