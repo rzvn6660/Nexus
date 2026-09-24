@@ -18,3 +18,8 @@ python-multipart>=0.0.9,<1.0.0
 numpy>=1.26.0,<3.0.0
 pandas>=2.2.0,<3.0.0
 scipy>=1.12.0,<2.0.0
+
+# Agent & LangGraph Orchestration
+langgraph>=0.2.0,<1.0.0
+langchain-core>=0.3.0,<2.0.0
+openai>=1.20.0,<3.0.0

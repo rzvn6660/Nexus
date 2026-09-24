@@ -1,5 +1,16 @@
 """Agent orchestration layer for NEXUS.
 
-This package houses the stateful LangGraph workflows, agent execution nodes,
-deterministic analytical tools, and shared state definitions.
+Houses stateful LangGraph workflows, deterministic analytical tools,
+and the NexusAgentService coordination facade.
 """
+
+from app.agents.graph.workflow import agent_graph, build_agent_graph
+from app.agents.service import NexusAgentService
+from app.agents.tools.registry import tool_registry
+
+__all__ = [
+    "NexusAgentService",
+    "agent_graph",
+    "build_agent_graph",
+    "tool_registry",
+]

@@ -72,12 +72,14 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: int = 30
     DB_ECHO: bool = False
 
-    # AI / LLM Layer Configuration (Placeholders for upcoming phases)
+    # AI / LLM Layer Configuration
     DEFAULT_LLM_PROVIDER: str = "openai"
     DEFAULT_LLM_MODEL: str = "gpt-4o"
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
+    MAX_AGENT_ITERATIONS: int = 5
+    DEFAULT_EXPLANATION_LEVEL: str = "manager"
 
     # RAG / Semantic Layer Configuration (Placeholders)
     EMBEDDING_PROVIDER: str = "openai"

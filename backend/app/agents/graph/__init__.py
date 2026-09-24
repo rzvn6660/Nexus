@@ -1,1 +1,5 @@
-"""LangGraph workflow graph assembly and orchestration definitions."""
+"""Graph package exports."""
+
+from app.agents.graph.workflow import agent_graph, build_agent_graph
+
+__all__ = ["agent_graph", "build_agent_graph"]

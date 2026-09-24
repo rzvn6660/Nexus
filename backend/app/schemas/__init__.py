@@ -29,6 +29,7 @@ from app.schemas.quality import (
     QualityReport,
 )
 from app.schemas.ingestion import IngestionRowError, IngestionResult
+from app.schemas.agent import AgentAnalyzeRequest, AgentResponse, AgentExecutionMetadata
 
 __all__ = [
     "HealthResponse",
@@ -64,4 +65,7 @@ __all__ = [
     "QualityReport",
     "IngestionRowError",
     "IngestionResult",
+    "AgentAnalyzeRequest",
+    "AgentResponse",
+    "AgentExecutionMetadata",
 ]
