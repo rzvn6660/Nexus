@@ -1,0 +1,151 @@
+id,sku,name,category,subcategory,unit_cost,selling_price,active,created_at,updated_at
+1,SKU-ELE-0001,Essential Smart Devices Module #1,Electronics,Smart Devices,139.16,240.52,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+2,SKU-OFF-0002,Ultra Paper Goods System #2,Office Supplies,Paper Goods,18.30,37.93,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+3,SKU-IND-0003,Compact Safety Equipment Kit #3,Industrial Tools,Safety Equipment,36.18,72.17,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+4,SKU-PAC-0004,Eco Tape & Adhesives Pack #4,Packaging & Shipping,Tape & Adhesives,35.99,83.82,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+5,SKU-WOR-0005,Ultra Eye Protection Pack #5,Workwear & Safety,Eye Protection,48.85,100.68,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+6,SKU-ELE-0006,Ultra Audio Module #6,Electronics,Audio,128.84,200.80,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+7,SKU-OFF-0007,Heavy-Duty Desk Organization Apparatus #7,Office Supplies,Desk Organization,26.30,50.71,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+8,SKU-IND-0008,Compact Measurement Station #8,Industrial Tools,Measurement,121.72,178.97,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+9,SKU-PAC-0009,Precision Cardboard Boxes Kit #9,Packaging & Shipping,Cardboard Boxes,37.89,73.97,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+10,SKU-WOR-0010,Ultra Eye Protection Unit #10,Workwear & Safety,Eye Protection,14.73,26.82,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+11,SKU-ELE-0011,Essential Power & Batteries Set #11,Electronics,Power & Batteries,24.15,46.71,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+12,SKU-OFF-0012,Precision Desk Organization Apparatus #12,Office Supplies,Desk Organization,17.48,37.40,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+13,SKU-IND-0013,Pro Fasteners & Hardware Pack #13,Industrial Tools,Fasteners & Hardware,238.50,390.04,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+14,SKU-PAC-0014,Precision Tape & Adhesives Kit #14,Packaging & Shipping,Tape & Adhesives,10.21,22.92,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+15,SKU-WOR-0015,Pro Protective Gloves Unit #15,Workwear & Safety,Protective Gloves,35.74,67.41,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+16,SKU-ELE-0016,Compact Smart Devices Kit #16,Electronics,Smart Devices,85.50,145.60,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+17,SKU-OFF-0017,Industrial Desk Organization Apparatus #17,Office Supplies,Desk Organization,12.99,28.18,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+18,SKU-IND-0018,Ultra Measurement Kit #18,Industrial Tools,Measurement,109.80,209.61,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+19,SKU-PAC-0019,Essential Envelopes Unit #19,Packaging & Shipping,Envelopes,24.19,53.51,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+20,SKU-WOR-0020,Essential Work Boots Kit #20,Workwear & Safety,Work Boots,23.19,45.13,False,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+21,SKU-ELE-0021,Precision Smart Devices Pack #21,Electronics,Smart Devices,15.89,32.08,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+22,SKU-OFF-0022,Ultra Writing Instruments Kit #22,Office Supplies,Writing Instruments,3.70,8.25,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+23,SKU-IND-0023,Pro Hand Tools Apparatus #23,Industrial Tools,Hand Tools,36.78,62.82,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+24,SKU-PAC-0024,Eco Cushioning & Wrap System #24,Packaging & Shipping,Cushioning & Wrap,26.56,66.05,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+25,SKU-WOR-0025,Essential Work Boots Set #25,Workwear & Safety,Work Boots,34.77,68.73,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+26,SKU-ELE-0026,Industrial Cables & Adapters Station #26,Electronics,Cables & Adapters,11.42,20.89,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+27,SKU-OFF-0027,Ultra Desk Organization Pack #27,Office Supplies,Desk Organization,11.18,29.09,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+28,SKU-IND-0028,Compact Safety Equipment Set #28,Industrial Tools,Safety Equipment,42.47,69.53,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+29,SKU-PAC-0029,Precision Envelopes Apparatus #29,Packaging & Shipping,Envelopes,38.00,78.65,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+30,SKU-WOR-0030,Essential Eye Protection Module #30,Workwear & Safety,Eye Protection,46.55,82.89,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+31,SKU-ELE-0031,Eco Power & Batteries Pack #31,Electronics,Power & Batteries,87.94,140.91,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+32,SKU-OFF-0032,Eco Binding Station #32,Office Supplies,Binding,6.00,14.97,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+33,SKU-IND-0033,Ultra Hand Tools Station #33,Industrial Tools,Hand Tools,68.26,110.40,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+34,SKU-PAC-0034,Heavy-Duty Cardboard Boxes Station #34,Packaging & Shipping,Cardboard Boxes,18.15,31.49,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+35,SKU-WOR-0035,Precision Eye Protection Kit #35,Workwear & Safety,Eye Protection,6.51,10.84,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+36,SKU-ELE-0036,Standard Smart Devices Kit #36,Electronics,Smart Devices,149.76,246.77,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+37,SKU-OFF-0037,Standard Writing Instruments Unit #37,Office Supplies,Writing Instruments,2.61,4.83,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+38,SKU-IND-0038,Essential Fasteners & Hardware Module #38,Industrial Tools,Fasteners & Hardware,129.62,214.26,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+39,SKU-PAC-0039,Essential Envelopes Station #39,Packaging & Shipping,Envelopes,27.48,58.90,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+40,SKU-WOR-0040,Compact Eye Protection Kit #40,Workwear & Safety,Eye Protection,15.13,30.63,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+41,SKU-ELE-0041,Essential Power & Batteries Kit #41,Electronics,Power & Batteries,79.34,152.34,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+42,SKU-OFF-0042,Eco Writing Instruments Pack #42,Office Supplies,Writing Instruments,10.04,19.12,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+43,SKU-IND-0043,Standard Hand Tools Kit #43,Industrial Tools,Hand Tools,244.24,410.04,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+44,SKU-PAC-0044,Industrial Cushioning & Wrap System #44,Packaging & Shipping,Cushioning & Wrap,54.32,99.67,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+45,SKU-WOR-0045,Compact Eye Protection Set #45,Workwear & Safety,Eye Protection,6.96,12.77,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+46,SKU-ELE-0046,Precision Power & Batteries Module #46,Electronics,Power & Batteries,146.23,226.60,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+47,SKU-OFF-0047,Ultra Writing Instruments Module #47,Office Supplies,Writing Instruments,6.17,11.60,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+48,SKU-IND-0048,Heavy-Duty Safety Equipment Set #48,Industrial Tools,Safety Equipment,21.01,30.80,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+49,SKU-PAC-0049,Pro Cardboard Boxes Kit #49,Packaging & Shipping,Cardboard Boxes,21.42,40.05,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+50,SKU-WOR-0050,Compact Protective Gloves Unit #50,Workwear & Safety,Protective Gloves,14.18,25.22,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+51,SKU-ELE-0051,Industrial Audio Apparatus #51,Electronics,Audio,10.63,17.66,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+52,SKU-OFF-0052,Compact Binding Apparatus #52,Office Supplies,Binding,28.00,56.44,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+53,SKU-IND-0053,Industrial Hand Tools Kit #53,Industrial Tools,Hand Tools,44.28,71.59,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+54,SKU-PAC-0054,Essential Cardboard Boxes Unit #54,Packaging & Shipping,Cardboard Boxes,7.46,15.26,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+55,SKU-WOR-0055,Industrial Eye Protection Module #55,Workwear & Safety,Eye Protection,6.77,12.74,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+56,SKU-ELE-0056,Precision Cables & Adapters Apparatus #56,Electronics,Cables & Adapters,95.56,176.15,False,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+57,SKU-OFF-0057,Essential Binding Kit #57,Office Supplies,Binding,24.84,58.32,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+58,SKU-IND-0058,Precision Measurement Station #58,Industrial Tools,Measurement,21.37,32.89,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+59,SKU-PAC-0059,Pro Cushioning & Wrap Module #59,Packaging & Shipping,Cushioning & Wrap,18.47,37.08,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+60,SKU-WOR-0060,Ultra Protective Gloves Module #60,Workwear & Safety,Protective Gloves,13.46,23.84,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+61,SKU-ELE-0061,Eco Smart Devices Station #61,Electronics,Smart Devices,144.99,238.54,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+62,SKU-OFF-0062,Standard Writing Instruments Unit #62,Office Supplies,Writing Instruments,8.32,23.50,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+63,SKU-IND-0063,Compact Fasteners & Hardware Kit #63,Industrial Tools,Fasteners & Hardware,25.73,42.31,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+64,SKU-PAC-0064,Standard Cushioning & Wrap Kit #64,Packaging & Shipping,Cushioning & Wrap,26.11,43.54,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+65,SKU-WOR-0065,Standard High-Vis Vests Set #65,Workwear & Safety,High-Vis Vests,16.33,33.01,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+66,SKU-ELE-0066,Standard Audio Pack #66,Electronics,Audio,38.59,81.84,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+67,SKU-OFF-0067,Essential Binding Kit #67,Office Supplies,Binding,19.22,40.18,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+68,SKU-IND-0068,Industrial Fasteners & Hardware Kit #68,Industrial Tools,Fasteners & Hardware,231.85,379.41,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+69,SKU-PAC-0069,Heavy-Duty Tape & Adhesives System #69,Packaging & Shipping,Tape & Adhesives,5.77,13.22,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+70,SKU-WOR-0070,Standard Eye Protection System #70,Workwear & Safety,Eye Protection,100.69,163.76,False,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+71,SKU-ELE-0071,Eco Power & Batteries Apparatus #71,Electronics,Power & Batteries,12.65,21.27,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+72,SKU-OFF-0072,Essential Desk Organization Pack #72,Office Supplies,Desk Organization,11.00,25.18,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+73,SKU-IND-0073,Industrial Hand Tools Unit #73,Industrial Tools,Hand Tools,9.86,19.20,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+74,SKU-PAC-0074,Eco Cardboard Boxes Unit #74,Packaging & Shipping,Cardboard Boxes,49.69,107.70,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+75,SKU-WOR-0075,Pro Eye Protection Station #75,Workwear & Safety,Eye Protection,5.63,10.06,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+76,SKU-ELE-0076,Standard Power & Batteries Apparatus #76,Electronics,Power & Batteries,18.28,35.56,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+77,SKU-OFF-0077,Heavy-Duty Paper Goods Set #77,Office Supplies,Paper Goods,23.75,47.01,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+78,SKU-IND-0078,Ultra Fasteners & Hardware Kit #78,Industrial Tools,Fasteners & Hardware,8.09,12.23,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+79,SKU-PAC-0079,Ultra Cushioning & Wrap System #79,Packaging & Shipping,Cushioning & Wrap,53.51,103.86,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+80,SKU-WOR-0080,Ultra Work Boots Kit #80,Workwear & Safety,Work Boots,13.07,24.56,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+81,SKU-ELE-0081,Compact Audio Unit #81,Electronics,Audio,50.89,96.97,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+82,SKU-OFF-0082,Pro Binding Station #82,Office Supplies,Binding,3.75,7.77,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+83,SKU-IND-0083,Standard Safety Equipment Pack #83,Industrial Tools,Safety Equipment,212.36,389.76,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+84,SKU-PAC-0084,Pro Cardboard Boxes Set #84,Packaging & Shipping,Cardboard Boxes,5.88,10.01,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+85,SKU-WOR-0085,Standard Protective Gloves Kit #85,Workwear & Safety,Protective Gloves,58.71,96.04,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+86,SKU-ELE-0086,Eco Power & Batteries Kit #86,Electronics,Power & Batteries,9.49,18.45,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+87,SKU-OFF-0087,Precision Binding System #87,Office Supplies,Binding,5.23,12.26,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+88,SKU-IND-0088,Precision Hand Tools Pack #88,Industrial Tools,Hand Tools,38.80,63.91,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+89,SKU-PAC-0089,Industrial Cardboard Boxes Pack #89,Packaging & Shipping,Cardboard Boxes,14.05,26.30,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+90,SKU-WOR-0090,Essential Protective Gloves Unit #90,Workwear & Safety,Protective Gloves,27.87,55.49,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+91,SKU-ELE-0091,Industrial Power & Batteries Module #91,Electronics,Power & Batteries,82.49,147.01,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+92,SKU-OFF-0092,Eco Paper Goods Station #92,Office Supplies,Paper Goods,2.47,5.71,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+93,SKU-IND-0093,Compact Safety Equipment Unit #93,Industrial Tools,Safety Equipment,13.19,20.67,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+94,SKU-PAC-0094,Essential Cardboard Boxes Kit #94,Packaging & Shipping,Cardboard Boxes,14.56,31.07,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+95,SKU-WOR-0095,Industrial Protective Gloves System #95,Workwear & Safety,Protective Gloves,20.07,33.87,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+96,SKU-ELE-0096,Standard Smart Devices Station #96,Electronics,Smart Devices,15.11,27.23,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+97,SKU-OFF-0097,Essential Writing Instruments Pack #97,Office Supplies,Writing Instruments,10.39,22.29,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+98,SKU-IND-0098,Industrial Hand Tools System #98,Industrial Tools,Hand Tools,38.58,74.76,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+99,SKU-PAC-0099,Compact Cushioning & Wrap Set #99,Packaging & Shipping,Cushioning & Wrap,6.78,14.97,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+100,SKU-WOR-0100,Pro High-Vis Vests Pack #100,Workwear & Safety,High-Vis Vests,67.41,108.88,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+101,SKU-ELE-0101,Compact Audio Kit #101,Electronics,Audio,13.20,23.49,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+102,SKU-OFF-0102,Heavy-Duty Desk Organization Module #102,Office Supplies,Desk Organization,3.58,6.94,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+103,SKU-IND-0103,Heavy-Duty Safety Equipment Pack #103,Industrial Tools,Safety Equipment,16.13,23.19,False,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+104,SKU-PAC-0104,Ultra Cushioning & Wrap Station #104,Packaging & Shipping,Cushioning & Wrap,9.56,21.60,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+105,SKU-WOR-0105,Compact Work Boots Module #105,Workwear & Safety,Work Boots,21.24,37.38,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+106,SKU-ELE-0106,Essential Power & Batteries Module #106,Electronics,Power & Batteries,151.98,238.62,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+107,SKU-OFF-0107,Compact Desk Organization Set #107,Office Supplies,Desk Organization,7.26,17.66,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+108,SKU-IND-0108,Industrial Safety Equipment Unit #108,Industrial Tools,Safety Equipment,196.33,358.67,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+109,SKU-PAC-0109,Heavy-Duty Tape & Adhesives Module #109,Packaging & Shipping,Tape & Adhesives,7.25,15.29,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+110,SKU-WOR-0110,Standard Eye Protection Pack #110,Workwear & Safety,Eye Protection,11.14,18.31,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+111,SKU-ELE-0111,Eco Power & Batteries Station #111,Electronics,Power & Batteries,83.31,159.91,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+112,SKU-OFF-0112,Eco Binding Apparatus #112,Office Supplies,Binding,2.68,6.59,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+113,SKU-IND-0113,Pro Measurement System #113,Industrial Tools,Measurement,40.22,68.89,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+114,SKU-PAC-0114,Industrial Cushioning & Wrap Unit #114,Packaging & Shipping,Cushioning & Wrap,14.47,26.16,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+115,SKU-WOR-0115,Compact Eye Protection Unit #115,Workwear & Safety,Eye Protection,25.50,52.15,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+116,SKU-ELE-0116,Eco Cables & Adapters Station #116,Electronics,Cables & Adapters,94.60,160.06,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+117,SKU-OFF-0117,Precision Paper Goods Apparatus #117,Office Supplies,Paper Goods,6.23,14.64,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+118,SKU-IND-0118,Heavy-Duty Measurement Set #118,Industrial Tools,Measurement,27.96,46.55,False,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+119,SKU-PAC-0119,Compact Envelopes Pack #119,Packaging & Shipping,Envelopes,6.95,14.76,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+120,SKU-WOR-0120,Ultra Protective Gloves Pack #120,Workwear & Safety,Protective Gloves,47.53,96.94,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+121,SKU-ELE-0121,Compact Audio Unit #121,Electronics,Audio,48.85,83.76,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+122,SKU-OFF-0122,Essential Writing Instruments Unit #122,Office Supplies,Writing Instruments,2.92,6.81,False,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+123,SKU-IND-0123,Precision Fasteners & Hardware Set #123,Industrial Tools,Fasteners & Hardware,21.41,33.94,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+124,SKU-PAC-0124,Essential Cardboard Boxes Set #124,Packaging & Shipping,Cardboard Boxes,13.71,27.57,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+125,SKU-WOR-0125,Eco High-Vis Vests Apparatus #125,Workwear & Safety,High-Vis Vests,21.59,39.40,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+126,SKU-ELE-0126,Industrial Power & Batteries Set #126,Electronics,Power & Batteries,27.76,43.86,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+127,SKU-OFF-0127,Eco Binding Kit #127,Office Supplies,Binding,3.30,7.18,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+128,SKU-IND-0128,Standard Safety Equipment Station #128,Industrial Tools,Safety Equipment,20.46,37.04,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+129,SKU-PAC-0129,Eco Envelopes Unit #129,Packaging & Shipping,Envelopes,10.97,24.42,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+130,SKU-WOR-0130,Essential Protective Gloves Module #130,Workwear & Safety,Protective Gloves,31.75,51.58,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+131,SKU-ELE-0131,Precision Smart Devices Set #131,Electronics,Smart Devices,44.03,89.82,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+132,SKU-OFF-0132,Standard Binding Pack #132,Office Supplies,Binding,2.26,4.78,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+133,SKU-IND-0133,Essential Measurement Pack #133,Industrial Tools,Measurement,80.99,126.74,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+134,SKU-PAC-0134,Standard Cushioning & Wrap Kit #134,Packaging & Shipping,Cushioning & Wrap,4.02,8.70,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+135,SKU-WOR-0135,Industrial Protective Gloves System #135,Workwear & Safety,Protective Gloves,78.85,139.31,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+136,SKU-ELE-0136,Pro Audio Module #136,Electronics,Audio,36.20,62.81,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+137,SKU-OFF-0137,Essential Binding Set #137,Office Supplies,Binding,4.19,11.90,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+138,SKU-IND-0138,Industrial Hand Tools Module #138,Industrial Tools,Hand Tools,26.17,50.39,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+139,SKU-PAC-0139,Standard Tape & Adhesives Module #139,Packaging & Shipping,Tape & Adhesives,11.38,24.84,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+140,SKU-WOR-0140,Standard Work Boots Unit #140,Workwear & Safety,Work Boots,30.03,54.63,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+141,SKU-ELE-0141,Industrial Cables & Adapters Station #141,Electronics,Cables & Adapters,29.62,61.07,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+142,SKU-OFF-0142,Ultra Binding Unit #142,Office Supplies,Binding,6.27,14.43,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+143,SKU-IND-0143,Heavy-Duty Measurement Set #143,Industrial Tools,Measurement,22.92,43.13,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+144,SKU-PAC-0144,Precision Cushioning & Wrap Apparatus #144,Packaging & Shipping,Cushioning & Wrap,13.39,23.74,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+145,SKU-WOR-0145,Pro High-Vis Vests System #145,Workwear & Safety,High-Vis Vests,45.68,75.31,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+146,SKU-ELE-0146,Heavy-Duty Cables & Adapters Pack #146,Electronics,Cables & Adapters,18.63,35.53,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+147,SKU-OFF-0147,Eco Desk Organization Pack #147,Office Supplies,Desk Organization,23.57,50.40,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+148,SKU-IND-0148,Compact Hand Tools Set #148,Industrial Tools,Hand Tools,116.65,194.70,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+149,SKU-PAC-0149,Pro Tape & Adhesives Pack #149,Packaging & Shipping,Tape & Adhesives,8.14,13.78,True,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00
+150,SKU-WOR-0150,Industrial Eye Protection Set #150,Workwear & Safety,Eye Protection,15.51,30.09,False,2026-09-24 15:51:32.429942+00:00,2026-09-24 15:51:32.429942+00:00

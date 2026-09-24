@@ -1,0 +1,107 @@
+id,expense_date,category,description,amount,recurring,created_at,updated_at
+1,2025-04-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-04-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+2,2025-04-15,Payroll,Bi-weekly operational and warehouse payroll,9043.67,True,2025-04-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+3,2025-04-16,Utilities,"Electricity, water, heating, and broadband",972.67,True,2025-04-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+4,2025-04-18,Logistics,Freight carrier and last-mile delivery fees,1256.73,False,2025-04-18 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+5,2025-04-09,Marketing,"Search ads, printed flyers, local sponsorships",1404.68,False,2025-04-09 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+6,2025-04-07,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",605.61,False,2025-04-07 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+7,2025-05-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-05-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+8,2025-05-15,Payroll,Bi-weekly operational and warehouse payroll,9318.95,True,2025-05-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+9,2025-05-16,Utilities,"Electricity, water, heating, and broadband",1228.26,True,2025-05-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+10,2025-05-16,Logistics,Freight carrier and last-mile delivery fees,1614.04,False,2025-05-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+11,2025-05-23,Marketing,"Search ads, printed flyers, local sponsorships",1715.12,False,2025-05-23 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+12,2025-05-04,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",699.08,False,2025-05-04 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+13,2025-06-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-06-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+14,2025-06-15,Payroll,Bi-weekly operational and warehouse payroll,9185.09,True,2025-06-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+15,2025-06-16,Utilities,"Electricity, water, heating, and broadband",1178.81,True,2025-06-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+16,2025-06-08,Logistics,Freight carrier and last-mile delivery fees,1522.79,False,2025-06-08 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+17,2025-06-28,Marketing,"Search ads, printed flyers, local sponsorships",1468.39,False,2025-06-28 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+18,2025-06-26,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",756.78,False,2025-06-26 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+19,2025-07-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-07-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+20,2025-07-15,Payroll,Bi-weekly operational and warehouse payroll,8846.84,True,2025-07-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+21,2025-07-16,Utilities,"Electricity, water, heating, and broadband",1271.09,True,2025-07-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+22,2025-07-04,Logistics,Freight carrier and last-mile delivery fees,1600.17,False,2025-07-04 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+23,2025-07-17,Marketing,"Search ads, printed flyers, local sponsorships",1807.90,False,2025-07-17 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+24,2025-07-11,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",822.38,False,2025-07-11 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+25,2025-08-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-08-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+26,2025-08-15,Payroll,Bi-weekly operational and warehouse payroll,8931.44,True,2025-08-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+27,2025-08-16,Utilities,"Electricity, water, heating, and broadband",1287.70,True,2025-08-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+28,2025-08-12,Logistics,Freight carrier and last-mile delivery fees,1708.73,False,2025-08-12 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+29,2025-08-22,Marketing,"Search ads, printed flyers, local sponsorships",1665.36,False,2025-08-22 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+30,2025-08-15,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",626.39,False,2025-08-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+31,2025-09-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-09-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+32,2025-09-15,Payroll,Bi-weekly operational and warehouse payroll,9544.20,True,2025-09-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+33,2025-09-16,Utilities,"Electricity, water, heating, and broadband",920.53,True,2025-09-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+34,2025-09-24,Logistics,Freight carrier and last-mile delivery fees,1117.48,False,2025-09-24 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+35,2025-09-10,Marketing,"Search ads, printed flyers, local sponsorships",1368.33,False,2025-09-10 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+36,2025-09-27,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",827.22,False,2025-09-27 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+37,2025-10-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-10-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+38,2025-10-15,Payroll,Bi-weekly operational and warehouse payroll,9657.53,True,2025-10-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+39,2025-10-16,Utilities,"Electricity, water, heating, and broadband",1056.20,True,2025-10-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+40,2025-10-20,Logistics,Freight carrier and last-mile delivery fees,1812.36,False,2025-10-20 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+41,2025-10-08,Marketing,"Search ads, printed flyers, local sponsorships",1391.32,False,2025-10-08 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+42,2025-10-12,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",672.28,False,2025-10-12 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+43,2025-11-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-11-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+44,2025-11-15,Payroll,Bi-weekly operational and warehouse payroll,8741.77,True,2025-11-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+45,2025-11-16,Utilities,"Electricity, water, heating, and broadband",1267.56,True,2025-11-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+46,2025-11-10,Logistics,Freight carrier and last-mile delivery fees,1400.00,False,2025-11-10 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+47,2025-11-08,Marketing,"Search ads, printed flyers, local sponsorships",1727.91,False,2025-11-08 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+48,2025-11-21,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",712.02,False,2025-11-21 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+49,2025-12-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2025-12-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+50,2025-12-15,Payroll,Bi-weekly operational and warehouse payroll,9631.98,True,2025-12-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+51,2025-12-16,Utilities,"Electricity, water, heating, and broadband",1186.17,True,2025-12-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+52,2025-12-13,Logistics,Freight carrier and last-mile delivery fees,1222.56,False,2025-12-13 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+53,2025-12-25,Marketing,"Search ads, printed flyers, local sponsorships",1447.91,False,2025-12-25 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+54,2025-12-18,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",798.85,False,2025-12-18 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+55,2026-01-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-01-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+56,2026-01-15,Payroll,Bi-weekly operational and warehouse payroll,9291.51,True,2026-01-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+57,2026-01-16,Utilities,"Electricity, water, heating, and broadband",1006.53,True,2026-01-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+58,2026-01-06,Logistics,Freight carrier and last-mile delivery fees,1405.03,False,2026-01-06 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+59,2026-01-19,Marketing,"Search ads, printed flyers, local sponsorships",1661.59,False,2026-01-19 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+60,2026-01-09,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",701.86,False,2026-01-09 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+61,2026-02-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-02-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+62,2026-02-15,Payroll,Bi-weekly operational and warehouse payroll,9108.73,True,2026-02-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+63,2026-02-16,Utilities,"Electricity, water, heating, and broadband",1154.65,True,2026-02-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+64,2026-02-17,Logistics,Freight carrier and last-mile delivery fees,1791.55,False,2026-02-17 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+65,2026-02-21,Marketing,"Search ads, printed flyers, local sponsorships",1368.96,False,2026-02-21 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+66,2026-02-08,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",755.41,False,2026-02-08 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+67,2026-03-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-03-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+68,2026-03-15,Payroll,Bi-weekly operational and warehouse payroll,8969.20,True,2026-03-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+69,2026-03-16,Utilities,"Electricity, water, heating, and broadband",1106.96,True,2026-03-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+70,2026-03-25,Logistics,Freight carrier and last-mile delivery fees,954.05,False,2026-03-25 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+71,2026-03-25,Marketing,"Search ads, printed flyers, local sponsorships",1364.65,False,2026-03-25 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+72,2026-03-23,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",703.23,False,2026-03-23 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+73,2026-04-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-04-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+74,2026-04-15,Payroll,Bi-weekly operational and warehouse payroll,9174.78,True,2026-04-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+75,2026-04-16,Utilities,"Electricity, water, heating, and broadband",905.39,True,2026-04-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+76,2026-04-27,Logistics,Freight carrier and last-mile delivery fees,1589.93,False,2026-04-27 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+77,2026-04-08,Marketing,"Search ads, printed flyers, local sponsorships",2063.04,False,2026-04-08 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+78,2026-04-17,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",699.09,False,2026-04-17 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+79,2026-05-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-05-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+80,2026-05-15,Payroll,Bi-weekly operational and warehouse payroll,9028.94,True,2026-05-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+81,2026-05-16,Utilities,"Electricity, water, heating, and broadband",1026.15,True,2026-05-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+82,2026-05-08,Logistics,Freight carrier and last-mile delivery fees,947.34,False,2026-05-08 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+83,2026-05-09,Marketing,"Search ads, printed flyers, local sponsorships",1484.31,False,2026-05-09 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+84,2026-05-20,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",502.17,False,2026-05-20 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+85,2026-06-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-06-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+86,2026-06-15,Payroll,Bi-weekly operational and warehouse payroll,9243.79,True,2026-06-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+87,2026-06-16,Utilities,"Electricity, water, heating, and broadband",1059.89,True,2026-06-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+88,2026-06-14,Logistics,Freight carrier and last-mile delivery fees,963.69,False,2026-06-14 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+89,2026-06-10,Marketing,"Search ads, printed flyers, local sponsorships",2087.64,False,2026-06-10 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+90,2026-06-09,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",756.70,False,2026-06-09 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+91,2026-07-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-07-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+92,2026-07-15,Payroll,Bi-weekly operational and warehouse payroll,9399.54,True,2026-07-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+93,2026-07-16,Utilities,"Electricity, water, heating, and broadband",961.19,True,2026-07-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+94,2026-07-08,Logistics,Freight carrier and last-mile delivery fees,1111.42,False,2026-07-08 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+95,2026-07-12,Marketing,"Search ads, printed flyers, local sponsorships",1552.95,False,2026-07-12 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+96,2026-07-06,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",508.89,False,2026-07-06 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+97,2026-08-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-08-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+98,2026-08-15,Payroll,Bi-weekly operational and warehouse payroll,9566.72,True,2026-08-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+99,2026-08-16,Utilities,"Electricity, water, heating, and broadband",1250.85,True,2026-08-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+100,2026-08-20,Logistics,Freight carrier and last-mile delivery fees,1804.90,False,2026-08-20 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+101,2026-08-20,Marketing,"Search ads, printed flyers, local sponsorships",1542.85,False,2026-08-20 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+102,2026-08-25,Warehouse Supplies,"Pallets, packing tape, maintenance supplies",819.31,False,2026-08-25 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+103,2026-09-01,Rent,Monthly warehouse & storefront lease,4500.00,True,2026-09-01 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+104,2026-09-15,Payroll,Bi-weekly operational and warehouse payroll,8814.96,True,2026-09-15 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+105,2026-09-16,Utilities,"Electricity, water, heating, and broadband",1201.95,True,2026-09-16 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00
+106,2026-09-23,Logistics,Freight carrier and last-mile delivery fees,1535.37,False,2026-09-23 00:00:00+00:00,2026-09-24 15:51:32.521341+00:00

@@ -14,6 +14,7 @@ def get_current_settings() -> Settings:
 
 def get_db_session(
     db: Session = Depends(get_db),
-) -> Generator[Session, None, None]:
-    """Dependency yielding a database session."""
-    yield db
+) -> Session:
+    """Dependency returning active database session."""
+    return db
+

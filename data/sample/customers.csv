@@ -1,0 +1,1001 @@
+id,customer_code,name,email,phone,city,customer_segment,acquisition_date,created_at,updated_at
+1,CUST-00001,Davis & Sarah Solutions,purchasing@davissarah1.com,+1-342-954-2679,Seattle,Wholesale,2026-01-10,2026-01-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+2,CUST-00002,Margaret Johnson,margaret.johnson2@example.com,+1-230-295-4582,Seattle,VIP,2025-08-22,2025-08-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+3,CUST-00003,Wilson & Paul Solutions,purchasing@wilsonpaul3.com,+1-659-803-5557,Denver,Wholesale,2026-03-10,2026-03-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+4,CUST-00004,Margaret Hernandez,margaret.hernandez4@example.com,+1-484-359-4527,Chicago,Retail,2026-06-22,2026-06-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+5,CUST-00005,Michael Lopez,michael.lopez5@example.com,+1-552-818-5333,Seattle,Retail,2026-03-09,2026-03-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+6,CUST-00006,Williams & Matthew Supplies,purchasing@williamsmatthew6.com,+1-843-833-6925,Denver,Corporate,2025-12-04,2025-12-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+7,CUST-00007,Harris & Joseph Supplies,purchasing@harrisjoseph7.com,+1-281-438-2654,Seattle,Corporate,2025-10-03,2025-10-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+8,CUST-00008,William Lopez,william.lopez8@example.com,+1-563-414-5374,Chicago,Retail,2026-01-20,2026-01-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+9,CUST-00009,Moore & William Solutions,purchasing@moorewilliam9.com,+1-367-673-7216,Seattle,Corporate,2025-09-02,2025-09-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+10,CUST-00010,Joseph Perez,joseph.perez10@example.com,+1-532-986-1916,Austin,VIP,2025-08-21,2025-08-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+11,CUST-00011,Sarah Williams,sarah.williams11@example.com,+1-416-780-6155,Portland,Retail,2025-08-16,2025-08-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+12,CUST-00012,Sandra Jones,sandra.jones12@example.com,+1-471-342-5040,Phoenix,Retail,2026-02-07,2026-02-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+13,CUST-00013,Margaret Lewis,margaret.lewis13@example.com,+1-797-608-6930,Chicago,Retail,2025-08-18,2025-08-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+14,CUST-00014,Jennifer Harris,jennifer.harris14@example.com,+1-248-312-3504,Denver,VIP,2025-12-22,2025-12-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+15,CUST-00015,Gonzalez & John LLC,purchasing@gonzalezjohn15.com,+1-810-679-9669,San Francisco,Corporate,2025-08-28,2025-08-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+16,CUST-00016,Perez & Linda Supplies,purchasing@perezlinda16.com,+1-987-856-6573,Phoenix,Wholesale,2025-07-09,2025-07-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+17,CUST-00017,Thomas Taylor,thomas.taylor17@example.com,+1-980-382-9317,San Francisco,Retail,2026-05-13,2026-05-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+18,CUST-00018,Steven Martin,steven.martin18@example.com,+1-403-356-7126,Portland,VIP,2026-02-15,2026-02-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+19,CUST-00019,Kimberly Robinson,kimberly.robinson19@example.com,+1-200-813-6310,Chicago,Retail,2025-11-04,2025-11-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+20,CUST-00020,Karen Davis,karen.davis20@example.com,+1-259-446-2290,San Francisco,Retail,2025-06-27,2025-06-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+21,CUST-00021,Paul Harris,paul.harris21@example.com,+1-328-331-8787,Seattle,Retail,2026-06-11,2026-06-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+22,CUST-00022,Joshua Wilson,joshua.wilson22@example.com,+1-416-752-4295,Denver,Retail,2026-01-24,2026-01-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+23,CUST-00023,Lisa Anderson,lisa.anderson23@example.com,+1-729-662-2982,Austin,Retail,2025-08-27,2025-08-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+24,CUST-00024,Emily Davis,emily.davis24@example.com,+1-802-425-1117,Seattle,Retail,2025-06-19,2025-06-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+25,CUST-00025,Ramirez & Robert Group,purchasing@ramirezrobert25.com,+1-272-726-4899,Portland,Wholesale,2025-09-05,2025-09-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+26,CUST-00026,Andrew Jackson,andrew.jackson26@example.com,+1-684-448-8749,Denver,Retail,2026-03-09,2026-03-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+27,CUST-00027,Margaret Lopez,margaret.lopez27@example.com,+1-633-620-8651,Seattle,Retail,2026-04-10,2026-04-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+28,CUST-00028,Michael Johnson,michael.johnson28@example.com,+1-612-945-6559,Austin,Retail,2026-03-06,2026-03-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+29,CUST-00029,Paul Anderson,paul.anderson29@example.com,+1-343-632-4006,Portland,Retail,2025-09-05,2025-09-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+30,CUST-00030,Mark Sanchez,mark.sanchez30@example.com,+1-763-300-1828,Phoenix,Retail,2025-12-31,2025-12-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+31,CUST-00031,Jennifer Robinson,jennifer.robinson31@example.com,+1-971-442-3724,Seattle,Retail,2025-10-10,2025-10-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+32,CUST-00032,Patricia Garcia,patricia.garcia32@example.com,+1-588-202-7396,Chicago,Retail,2025-09-01,2025-09-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+33,CUST-00033,Thompson & Margaret Corp,purchasing@thompsonmargaret33.com,+1-358-394-5861,San Francisco,Corporate,2025-08-18,2025-08-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+34,CUST-00034,Patricia White,patricia.white34@example.com,+1-521-258-1821,Chicago,Retail,2025-12-06,2025-12-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+35,CUST-00035,William Johnson,william.johnson35@example.com,+1-720-282-4044,Chicago,Retail,2025-06-18,2025-06-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+36,CUST-00036,Betty Brown,betty.brown36@example.com,+1-783-452-1651,Chicago,Retail,2025-12-19,2025-12-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+37,CUST-00037,Kimberly Hernandez,kimberly.hernandez37@example.com,+1-467-409-6147,Denver,Retail,2025-08-24,2025-08-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+38,CUST-00038,Karen Anderson,karen.anderson38@example.com,+1-523-969-2188,Austin,Retail,2025-04-30,2025-04-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+39,CUST-00039,Williams & Michael Solutions,purchasing@williamsmichael39.com,+1-718-471-3170,Denver,Wholesale,2026-05-30,2026-05-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+40,CUST-00040,Lisa Martinez,lisa.martinez40@example.com,+1-361-648-9900,Chicago,VIP,2026-01-21,2026-01-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+41,CUST-00041,Smith & Kimberly Supplies,purchasing@smithkimberly41.com,+1-879-306-3200,Phoenix,Wholesale,2025-09-01,2025-09-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+42,CUST-00042,Elizabeth Rodriguez,elizabeth.rodriguez42@example.com,+1-488-819-4450,Chicago,VIP,2026-01-26,2026-01-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+43,CUST-00043,Thomas Taylor,thomas.taylor43@example.com,+1-700-457-1832,Austin,Retail,2025-06-30,2025-06-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+44,CUST-00044,James Hernandez,james.hernandez44@example.com,+1-989-333-5291,Portland,Retail,2025-07-29,2025-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+45,CUST-00045,Emily Smith,emily.smith45@example.com,+1-314-277-3442,Austin,Retail,2025-11-23,2025-11-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+46,CUST-00046,Wilson & Elizabeth Retailers,purchasing@wilsonelizabeth46.com,+1-242-515-6974,Denver,Corporate,2026-05-03,2026-05-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+47,CUST-00047,Miller & Daniel Solutions,purchasing@millerdaniel47.com,+1-882-305-6794,Chicago,Corporate,2026-02-24,2026-02-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+48,CUST-00048,Michelle White,michelle.white48@example.com,+1-358-442-3662,San Francisco,VIP,2026-07-16,2026-07-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+49,CUST-00049,Garcia & Mary Group,purchasing@garciamary49.com,+1-621-885-5065,Phoenix,Corporate,2025-09-01,2025-09-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+50,CUST-00050,Ramirez & Robert Corp,purchasing@ramirezrobert50.com,+1-427-404-8541,Seattle,Corporate,2025-09-24,2025-09-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+51,CUST-00051,Smith & Joseph Solutions,purchasing@smithjoseph51.com,+1-608-536-5564,Chicago,Corporate,2026-04-10,2026-04-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+52,CUST-00052,Steven Gonzalez,steven.gonzalez52@example.com,+1-895-749-6425,Portland,VIP,2026-06-04,2026-06-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+53,CUST-00053,Barbara Jackson,barbara.jackson53@example.com,+1-471-239-2776,Phoenix,Retail,2025-12-11,2025-12-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+54,CUST-00054,Margaret Martin,margaret.martin54@example.com,+1-723-318-7311,Chicago,Retail,2026-05-03,2026-05-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+55,CUST-00055,Margaret Smith,margaret.smith55@example.com,+1-732-751-4228,Seattle,Retail,2025-09-28,2025-09-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+56,CUST-00056,Nancy Martin,nancy.martin56@example.com,+1-521-879-3041,Austin,Retail,2026-01-27,2026-01-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+57,CUST-00057,Anthony Hernandez,anthony.hernandez57@example.com,+1-612-913-5844,Portland,Retail,2025-11-26,2025-11-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+58,CUST-00058,Matthew Perez,matthew.perez58@example.com,+1-966-378-5930,Austin,Retail,2025-10-10,2025-10-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+59,CUST-00059,Wilson & Susan Group,purchasing@wilsonsusan59.com,+1-676-652-8244,Portland,Corporate,2026-01-09,2026-01-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+60,CUST-00060,William Perez,william.perez60@example.com,+1-286-490-9445,Chicago,Retail,2026-01-05,2026-01-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+61,CUST-00061,Perez & Jessica Supplies,purchasing@perezjessica61.com,+1-430-403-3414,Seattle,Wholesale,2025-05-18,2025-05-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+62,CUST-00062,John Anderson,john.anderson62@example.com,+1-624-844-4185,Denver,Retail,2026-01-27,2026-01-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+63,CUST-00063,Elizabeth Lee,elizabeth.lee63@example.com,+1-904-205-2746,San Francisco,Retail,2026-02-23,2026-02-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+64,CUST-00064,Kimberly Anderson,kimberly.anderson64@example.com,+1-251-770-5082,Chicago,Retail,2026-05-17,2026-05-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+65,CUST-00065,Sandra Perez,sandra.perez65@example.com,+1-743-772-6198,Seattle,Retail,2026-06-15,2026-06-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+66,CUST-00066,Steven Wilson,steven.wilson66@example.com,+1-761-656-3607,Austin,VIP,2026-02-07,2026-02-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+67,CUST-00067,Jessica Clark,jessica.clark67@example.com,+1-852-483-9540,Portland,Retail,2025-11-03,2025-11-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+68,CUST-00068,Charles Davis,charles.davis68@example.com,+1-478-543-6238,San Francisco,Retail,2026-04-29,2026-04-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+69,CUST-00069,Matthew Thompson,matthew.thompson69@example.com,+1-356-923-4505,Seattle,Retail,2025-06-15,2025-06-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+70,CUST-00070,Anthony Johnson,anthony.johnson70@example.com,+1-411-630-7381,Denver,Retail,2026-05-07,2026-05-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+71,CUST-00071,Gonzalez & Andrew Corp,purchasing@gonzalezandrew71.com,+1-206-560-5892,Austin,Wholesale,2026-02-11,2026-02-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+72,CUST-00072,Anthony Moore,anthony.moore72@example.com,+1-965-952-9947,Phoenix,VIP,2026-03-05,2026-03-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+73,CUST-00073,Sarah Wilson,sarah.wilson73@example.com,+1-697-229-7371,Denver,VIP,2025-09-20,2025-09-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+74,CUST-00074,Clark & William Corp,purchasing@clarkwilliam74.com,+1-330-837-9751,San Francisco,Corporate,2025-05-20,2025-05-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+75,CUST-00075,Mary Williams,mary.williams75@example.com,+1-858-638-3223,Denver,Retail,2026-04-12,2026-04-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+76,CUST-00076,Christopher Miller,christopher.miller76@example.com,+1-665-534-6529,Portland,Retail,2026-02-15,2026-02-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+77,CUST-00077,Anthony Rodriguez,anthony.rodriguez77@example.com,+1-283-681-1317,Chicago,Retail,2026-02-09,2026-02-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+78,CUST-00078,Joseph Lee,joseph.lee78@example.com,+1-270-999-1659,Phoenix,Retail,2026-02-12,2026-02-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+79,CUST-00079,Mary Martin,mary.martin79@example.com,+1-356-444-3068,Portland,VIP,2025-10-31,2025-10-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+80,CUST-00080,Sandra Thompson,sandra.thompson80@example.com,+1-462-985-7043,Phoenix,Retail,2025-08-01,2025-08-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+81,CUST-00081,Harris & Linda Retailers,purchasing@harrislinda81.com,+1-518-310-1420,Chicago,Wholesale,2026-05-26,2026-05-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+82,CUST-00082,Gonzalez & Matthew Solutions,purchasing@gonzalezmatthew82.com,+1-277-806-4978,Phoenix,Wholesale,2025-07-05,2025-07-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+83,CUST-00083,Sanchez & Joshua Logistics,purchasing@sanchezjoshua83.com,+1-779-242-6688,Chicago,Corporate,2025-11-19,2025-11-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+84,CUST-00084,Smith & Nancy LLC,purchasing@smithnancy84.com,+1-701-308-8102,Seattle,Wholesale,2026-06-26,2026-06-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+85,CUST-00085,Wilson & Elizabeth Retailers,purchasing@wilsonelizabeth85.com,+1-951-734-5425,Chicago,Wholesale,2025-12-18,2025-12-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+86,CUST-00086,Sandra Wilson,sandra.wilson86@example.com,+1-948-806-5397,Chicago,VIP,2025-09-17,2025-09-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+87,CUST-00087,Sarah Lewis,sarah.lewis87@example.com,+1-661-449-8613,Phoenix,Retail,2025-12-01,2025-12-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+88,CUST-00088,Ramirez & Ashley Group,purchasing@ramirezashley88.com,+1-386-699-4475,San Francisco,Wholesale,2025-09-26,2025-09-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+89,CUST-00089,Joshua Thompson,joshua.thompson89@example.com,+1-482-769-1166,Portland,Retail,2025-11-13,2025-11-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+90,CUST-00090,Anthony Thomas,anthony.thomas90@example.com,+1-768-976-4937,Portland,Retail,2026-01-15,2026-01-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+91,CUST-00091,Williams & Mary Supplies,purchasing@williamsmary91.com,+1-426-614-4986,Denver,Wholesale,2025-09-12,2025-09-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+92,CUST-00092,Lopez & Kimberly LLC,purchasing@lopezkimberly92.com,+1-963-763-6419,Denver,Wholesale,2025-09-25,2025-09-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+93,CUST-00093,Joseph Brown,joseph.brown93@example.com,+1-938-397-6169,Portland,Retail,2025-07-13,2025-07-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+94,CUST-00094,Barbara Miller,barbara.miller94@example.com,+1-421-956-8933,Chicago,Retail,2025-09-04,2025-09-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+95,CUST-00095,Martinez & Joshua Logistics,purchasing@martinezjoshua95.com,+1-398-503-4727,Chicago,Wholesale,2025-09-27,2025-09-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+96,CUST-00096,David Rodriguez,david.rodriguez96@example.com,+1-246-255-5786,Austin,Retail,2026-01-18,2026-01-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+97,CUST-00097,Ashley Brown,ashley.brown97@example.com,+1-212-787-5658,Chicago,Retail,2025-10-29,2025-10-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+98,CUST-00098,Patricia Rodriguez,patricia.rodriguez98@example.com,+1-689-316-2070,Portland,Retail,2025-10-09,2025-10-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+99,CUST-00099,Patricia Jones,patricia.jones99@example.com,+1-352-776-5978,Austin,Retail,2025-06-27,2025-06-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+100,CUST-00100,Anthony Martin,anthony.martin100@example.com,+1-810-833-4697,Denver,Retail,2026-02-22,2026-02-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+101,CUST-00101,Karen Ramirez,karen.ramirez101@example.com,+1-802-639-6003,Phoenix,Retail,2025-12-01,2025-12-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+102,CUST-00102,Michael Walker,michael.walker102@example.com,+1-981-412-4457,Phoenix,Retail,2025-09-01,2025-09-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+103,CUST-00103,Emily Williams,emily.williams103@example.com,+1-360-202-7693,Portland,Retail,2025-10-24,2025-10-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+104,CUST-00104,Martinez & Joseph Supplies,purchasing@martinezjoseph104.com,+1-919-664-2166,Portland,Wholesale,2026-01-14,2026-01-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+105,CUST-00105,Donna Perez,donna.perez105@example.com,+1-402-635-2880,Chicago,VIP,2025-11-23,2025-11-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+106,CUST-00106,Williams & Elizabeth Enterprises,purchasing@williamselizabeth106.com,+1-369-514-5728,Phoenix,Wholesale,2025-10-20,2025-10-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+107,CUST-00107,Betty Walker,betty.walker107@example.com,+1-478-712-9847,Portland,Retail,2025-11-06,2025-11-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+108,CUST-00108,Margaret White,margaret.white108@example.com,+1-530-818-5102,Seattle,Retail,2025-05-19,2025-05-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+109,CUST-00109,Andrew Jackson,andrew.jackson109@example.com,+1-221-983-5415,Austin,Retail,2025-12-03,2025-12-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+110,CUST-00110,Lee & Kimberly Corp,purchasing@leekimberly110.com,+1-484-385-8141,Seattle,Corporate,2025-12-24,2025-12-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+111,CUST-00111,Daniel Wilson,daniel.wilson111@example.com,+1-541-528-2713,Seattle,Retail,2026-04-06,2026-04-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+112,CUST-00112,Charles Perez,charles.perez112@example.com,+1-610-978-1601,Austin,Retail,2025-10-25,2025-10-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+113,CUST-00113,Betty Ramirez,betty.ramirez113@example.com,+1-726-201-9889,San Francisco,Retail,2025-10-27,2025-10-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+114,CUST-00114,Michelle Harris,michelle.harris114@example.com,+1-710-840-8242,Denver,Retail,2026-02-14,2026-02-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+115,CUST-00115,Charles Anderson,charles.anderson115@example.com,+1-915-696-2989,Denver,Retail,2025-05-22,2025-05-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+116,CUST-00116,Martinez & William Enterprises,purchasing@martinezwilliam116.com,+1-765-617-2527,Chicago,Wholesale,2025-08-20,2025-08-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+117,CUST-00117,Lee & Linda Retailers,purchasing@leelinda117.com,+1-710-933-5781,Seattle,Corporate,2025-11-11,2025-11-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+118,CUST-00118,Donald Davis,donald.davis118@example.com,+1-667-764-3369,Chicago,Retail,2025-10-04,2025-10-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+119,CUST-00119,David Ramirez,david.ramirez119@example.com,+1-271-482-7798,Denver,VIP,2025-09-21,2025-09-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+120,CUST-00120,Martinez & James Supplies,purchasing@martinezjames120.com,+1-801-793-9022,Portland,Corporate,2026-04-11,2026-04-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+121,CUST-00121,Nancy Moore,nancy.moore121@example.com,+1-981-756-7180,Denver,Retail,2025-10-25,2025-10-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+122,CUST-00122,Jessica Jackson,jessica.jackson122@example.com,+1-592-439-7730,Portland,Retail,2025-06-02,2025-06-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+123,CUST-00123,Gonzalez & Matthew Retailers,purchasing@gonzalezmatthew123.com,+1-707-237-3068,Austin,Corporate,2025-11-09,2025-11-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+124,CUST-00124,Brown & Mark Corp,purchasing@brownmark124.com,+1-215-939-3361,Chicago,Wholesale,2025-10-11,2025-10-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+125,CUST-00125,Sanchez & Donald Supplies,purchasing@sanchezdonald125.com,+1-546-838-7512,Seattle,Wholesale,2025-12-30,2025-12-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+126,CUST-00126,Paul Gonzalez,paul.gonzalez126@example.com,+1-524-841-8994,Chicago,VIP,2026-04-15,2026-04-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+127,CUST-00127,Charles Davis,charles.davis127@example.com,+1-964-292-8110,Seattle,Retail,2026-07-19,2026-07-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+128,CUST-00128,Anderson & Michael Retailers,purchasing@andersonmichael128.com,+1-910-506-1474,Austin,Corporate,2025-06-04,2025-06-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+129,CUST-00129,Wilson & Lisa Retailers,purchasing@wilsonlisa129.com,+1-450-743-7751,Portland,Corporate,2025-11-30,2025-11-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+130,CUST-00130,Martin & Jennifer LLC,purchasing@martinjennifer130.com,+1-834-899-4945,Seattle,Corporate,2025-11-07,2025-11-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+131,CUST-00131,Anderson & Thomas Supplies,purchasing@andersonthomas131.com,+1-882-209-8622,Portland,Wholesale,2026-05-04,2026-05-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+132,CUST-00132,Walker & Mark Group,purchasing@walkermark132.com,+1-801-506-7951,Seattle,Corporate,2026-01-15,2026-01-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+133,CUST-00133,Matthew Ramirez,matthew.ramirez133@example.com,+1-694-309-4886,Portland,Retail,2025-10-03,2025-10-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+134,CUST-00134,Charles Smith,charles.smith134@example.com,+1-874-605-5497,Portland,Retail,2025-04-28,2025-04-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+135,CUST-00135,Patricia Robinson,patricia.robinson135@example.com,+1-820-963-9138,Chicago,VIP,2026-03-23,2026-03-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+136,CUST-00136,Joseph Martin,joseph.martin136@example.com,+1-560-424-4115,Chicago,VIP,2025-12-19,2025-12-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+137,CUST-00137,Lee & David Logistics,purchasing@leedavid137.com,+1-842-861-1645,Chicago,Corporate,2025-09-13,2025-09-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+138,CUST-00138,David Williams,david.williams138@example.com,+1-502-534-7807,Denver,Retail,2025-08-03,2025-08-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+139,CUST-00139,Lisa Taylor,lisa.taylor139@example.com,+1-713-479-3695,Denver,Retail,2025-08-29,2025-08-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+140,CUST-00140,White & Charles Group,purchasing@whitecharles140.com,+1-317-679-2233,Denver,Corporate,2025-07-21,2025-07-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+141,CUST-00141,Betty Walker,betty.walker141@example.com,+1-770-574-2479,Chicago,VIP,2026-03-01,2026-03-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+142,CUST-00142,Sandra Lopez,sandra.lopez142@example.com,+1-888-966-5295,Denver,Retail,2025-12-06,2025-12-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+143,CUST-00143,Perez & Michael Solutions,purchasing@perezmichael143.com,+1-682-225-6374,Phoenix,Corporate,2026-05-15,2026-05-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+144,CUST-00144,Sandra Robinson,sandra.robinson144@example.com,+1-917-509-7689,Seattle,Retail,2025-07-12,2025-07-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+145,CUST-00145,Ashley Brown,ashley.brown145@example.com,+1-299-440-9807,Seattle,Retail,2025-07-19,2025-07-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+146,CUST-00146,Paul Wilson,paul.wilson146@example.com,+1-801-960-3531,Austin,Retail,2026-04-24,2026-04-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+147,CUST-00147,Wilson & Michelle Supplies,purchasing@wilsonmichelle147.com,+1-233-906-7070,Chicago,Wholesale,2025-08-17,2025-08-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+148,CUST-00148,Lisa Brown,lisa.brown148@example.com,+1-902-576-9920,Portland,Retail,2026-05-05,2026-05-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+149,CUST-00149,Miller & Sarah Logistics,purchasing@millersarah149.com,+1-665-293-4475,Seattle,Wholesale,2025-12-27,2025-12-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+150,CUST-00150,Davis & Nancy Retailers,purchasing@davisnancy150.com,+1-778-410-2124,Seattle,Wholesale,2026-03-21,2026-03-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+151,CUST-00151,Hernandez & Joseph Retailers,purchasing@hernandezjoseph151.com,+1-810-202-5542,Denver,Wholesale,2026-04-06,2026-04-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+152,CUST-00152,Thomas Sanchez,thomas.sanchez152@example.com,+1-378-312-1422,Seattle,Retail,2025-07-18,2025-07-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+153,CUST-00153,Donna Hernandez,donna.hernandez153@example.com,+1-216-378-5347,Chicago,Retail,2025-06-08,2025-06-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+154,CUST-00154,Thomas & John Corp,purchasing@thomasjohn154.com,+1-996-570-9408,Denver,Corporate,2025-12-10,2025-12-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+155,CUST-00155,Michelle Johnson,michelle.johnson155@example.com,+1-944-874-9543,Portland,Retail,2025-09-11,2025-09-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+156,CUST-00156,Ramirez & Donald LLC,purchasing@ramirezdonald156.com,+1-636-902-2768,Seattle,Wholesale,2025-11-05,2025-11-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+157,CUST-00157,Jennifer Hernandez,jennifer.hernandez157@example.com,+1-822-351-2076,Seattle,VIP,2025-07-16,2025-07-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+158,CUST-00158,Gonzalez & Christopher Supplies,purchasing@gonzalezchristopher158.com,+1-664-717-8048,Denver,Wholesale,2025-07-04,2025-07-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+159,CUST-00159,White & Emily Solutions,purchasing@whiteemily159.com,+1-640-662-4743,Chicago,Corporate,2025-10-13,2025-10-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+160,CUST-00160,Hernandez & Michael LLC,purchasing@hernandezmichael160.com,+1-520-881-5176,San Francisco,Corporate,2025-10-01,2025-10-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+161,CUST-00161,John Williams,john.williams161@example.com,+1-287-295-8075,Phoenix,Retail,2025-07-02,2025-07-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+162,CUST-00162,Johnson & Emily Group,purchasing@johnsonemily162.com,+1-886-325-7730,Chicago,Corporate,2025-09-25,2025-09-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+163,CUST-00163,Walker & Patricia Supplies,purchasing@walkerpatricia163.com,+1-814-519-6761,Chicago,Wholesale,2025-07-06,2025-07-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+164,CUST-00164,Donald Davis,donald.davis164@example.com,+1-310-558-7022,Seattle,Retail,2025-07-11,2025-07-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+165,CUST-00165,Margaret Ramirez,margaret.ramirez165@example.com,+1-774-985-1430,Portland,Retail,2025-12-15,2025-12-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+166,CUST-00166,Garcia & Mary Supplies,purchasing@garciamary166.com,+1-919-980-6062,Austin,Wholesale,2026-05-20,2026-05-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+167,CUST-00167,Elizabeth Jackson,elizabeth.jackson167@example.com,+1-873-610-2140,Portland,Retail,2025-07-22,2025-07-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+168,CUST-00168,Miller & Kimberly LLC,purchasing@millerkimberly168.com,+1-629-664-6585,Seattle,Wholesale,2025-07-28,2025-07-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+169,CUST-00169,Andrew Martin,andrew.martin169@example.com,+1-286-253-3549,San Francisco,Retail,2025-07-28,2025-07-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+170,CUST-00170,Anderson & Sarah LLC,purchasing@andersonsarah170.com,+1-697-821-8242,Austin,Wholesale,2025-10-13,2025-10-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+171,CUST-00171,Daniel Wilson,daniel.wilson171@example.com,+1-313-490-8972,Denver,Retail,2025-11-17,2025-11-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+172,CUST-00172,Joshua Johnson,joshua.johnson172@example.com,+1-207-409-5938,Portland,Retail,2026-06-10,2026-06-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+173,CUST-00173,Hernandez & Charles Logistics,purchasing@hernandezcharles173.com,+1-207-709-8055,Chicago,Corporate,2025-08-03,2025-08-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+174,CUST-00174,Steven Moore,steven.moore174@example.com,+1-884-562-2180,Austin,Retail,2025-10-08,2025-10-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+175,CUST-00175,Robinson & Sandra Logistics,purchasing@robinsonsandra175.com,+1-520-789-8033,San Francisco,Corporate,2025-12-02,2025-12-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+176,CUST-00176,Gonzalez & Linda Enterprises,purchasing@gonzalezlinda176.com,+1-532-375-8538,San Francisco,Corporate,2026-03-22,2026-03-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+177,CUST-00177,Michael Davis,michael.davis177@example.com,+1-646-803-7560,Seattle,VIP,2025-11-16,2025-11-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+178,CUST-00178,Nancy Davis,nancy.davis178@example.com,+1-541-997-3754,Portland,Retail,2025-06-22,2025-06-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+179,CUST-00179,Lewis & Richard Group,purchasing@lewisrichard179.com,+1-559-944-3419,Denver,Wholesale,2025-08-23,2025-08-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+180,CUST-00180,Joshua Jones,joshua.jones180@example.com,+1-978-977-2234,Portland,Retail,2025-08-04,2025-08-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+181,CUST-00181,Harris & Andrew Corp,purchasing@harrisandrew181.com,+1-897-778-6295,Denver,Corporate,2026-04-10,2026-04-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+182,CUST-00182,Thomas & John Corp,purchasing@thomasjohn182.com,+1-846-510-5500,Seattle,Wholesale,2025-12-09,2025-12-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+183,CUST-00183,Sandra Anderson,sandra.anderson183@example.com,+1-238-258-7041,Seattle,Retail,2026-03-22,2026-03-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+184,CUST-00184,Jennifer Martin,jennifer.martin184@example.com,+1-808-719-7299,Chicago,Retail,2025-10-27,2025-10-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+185,CUST-00185,Anderson & Robert Solutions,purchasing@andersonrobert185.com,+1-529-819-8792,Chicago,Wholesale,2025-11-08,2025-11-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+186,CUST-00186,Nancy Thompson,nancy.thompson186@example.com,+1-286-716-3827,San Francisco,VIP,2025-05-30,2025-05-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+187,CUST-00187,Taylor & Kimberly Retailers,purchasing@taylorkimberly187.com,+1-572-581-5634,Phoenix,Corporate,2025-10-05,2025-10-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+188,CUST-00188,Sanchez & Patricia Group,purchasing@sanchezpatricia188.com,+1-267-537-2548,Austin,Corporate,2025-11-27,2025-11-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+189,CUST-00189,Joshua Ramirez,joshua.ramirez189@example.com,+1-353-541-2335,Portland,Retail,2025-12-06,2025-12-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+190,CUST-00190,Betty Jones,betty.jones190@example.com,+1-809-925-2388,San Francisco,Retail,2025-09-13,2025-09-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+191,CUST-00191,David Perez,david.perez191@example.com,+1-919-956-9624,Chicago,Retail,2025-07-01,2025-07-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+192,CUST-00192,Lopez & Mary Supplies,purchasing@lopezmary192.com,+1-384-419-6598,Denver,Corporate,2026-06-12,2026-06-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+193,CUST-00193,David Jones,david.jones193@example.com,+1-279-502-2657,Portland,Retail,2025-11-10,2025-11-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+194,CUST-00194,Kimberly Johnson,kimberly.johnson194@example.com,+1-877-544-3147,Chicago,Retail,2025-12-11,2025-12-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+195,CUST-00195,Michelle Sanchez,michelle.sanchez195@example.com,+1-369-938-8170,Portland,Retail,2025-06-02,2025-06-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+196,CUST-00196,Mark Martin,mark.martin196@example.com,+1-491-970-8355,Austin,Retail,2025-08-23,2025-08-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+197,CUST-00197,Donald Lewis,donald.lewis197@example.com,+1-398-576-8218,Phoenix,Retail,2025-10-27,2025-10-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+198,CUST-00198,Kimberly Wilson,kimberly.wilson198@example.com,+1-365-404-3267,San Francisco,Retail,2026-04-15,2026-04-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+199,CUST-00199,Lisa Moore,lisa.moore199@example.com,+1-305-928-9452,Denver,Retail,2026-04-02,2026-04-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+200,CUST-00200,Sarah Anderson,sarah.anderson200@example.com,+1-725-350-8167,Chicago,Retail,2025-06-30,2025-06-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+201,CUST-00201,Daniel Robinson,daniel.robinson201@example.com,+1-227-624-1872,Chicago,VIP,2025-10-08,2025-10-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+202,CUST-00202,Jennifer Lopez,jennifer.lopez202@example.com,+1-429-228-6221,San Francisco,Retail,2026-05-28,2026-05-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+203,CUST-00203,Jones & Elizabeth Enterprises,purchasing@joneselizabeth203.com,+1-493-683-3273,Austin,Corporate,2026-02-14,2026-02-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+204,CUST-00204,Jennifer Smith,jennifer.smith204@example.com,+1-462-420-3449,Austin,Retail,2025-11-24,2025-11-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+205,CUST-00205,Harris & Linda Supplies,purchasing@harrislinda205.com,+1-443-508-2996,Denver,Corporate,2025-06-05,2025-06-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+206,CUST-00206,Sandra Williams,sandra.williams206@example.com,+1-313-711-9782,Chicago,Retail,2025-05-09,2025-05-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+207,CUST-00207,Elizabeth Martinez,elizabeth.martinez207@example.com,+1-639-201-6780,Portland,Retail,2025-08-25,2025-08-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+208,CUST-00208,Jennifer Taylor,jennifer.taylor208@example.com,+1-569-269-9618,Austin,Retail,2025-11-22,2025-11-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+209,CUST-00209,Gonzalez & Mary Corp,purchasing@gonzalezmary209.com,+1-244-850-7338,Denver,Corporate,2026-07-23,2026-07-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+210,CUST-00210,John Lopez,john.lopez210@example.com,+1-446-950-2698,Seattle,Retail,2026-02-20,2026-02-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+211,CUST-00211,Lopez & Robert Group,purchasing@lopezrobert211.com,+1-858-379-8612,San Francisco,Corporate,2026-07-23,2026-07-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+212,CUST-00212,David Williams,david.williams212@example.com,+1-933-994-8498,Portland,Retail,2025-05-28,2025-05-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+213,CUST-00213,Robert Hernandez,robert.hernandez213@example.com,+1-517-727-7524,Chicago,Retail,2026-08-07,2026-08-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+214,CUST-00214,Richard Martinez,richard.martinez214@example.com,+1-565-999-1783,Portland,Retail,2026-04-11,2026-04-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+215,CUST-00215,Lisa Wilson,lisa.wilson215@example.com,+1-609-961-8204,Seattle,Retail,2026-04-30,2026-04-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+216,CUST-00216,Ashley Thompson,ashley.thompson216@example.com,+1-709-576-9507,Phoenix,Retail,2025-09-01,2025-09-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+217,CUST-00217,Margaret Martin,margaret.martin217@example.com,+1-384-758-5813,San Francisco,Retail,2025-09-16,2025-09-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+218,CUST-00218,Karen Anderson,karen.anderson218@example.com,+1-817-934-7981,Austin,Retail,2025-07-31,2025-07-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+219,CUST-00219,Daniel Martin,daniel.martin219@example.com,+1-645-481-1939,San Francisco,Retail,2025-06-22,2025-06-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+220,CUST-00220,Walker & William Enterprises,purchasing@walkerwilliam220.com,+1-346-822-8179,San Francisco,Wholesale,2025-05-27,2025-05-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+221,CUST-00221,Lisa Lopez,lisa.lopez221@example.com,+1-592-780-1530,Chicago,Retail,2025-12-14,2025-12-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+222,CUST-00222,Anderson & Lisa Logistics,purchasing@andersonlisa222.com,+1-787-340-9674,Phoenix,Corporate,2025-09-29,2025-09-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+223,CUST-00223,Linda Smith,linda.smith223@example.com,+1-953-390-9176,Portland,Retail,2025-11-14,2025-11-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+224,CUST-00224,Thomas Thompson,thomas.thompson224@example.com,+1-656-419-5678,Seattle,VIP,2026-01-17,2026-01-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+225,CUST-00225,David Ramirez,david.ramirez225@example.com,+1-275-662-3828,Portland,VIP,2026-05-03,2026-05-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+226,CUST-00226,Christopher Perez,christopher.perez226@example.com,+1-555-926-2063,Seattle,Retail,2025-11-24,2025-11-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+227,CUST-00227,William Thompson,william.thompson227@example.com,+1-926-917-3852,Portland,Retail,2026-03-02,2026-03-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+228,CUST-00228,Richard Sanchez,richard.sanchez228@example.com,+1-342-442-9094,Seattle,Retail,2025-05-19,2025-05-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+229,CUST-00229,Jones & Emily Logistics,purchasing@jonesemily229.com,+1-267-516-7523,San Francisco,Wholesale,2026-09-14,2026-09-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+230,CUST-00230,Clark & Anthony Logistics,purchasing@clarkanthony230.com,+1-328-524-2215,Denver,Corporate,2025-10-23,2025-10-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+231,CUST-00231,Lee & Emily Retailers,purchasing@leeemily231.com,+1-986-332-8088,San Francisco,Corporate,2025-11-09,2025-11-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+232,CUST-00232,Kimberly Jones,kimberly.jones232@example.com,+1-511-368-3653,Chicago,VIP,2025-09-17,2025-09-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+233,CUST-00233,Lewis & Kimberly Supplies,purchasing@lewiskimberly233.com,+1-280-456-4216,San Francisco,Corporate,2025-12-25,2025-12-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+234,CUST-00234,Martin & Karen Logistics,purchasing@martinkaren234.com,+1-714-856-3762,Seattle,Wholesale,2025-12-09,2025-12-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+235,CUST-00235,White & Michelle Group,purchasing@whitemichelle235.com,+1-777-242-1464,Seattle,Wholesale,2025-06-25,2025-06-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+236,CUST-00236,Thomas Lee,thomas.lee236@example.com,+1-415-985-7825,Chicago,VIP,2025-12-18,2025-12-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+237,CUST-00237,Paul Martinez,paul.martinez237@example.com,+1-857-509-8912,Phoenix,Retail,2025-08-26,2025-08-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+238,CUST-00238,Williams & Sandra Enterprises,purchasing@williamssandra238.com,+1-361-650-7809,San Francisco,Corporate,2025-11-03,2025-11-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+239,CUST-00239,Christopher Ramirez,christopher.ramirez239@example.com,+1-935-526-6658,Austin,Retail,2026-07-15,2026-07-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+240,CUST-00240,Emily Brown,emily.brown240@example.com,+1-526-447-8642,San Francisco,Retail,2025-07-14,2025-07-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+241,CUST-00241,Patricia Martinez,patricia.martinez241@example.com,+1-593-830-7850,Seattle,Retail,2025-08-27,2025-08-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+242,CUST-00242,Christopher Robinson,christopher.robinson242@example.com,+1-791-938-6123,Seattle,VIP,2025-08-08,2025-08-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+243,CUST-00243,Sandra Thomas,sandra.thomas243@example.com,+1-515-709-1379,Phoenix,Retail,2025-06-29,2025-06-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+244,CUST-00244,Jessica Miller,jessica.miller244@example.com,+1-797-561-1797,San Francisco,Retail,2025-06-07,2025-06-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+245,CUST-00245,Donald Martinez,donald.martinez245@example.com,+1-749-208-2761,Phoenix,Retail,2025-10-18,2025-10-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+246,CUST-00246,Betty Lopez,betty.lopez246@example.com,+1-246-610-1838,Chicago,VIP,2025-12-01,2025-12-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+247,CUST-00247,John Gonzalez,john.gonzalez247@example.com,+1-716-661-5582,Denver,Retail,2026-03-19,2026-03-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+248,CUST-00248,Brown & David LLC,purchasing@browndavid248.com,+1-582-547-6990,Austin,Wholesale,2026-02-12,2026-02-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+249,CUST-00249,Steven Johnson,steven.johnson249@example.com,+1-246-239-3245,Denver,Retail,2026-01-25,2026-01-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+250,CUST-00250,Martin & Elizabeth Retailers,purchasing@martinelizabeth250.com,+1-535-827-6218,Denver,Corporate,2025-07-30,2025-07-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+251,CUST-00251,Karen Jackson,karen.jackson251@example.com,+1-544-719-9351,Chicago,VIP,2025-11-19,2025-11-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+252,CUST-00252,Lopez & Mary Group,purchasing@lopezmary252.com,+1-889-312-7824,Portland,Corporate,2025-12-06,2025-12-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+253,CUST-00253,Martin & Mary Corp,purchasing@martinmary253.com,+1-471-871-4728,Chicago,Corporate,2026-01-28,2026-01-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+254,CUST-00254,Harris & Michelle LLC,purchasing@harrismichelle254.com,+1-351-897-4968,Seattle,Wholesale,2025-05-24,2025-05-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+255,CUST-00255,Mary Anderson,mary.anderson255@example.com,+1-521-628-3481,Seattle,VIP,2025-10-12,2025-10-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+256,CUST-00256,Michelle Robinson,michelle.robinson256@example.com,+1-682-953-2020,Denver,Retail,2026-01-21,2026-01-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+257,CUST-00257,Donald Taylor,donald.taylor257@example.com,+1-585-521-3837,Denver,Retail,2025-10-26,2025-10-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+258,CUST-00258,Thomas Martin,thomas.martin258@example.com,+1-695-396-5038,Denver,Retail,2025-09-05,2025-09-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+259,CUST-00259,Karen Harris,karen.harris259@example.com,+1-495-921-4396,Phoenix,Retail,2026-01-15,2026-01-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+260,CUST-00260,Emily Robinson,emily.robinson260@example.com,+1-938-480-5715,Denver,Retail,2025-07-14,2025-07-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+261,CUST-00261,Clark & Betty Group,purchasing@clarkbetty261.com,+1-991-349-5758,San Francisco,Corporate,2025-06-01,2025-06-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+262,CUST-00262,Mark Lee,mark.lee262@example.com,+1-462-965-8849,Seattle,VIP,2025-08-16,2025-08-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+263,CUST-00263,Thompson & Emily Supplies,purchasing@thompsonemily263.com,+1-340-311-4920,Portland,Corporate,2025-08-25,2025-08-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+264,CUST-00264,Johnson & Joseph Logistics,purchasing@johnsonjoseph264.com,+1-623-538-8739,Denver,Wholesale,2025-07-04,2025-07-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+265,CUST-00265,Robinson & Emily Retailers,purchasing@robinsonemily265.com,+1-616-868-8793,Seattle,Corporate,2025-11-01,2025-11-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+266,CUST-00266,Christopher Martinez,christopher.martinez266@example.com,+1-861-260-2465,Phoenix,Retail,2025-12-31,2025-12-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+267,CUST-00267,Robert Robinson,robert.robinson267@example.com,+1-379-627-3880,Chicago,Retail,2026-05-30,2026-05-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+268,CUST-00268,Ashley Garcia,ashley.garcia268@example.com,+1-966-496-1613,Chicago,Retail,2025-04-30,2025-04-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+269,CUST-00269,Martinez & Nancy Corp,purchasing@martineznancy269.com,+1-856-756-9590,Seattle,Wholesale,2025-11-06,2025-11-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+270,CUST-00270,Sandra Rodriguez,sandra.rodriguez270@example.com,+1-397-315-6417,Chicago,VIP,2025-07-30,2025-07-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+271,CUST-00271,Barbara Smith,barbara.smith271@example.com,+1-954-545-5833,Portland,Retail,2025-11-30,2025-11-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+272,CUST-00272,Clark & Betty LLC,purchasing@clarkbetty272.com,+1-727-535-2421,Seattle,Corporate,2025-10-09,2025-10-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+273,CUST-00273,Donald Hernandez,donald.hernandez273@example.com,+1-454-206-5272,Phoenix,Retail,2025-10-04,2025-10-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+274,CUST-00274,Nancy Martinez,nancy.martinez274@example.com,+1-796-940-1187,Portland,Retail,2025-08-31,2025-08-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+275,CUST-00275,Linda Anderson,linda.anderson275@example.com,+1-514-363-7642,Portland,Retail,2026-01-13,2026-01-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+276,CUST-00276,Karen Thompson,karen.thompson276@example.com,+1-320-854-5833,Phoenix,VIP,2025-09-29,2025-09-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+277,CUST-00277,Donald Jones,donald.jones277@example.com,+1-665-965-7121,Phoenix,Retail,2025-10-13,2025-10-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+278,CUST-00278,Paul Sanchez,paul.sanchez278@example.com,+1-880-423-5054,Denver,Retail,2026-01-11,2026-01-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+279,CUST-00279,Anderson & Kimberly Group,purchasing@andersonkimberly279.com,+1-279-777-2838,Chicago,Wholesale,2025-06-14,2025-06-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+280,CUST-00280,Andrew Moore,andrew.moore280@example.com,+1-353-368-6375,Denver,Retail,2026-04-04,2026-04-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+281,CUST-00281,Donna Thomas,donna.thomas281@example.com,+1-293-722-8298,Austin,Retail,2026-03-10,2026-03-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+282,CUST-00282,Sandra Jackson,sandra.jackson282@example.com,+1-259-772-8575,Denver,Retail,2026-01-08,2026-01-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+283,CUST-00283,Thomas Clark,thomas.clark283@example.com,+1-203-963-4570,Seattle,Retail,2025-12-04,2025-12-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+284,CUST-00284,John Moore,john.moore284@example.com,+1-261-270-8734,San Francisco,Retail,2025-05-24,2025-05-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+285,CUST-00285,Anthony Lopez,anthony.lopez285@example.com,+1-591-659-7184,Chicago,Retail,2025-10-02,2025-10-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+286,CUST-00286,Jones & Paul Group,purchasing@jonespaul286.com,+1-321-382-9802,Austin,Corporate,2025-10-07,2025-10-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+287,CUST-00287,James Harris,james.harris287@example.com,+1-223-505-8585,Phoenix,Retail,2026-01-08,2026-01-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+288,CUST-00288,Joseph Davis,joseph.davis288@example.com,+1-671-554-3541,Denver,Retail,2025-09-04,2025-09-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+289,CUST-00289,Linda Johnson,linda.johnson289@example.com,+1-876-629-1256,Chicago,VIP,2025-08-25,2025-08-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+290,CUST-00290,Mark Martin,mark.martin290@example.com,+1-888-920-1797,Austin,Retail,2025-08-26,2025-08-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+291,CUST-00291,Paul Miller,paul.miller291@example.com,+1-972-994-1924,San Francisco,Retail,2025-07-21,2025-07-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+292,CUST-00292,Andrew Hernandez,andrew.hernandez292@example.com,+1-791-812-6253,Portland,VIP,2025-08-23,2025-08-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+293,CUST-00293,Kimberly Davis,kimberly.davis293@example.com,+1-623-507-5508,Phoenix,VIP,2025-06-14,2025-06-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+294,CUST-00294,Barbara Lee,barbara.lee294@example.com,+1-895-637-9120,Chicago,VIP,2025-06-05,2025-06-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+295,CUST-00295,Matthew Sanchez,matthew.sanchez295@example.com,+1-737-526-7821,Austin,Retail,2025-10-11,2025-10-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+296,CUST-00296,Paul Thomas,paul.thomas296@example.com,+1-446-430-5927,Portland,Retail,2026-04-06,2026-04-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+297,CUST-00297,Patricia Moore,patricia.moore297@example.com,+1-622-626-9683,San Francisco,Retail,2025-07-19,2025-07-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+298,CUST-00298,Jennifer Robinson,jennifer.robinson298@example.com,+1-660-579-2514,Portland,Retail,2025-11-20,2025-11-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+299,CUST-00299,Perez & Matthew Enterprises,purchasing@perezmatthew299.com,+1-274-392-4555,Seattle,Corporate,2025-11-02,2025-11-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+300,CUST-00300,James Miller,james.miller300@example.com,+1-394-959-2922,San Francisco,VIP,2026-02-08,2026-02-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+301,CUST-00301,Thompson & Joshua Solutions,purchasing@thompsonjoshua301.com,+1-606-445-6269,Phoenix,Corporate,2026-02-21,2026-02-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+302,CUST-00302,Daniel Martinez,daniel.martinez302@example.com,+1-467-568-9401,Denver,Retail,2026-04-22,2026-04-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+303,CUST-00303,Donald Harris,donald.harris303@example.com,+1-527-408-7073,Chicago,Retail,2025-09-14,2025-09-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+304,CUST-00304,Elizabeth Smith,elizabeth.smith304@example.com,+1-467-766-7841,Chicago,Retail,2025-09-09,2025-09-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+305,CUST-00305,Andrew Clark,andrew.clark305@example.com,+1-451-711-6530,Portland,Retail,2025-08-30,2025-08-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+306,CUST-00306,Anderson & Ashley Retailers,purchasing@andersonashley306.com,+1-950-560-3773,Phoenix,Corporate,2025-07-21,2025-07-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+307,CUST-00307,Paul Lee,paul.lee307@example.com,+1-260-736-1554,Portland,Retail,2026-03-26,2026-03-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+308,CUST-00308,Patricia Harris,patricia.harris308@example.com,+1-206-622-3252,Chicago,Retail,2026-03-28,2026-03-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+309,CUST-00309,James Miller,james.miller309@example.com,+1-717-666-7114,Austin,Retail,2025-06-13,2025-06-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+310,CUST-00310,Perez & Donald Corp,purchasing@perezdonald310.com,+1-216-206-9719,Phoenix,Wholesale,2025-11-25,2025-11-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+311,CUST-00311,Sarah Moore,sarah.moore311@example.com,+1-493-217-9228,Denver,Retail,2026-03-12,2026-03-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+312,CUST-00312,Brown & Barbara Logistics,purchasing@brownbarbara312.com,+1-736-352-4948,Chicago,Corporate,2025-08-09,2025-08-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+313,CUST-00313,Sarah Sanchez,sarah.sanchez313@example.com,+1-606-280-7112,Chicago,Retail,2026-06-24,2026-06-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+314,CUST-00314,Joseph Martinez,joseph.martinez314@example.com,+1-900-282-1519,Portland,Retail,2025-07-01,2025-07-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+315,CUST-00315,Patricia Lee,patricia.lee315@example.com,+1-209-919-3807,Denver,Retail,2025-06-26,2025-06-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+316,CUST-00316,Jackson & Nancy Logistics,purchasing@jacksonnancy316.com,+1-740-243-4764,Austin,Corporate,2025-08-15,2025-08-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+317,CUST-00317,Donald Rodriguez,donald.rodriguez317@example.com,+1-247-276-5593,Phoenix,VIP,2026-05-03,2026-05-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+318,CUST-00318,Smith & Christopher Solutions,purchasing@smithchristopher318.com,+1-801-347-7525,Seattle,Wholesale,2026-05-26,2026-05-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+319,CUST-00319,Andrew Clark,andrew.clark319@example.com,+1-598-893-9856,Denver,Retail,2025-09-19,2025-09-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+320,CUST-00320,Taylor & Jennifer Group,purchasing@taylorjennifer320.com,+1-254-300-8161,Seattle,Corporate,2025-08-22,2025-08-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+321,CUST-00321,Michelle Walker,michelle.walker321@example.com,+1-809-606-6347,Austin,Retail,2025-05-22,2025-05-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+322,CUST-00322,Ashley Davis,ashley.davis322@example.com,+1-564-766-7150,Phoenix,Retail,2025-10-18,2025-10-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+323,CUST-00323,Harris & Jennifer Supplies,purchasing@harrisjennifer323.com,+1-452-930-2204,Austin,Corporate,2025-06-25,2025-06-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+324,CUST-00324,Elizabeth White,elizabeth.white324@example.com,+1-598-524-6909,Austin,Retail,2025-07-07,2025-07-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+325,CUST-00325,Lisa Harris,lisa.harris325@example.com,+1-476-304-3170,Portland,Retail,2025-06-28,2025-06-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+326,CUST-00326,Steven Wilson,steven.wilson326@example.com,+1-305-226-2468,Denver,Retail,2025-09-25,2025-09-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+327,CUST-00327,Christopher Ramirez,christopher.ramirez327@example.com,+1-594-212-5781,Austin,Retail,2025-10-13,2025-10-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+328,CUST-00328,Lewis & Emily Solutions,purchasing@lewisemily328.com,+1-785-733-3778,Chicago,Corporate,2026-01-13,2026-01-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+329,CUST-00329,Sarah Thomas,sarah.thomas329@example.com,+1-349-264-3739,Portland,Retail,2025-10-19,2025-10-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+330,CUST-00330,John Lopez,john.lopez330@example.com,+1-457-452-9123,Denver,Retail,2025-12-10,2025-12-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+331,CUST-00331,Karen Smith,karen.smith331@example.com,+1-605-540-7224,Seattle,Retail,2026-03-08,2026-03-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+332,CUST-00332,Joshua Jones,joshua.jones332@example.com,+1-507-528-4290,San Francisco,Retail,2025-11-01,2025-11-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+333,CUST-00333,Christopher Martinez,christopher.martinez333@example.com,+1-952-911-9044,San Francisco,Retail,2026-07-04,2026-07-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+334,CUST-00334,Clark & Sarah LLC,purchasing@clarksarah334.com,+1-573-316-4273,San Francisco,Corporate,2025-12-09,2025-12-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+335,CUST-00335,Emily Smith,emily.smith335@example.com,+1-944-672-4434,Austin,Retail,2025-10-20,2025-10-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+336,CUST-00336,Anthony Perez,anthony.perez336@example.com,+1-711-342-5961,Austin,Retail,2025-08-25,2025-08-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+337,CUST-00337,Williams & Matthew Corp,purchasing@williamsmatthew337.com,+1-812-690-7566,Austin,Wholesale,2025-11-19,2025-11-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+338,CUST-00338,Anthony Moore,anthony.moore338@example.com,+1-237-568-9796,Chicago,VIP,2025-12-10,2025-12-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+339,CUST-00339,Jessica Perez,jessica.perez339@example.com,+1-880-563-3725,Seattle,VIP,2025-12-29,2025-12-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+340,CUST-00340,Betty Walker,betty.walker340@example.com,+1-970-539-8052,Phoenix,Retail,2025-07-07,2025-07-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+341,CUST-00341,Kimberly Moore,kimberly.moore341@example.com,+1-794-904-4621,Portland,Retail,2025-10-22,2025-10-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+342,CUST-00342,Donna Thompson,donna.thompson342@example.com,+1-712-354-6651,Chicago,Retail,2026-09-02,2026-09-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+343,CUST-00343,Jennifer Brown,jennifer.brown343@example.com,+1-947-345-6707,Portland,Retail,2025-09-14,2025-09-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+344,CUST-00344,Donald Lopez,donald.lopez344@example.com,+1-687-299-8178,Portland,Retail,2026-01-28,2026-01-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+345,CUST-00345,Robert Sanchez,robert.sanchez345@example.com,+1-927-317-1370,Seattle,Retail,2026-04-01,2026-04-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+346,CUST-00346,Robinson & William Solutions,purchasing@robinsonwilliam346.com,+1-728-378-3623,Austin,Wholesale,2025-09-19,2025-09-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+347,CUST-00347,Betty Lee,betty.lee347@example.com,+1-388-390-8080,San Francisco,Retail,2025-10-07,2025-10-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+348,CUST-00348,Jackson & Mark LLC,purchasing@jacksonmark348.com,+1-598-204-4519,Phoenix,Corporate,2025-08-14,2025-08-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+349,CUST-00349,Jackson & John Logistics,purchasing@jacksonjohn349.com,+1-749-391-6993,Chicago,Corporate,2025-09-18,2025-09-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+350,CUST-00350,Ashley Taylor,ashley.taylor350@example.com,+1-854-520-7367,Portland,Retail,2025-12-16,2025-12-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+351,CUST-00351,Martin & Sandra Retailers,purchasing@martinsandra351.com,+1-889-922-5873,San Francisco,Wholesale,2026-05-18,2026-05-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+352,CUST-00352,Brown & Christopher Solutions,purchasing@brownchristopher352.com,+1-512-319-3999,Austin,Wholesale,2025-10-01,2025-10-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+353,CUST-00353,Joshua Jones,joshua.jones353@example.com,+1-788-592-7931,San Francisco,Retail,2025-08-07,2025-08-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+354,CUST-00354,Moore & Barbara Retailers,purchasing@moorebarbara354.com,+1-701-495-3298,Austin,Wholesale,2025-08-07,2025-08-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+355,CUST-00355,Walker & Daniel Enterprises,purchasing@walkerdaniel355.com,+1-696-339-4196,Austin,Corporate,2026-03-13,2026-03-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+356,CUST-00356,Ashley Wilson,ashley.wilson356@example.com,+1-901-703-7809,Denver,VIP,2026-01-23,2026-01-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+357,CUST-00357,Andrew Smith,andrew.smith357@example.com,+1-979-425-5785,Seattle,Retail,2025-05-25,2025-05-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+358,CUST-00358,Sandra Jackson,sandra.jackson358@example.com,+1-960-991-9115,Portland,Retail,2025-11-24,2025-11-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+359,CUST-00359,Paul Clark,paul.clark359@example.com,+1-575-755-1681,Seattle,Retail,2026-02-14,2026-02-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+360,CUST-00360,Margaret Brown,margaret.brown360@example.com,+1-953-869-5055,Portland,Retail,2025-09-10,2025-09-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+361,CUST-00361,Daniel Ramirez,daniel.ramirez361@example.com,+1-289-649-2923,San Francisco,VIP,2026-02-21,2026-02-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+362,CUST-00362,Donna Thompson,donna.thompson362@example.com,+1-559-927-8015,Chicago,Retail,2025-07-31,2025-07-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+363,CUST-00363,Susan Sanchez,susan.sanchez363@example.com,+1-260-783-6747,Portland,Retail,2025-11-19,2025-11-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+364,CUST-00364,Martinez & Charles Supplies,purchasing@martinezcharles364.com,+1-726-895-2560,Seattle,Wholesale,2025-07-19,2025-07-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+365,CUST-00365,Rodriguez & Patricia Retailers,purchasing@rodriguezpatricia365.com,+1-918-335-5090,San Francisco,Corporate,2025-07-24,2025-07-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+366,CUST-00366,Betty Thomas,betty.thomas366@example.com,+1-345-791-5402,Portland,Retail,2025-12-22,2025-12-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+367,CUST-00367,Jennifer Gonzalez,jennifer.gonzalez367@example.com,+1-727-967-5558,Seattle,Retail,2026-01-17,2026-01-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+368,CUST-00368,Ashley Hernandez,ashley.hernandez368@example.com,+1-795-202-2526,San Francisco,VIP,2026-02-01,2026-02-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+369,CUST-00369,Daniel Ramirez,daniel.ramirez369@example.com,+1-264-747-7516,Austin,Retail,2025-08-18,2025-08-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+370,CUST-00370,Sarah Hernandez,sarah.hernandez370@example.com,+1-490-545-9967,Portland,Retail,2025-12-04,2025-12-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+371,CUST-00371,Lewis & Nancy Enterprises,purchasing@lewisnancy371.com,+1-247-301-8529,Denver,Wholesale,2025-05-09,2025-05-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+372,CUST-00372,Sandra Smith,sandra.smith372@example.com,+1-638-407-3161,Seattle,VIP,2026-04-21,2026-04-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+373,CUST-00373,Sarah Williams,sarah.williams373@example.com,+1-870-569-5102,Chicago,Retail,2025-06-25,2025-06-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+374,CUST-00374,Gonzalez & Patricia Supplies,purchasing@gonzalezpatricia374.com,+1-943-916-4836,Austin,Wholesale,2025-10-17,2025-10-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+375,CUST-00375,Susan Thomas,susan.thomas375@example.com,+1-279-335-4705,Seattle,Retail,2025-11-14,2025-11-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+376,CUST-00376,Nancy Clark,nancy.clark376@example.com,+1-323-632-3165,Seattle,Retail,2025-11-01,2025-11-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+377,CUST-00377,Michael Brown,michael.brown377@example.com,+1-520-576-5902,Seattle,Retail,2025-07-20,2025-07-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+378,CUST-00378,Lee & David Retailers,purchasing@leedavid378.com,+1-270-743-1138,Chicago,Corporate,2025-12-15,2025-12-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+379,CUST-00379,Susan Lee,susan.lee379@example.com,+1-966-355-7745,San Francisco,Retail,2025-12-18,2025-12-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+380,CUST-00380,Michael Jones,michael.jones380@example.com,+1-970-326-7291,Portland,Retail,2025-09-25,2025-09-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+381,CUST-00381,Jessica Rodriguez,jessica.rodriguez381@example.com,+1-860-286-5065,Chicago,Retail,2025-11-26,2025-11-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+382,CUST-00382,Ramirez & Mary Supplies,purchasing@ramirezmary382.com,+1-410-730-9348,Austin,Wholesale,2025-08-08,2025-08-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+383,CUST-00383,Jessica Thomas,jessica.thomas383@example.com,+1-595-315-4949,Austin,Retail,2025-11-08,2025-11-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+384,CUST-00384,Lopez & James Group,purchasing@lopezjames384.com,+1-335-596-7895,Denver,Wholesale,2025-09-29,2025-09-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+385,CUST-00385,Smith & John Logistics,purchasing@smithjohn385.com,+1-214-468-4534,Chicago,Corporate,2025-05-31,2025-05-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+386,CUST-00386,Steven Martinez,steven.martinez386@example.com,+1-843-929-9209,Chicago,Retail,2026-02-17,2026-02-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+387,CUST-00387,Paul Moore,paul.moore387@example.com,+1-830-356-5546,San Francisco,Retail,2025-06-26,2025-06-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+388,CUST-00388,Elizabeth Moore,elizabeth.moore388@example.com,+1-534-600-2083,Phoenix,Retail,2025-09-13,2025-09-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+389,CUST-00389,Jessica Johnson,jessica.johnson389@example.com,+1-450-288-8118,Phoenix,Retail,2025-07-11,2025-07-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+390,CUST-00390,Brown & Barbara Enterprises,purchasing@brownbarbara390.com,+1-924-340-1185,Seattle,Wholesale,2025-07-30,2025-07-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+391,CUST-00391,Thomas Garcia,thomas.garcia391@example.com,+1-580-329-5403,Denver,VIP,2026-02-02,2026-02-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+392,CUST-00392,Nancy Sanchez,nancy.sanchez392@example.com,+1-639-478-9582,Phoenix,Retail,2025-06-15,2025-06-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+393,CUST-00393,Thomas & John Corp,purchasing@thomasjohn393.com,+1-723-568-1908,Denver,Corporate,2025-11-08,2025-11-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+394,CUST-00394,Harris & Thomas Logistics,purchasing@harristhomas394.com,+1-787-890-2889,San Francisco,Wholesale,2025-08-21,2025-08-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+395,CUST-00395,James Davis,james.davis395@example.com,+1-247-683-6963,Seattle,Retail,2025-10-04,2025-10-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+396,CUST-00396,Robert Moore,robert.moore396@example.com,+1-931-958-7870,Phoenix,Retail,2025-08-20,2025-08-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+397,CUST-00397,Christopher Rodriguez,christopher.rodriguez397@example.com,+1-279-785-7108,Phoenix,Retail,2025-07-13,2025-07-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+398,CUST-00398,Sanchez & Joseph Enterprises,purchasing@sanchezjoseph398.com,+1-610-270-8620,Seattle,Corporate,2026-04-11,2026-04-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+399,CUST-00399,Moore & Jennifer Corp,purchasing@moorejennifer399.com,+1-208-577-4287,Portland,Corporate,2025-09-08,2025-09-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+400,CUST-00400,Anderson & Jessica Group,purchasing@andersonjessica400.com,+1-805-705-4201,Chicago,Corporate,2026-02-02,2026-02-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+401,CUST-00401,Elizabeth Smith,elizabeth.smith401@example.com,+1-619-224-4817,Chicago,Retail,2025-11-22,2025-11-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+402,CUST-00402,Walker & James Group,purchasing@walkerjames402.com,+1-201-977-7164,Austin,Wholesale,2026-04-01,2026-04-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+403,CUST-00403,Davis & Kimberly LLC,purchasing@daviskimberly403.com,+1-703-261-3332,Seattle,Corporate,2026-01-24,2026-01-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+404,CUST-00404,Kimberly Wilson,kimberly.wilson404@example.com,+1-917-581-8511,Phoenix,Retail,2026-07-13,2026-07-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+405,CUST-00405,David Lee,david.lee405@example.com,+1-603-276-2020,Seattle,Retail,2025-10-19,2025-10-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+406,CUST-00406,Thomas Ramirez,thomas.ramirez406@example.com,+1-522-602-6345,Portland,VIP,2025-09-15,2025-09-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+407,CUST-00407,Richard Jones,richard.jones407@example.com,+1-998-988-2785,Seattle,Retail,2025-07-27,2025-07-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+408,CUST-00408,Anthony Brown,anthony.brown408@example.com,+1-748-566-4401,San Francisco,Retail,2025-10-24,2025-10-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+409,CUST-00409,Jennifer Garcia,jennifer.garcia409@example.com,+1-902-511-1660,Chicago,Retail,2025-08-17,2025-08-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+410,CUST-00410,Jessica Walker,jessica.walker410@example.com,+1-564-605-9412,Seattle,VIP,2025-06-06,2025-06-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+411,CUST-00411,Barbara Smith,barbara.smith411@example.com,+1-614-663-5093,Chicago,Retail,2025-07-02,2025-07-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+412,CUST-00412,Linda Smith,linda.smith412@example.com,+1-263-999-4641,Chicago,Retail,2025-07-17,2025-07-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+413,CUST-00413,Jackson & Jennifer Supplies,purchasing@jacksonjennifer413.com,+1-276-222-2056,San Francisco,Corporate,2025-08-11,2025-08-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+414,CUST-00414,Lewis & Jennifer Group,purchasing@lewisjennifer414.com,+1-325-243-8552,Chicago,Wholesale,2025-06-07,2025-06-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+415,CUST-00415,Betty Thomas,betty.thomas415@example.com,+1-230-591-7990,San Francisco,VIP,2025-08-02,2025-08-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+416,CUST-00416,Sarah Anderson,sarah.anderson416@example.com,+1-352-235-5026,Portland,Retail,2025-12-29,2025-12-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+417,CUST-00417,Donald Johnson,donald.johnson417@example.com,+1-289-486-7275,Phoenix,Retail,2025-07-20,2025-07-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+418,CUST-00418,Kimberly Davis,kimberly.davis418@example.com,+1-845-756-1319,Phoenix,Retail,2026-08-08,2026-08-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+419,CUST-00419,Sanchez & Paul Corp,purchasing@sanchezpaul419.com,+1-552-779-9231,San Francisco,Corporate,2025-09-16,2025-09-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+420,CUST-00420,Joshua Davis,joshua.davis420@example.com,+1-230-997-5602,Seattle,Retail,2025-06-12,2025-06-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+421,CUST-00421,Donna Davis,donna.davis421@example.com,+1-363-302-5060,Denver,VIP,2026-01-02,2026-01-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+422,CUST-00422,Patricia Harris,patricia.harris422@example.com,+1-424-789-7363,Chicago,Retail,2025-09-26,2025-09-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+423,CUST-00423,Davis & Barbara Group,purchasing@davisbarbara423.com,+1-955-914-6878,Chicago,Corporate,2026-05-14,2026-05-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+424,CUST-00424,Andrew Jackson,andrew.jackson424@example.com,+1-345-776-4084,Austin,Retail,2026-03-25,2026-03-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+425,CUST-00425,Martinez & Paul Retailers,purchasing@martinezpaul425.com,+1-702-238-2478,Phoenix,Corporate,2025-06-11,2025-06-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+426,CUST-00426,Smith & Donald Group,purchasing@smithdonald426.com,+1-828-406-3137,Seattle,Wholesale,2025-09-22,2025-09-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+427,CUST-00427,Christopher Johnson,christopher.johnson427@example.com,+1-222-351-3320,Chicago,Retail,2026-02-21,2026-02-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+428,CUST-00428,Lopez & John LLC,purchasing@lopezjohn428.com,+1-800-303-6514,Chicago,Corporate,2025-09-11,2025-09-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+429,CUST-00429,Margaret Sanchez,margaret.sanchez429@example.com,+1-854-698-6198,Seattle,Retail,2025-08-03,2025-08-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+430,CUST-00430,Michelle Sanchez,michelle.sanchez430@example.com,+1-565-428-3872,Austin,VIP,2025-10-02,2025-10-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+431,CUST-00431,White & Barbara Enterprises,purchasing@whitebarbara431.com,+1-918-786-7415,Portland,Corporate,2026-04-02,2026-04-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+432,CUST-00432,Martin & Barbara Group,purchasing@martinbarbara432.com,+1-826-426-2705,Denver,Corporate,2026-06-02,2026-06-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+433,CUST-00433,Jessica Lopez,jessica.lopez433@example.com,+1-527-371-2453,Chicago,Retail,2026-03-17,2026-03-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+434,CUST-00434,Anderson & Nancy Enterprises,purchasing@andersonnancy434.com,+1-471-414-5088,Chicago,Corporate,2026-01-16,2026-01-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+435,CUST-00435,James Johnson,james.johnson435@example.com,+1-595-648-7875,Chicago,Retail,2026-07-06,2026-07-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+436,CUST-00436,Matthew Lopez,matthew.lopez436@example.com,+1-759-584-2661,Denver,VIP,2026-03-21,2026-03-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+437,CUST-00437,Garcia & Joseph Corp,purchasing@garciajoseph437.com,+1-275-234-5831,Denver,Corporate,2025-05-13,2025-05-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+438,CUST-00438,Nancy Garcia,nancy.garcia438@example.com,+1-584-364-2228,Seattle,Retail,2025-11-23,2025-11-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+439,CUST-00439,Joshua Martin,joshua.martin439@example.com,+1-694-921-1507,Seattle,VIP,2025-10-18,2025-10-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+440,CUST-00440,Garcia & Margaret Enterprises,purchasing@garciamargaret440.com,+1-303-539-4367,Austin,Wholesale,2026-07-13,2026-07-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+441,CUST-00441,Paul Rodriguez,paul.rodriguez441@example.com,+1-876-488-5872,Denver,Retail,2025-08-24,2025-08-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+442,CUST-00442,Ashley Jones,ashley.jones442@example.com,+1-255-569-1062,Denver,Retail,2025-10-17,2025-10-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+443,CUST-00443,Joshua Thomas,joshua.thomas443@example.com,+1-404-299-1421,Austin,Retail,2025-08-14,2025-08-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+444,CUST-00444,Ramirez & Donald Logistics,purchasing@ramirezdonald444.com,+1-515-607-8715,Phoenix,Wholesale,2025-11-05,2025-11-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+445,CUST-00445,Gonzalez & Paul Retailers,purchasing@gonzalezpaul445.com,+1-579-590-7052,Seattle,Wholesale,2025-08-07,2025-08-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+446,CUST-00446,Thomas Davis,thomas.davis446@example.com,+1-475-777-2009,San Francisco,Retail,2025-07-25,2025-07-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+447,CUST-00447,Sanchez & Daniel LLC,purchasing@sanchezdaniel447.com,+1-974-803-4727,Seattle,Corporate,2025-11-26,2025-11-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+448,CUST-00448,Walker & Anthony Corp,purchasing@walkeranthony448.com,+1-786-441-8803,Chicago,Corporate,2025-09-10,2025-09-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+449,CUST-00449,Robert Taylor,robert.taylor449@example.com,+1-784-729-3415,Chicago,Retail,2025-07-13,2025-07-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+450,CUST-00450,Miller & William Solutions,purchasing@millerwilliam450.com,+1-329-243-7936,Seattle,Corporate,2025-06-23,2025-06-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+451,CUST-00451,Clark & Elizabeth Supplies,purchasing@clarkelizabeth451.com,+1-527-944-2097,Portland,Corporate,2025-06-28,2025-06-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+452,CUST-00452,Taylor & Sarah Corp,purchasing@taylorsarah452.com,+1-212-917-9561,Denver,Wholesale,2026-02-24,2026-02-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+453,CUST-00453,Andrew Jackson,andrew.jackson453@example.com,+1-796-976-2641,Seattle,Retail,2026-05-23,2026-05-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+454,CUST-00454,Ramirez & Charles Group,purchasing@ramirezcharles454.com,+1-620-470-7275,Seattle,Wholesale,2026-01-01,2026-01-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+455,CUST-00455,Rodriguez & Barbara LLC,purchasing@rodriguezbarbara455.com,+1-347-833-7581,Denver,Wholesale,2025-05-30,2025-05-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+456,CUST-00456,Jessica Johnson,jessica.johnson456@example.com,+1-963-686-5400,San Francisco,VIP,2026-05-02,2026-05-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+457,CUST-00457,Karen Martinez,karen.martinez457@example.com,+1-487-703-2609,Chicago,Retail,2026-07-11,2026-07-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+458,CUST-00458,Mark Harris,mark.harris458@example.com,+1-528-475-7828,Portland,Retail,2025-12-14,2025-12-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+459,CUST-00459,Anthony White,anthony.white459@example.com,+1-696-977-9462,San Francisco,Retail,2026-04-12,2026-04-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+460,CUST-00460,Williams & William Supplies,purchasing@williamswilliam460.com,+1-926-718-7609,Denver,Corporate,2025-07-19,2025-07-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+461,CUST-00461,Mary Garcia,mary.garcia461@example.com,+1-397-405-1944,Chicago,VIP,2025-08-27,2025-08-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+462,CUST-00462,Richard Rodriguez,richard.rodriguez462@example.com,+1-577-675-9275,Phoenix,Retail,2025-10-08,2025-10-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+463,CUST-00463,Jessica Lopez,jessica.lopez463@example.com,+1-700-808-8308,Austin,VIP,2025-08-04,2025-08-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+464,CUST-00464,Daniel Lopez,daniel.lopez464@example.com,+1-367-464-2480,Denver,VIP,2025-09-06,2025-09-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+465,CUST-00465,Andrew Harris,andrew.harris465@example.com,+1-419-426-4688,Seattle,Retail,2026-01-10,2026-01-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+466,CUST-00466,Mary Ramirez,mary.ramirez466@example.com,+1-999-985-1145,San Francisco,Retail,2025-10-31,2025-10-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+467,CUST-00467,James Davis,james.davis467@example.com,+1-458-822-6004,Seattle,Retail,2026-01-24,2026-01-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+468,CUST-00468,Ramirez & Matthew Group,purchasing@ramirezmatthew468.com,+1-670-458-4575,Portland,Corporate,2025-10-29,2025-10-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+469,CUST-00469,Jackson & Betty Logistics,purchasing@jacksonbetty469.com,+1-207-723-7131,Chicago,Corporate,2025-11-28,2025-11-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+470,CUST-00470,Thomas & Michael Logistics,purchasing@thomasmichael470.com,+1-544-483-6327,Portland,Wholesale,2026-04-08,2026-04-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+471,CUST-00471,Karen Miller,karen.miller471@example.com,+1-353-729-4937,Austin,Retail,2026-05-03,2026-05-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+472,CUST-00472,Gonzalez & Joshua Group,purchasing@gonzalezjoshua472.com,+1-897-343-1417,Chicago,Corporate,2026-01-01,2026-01-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+473,CUST-00473,Anthony Gonzalez,anthony.gonzalez473@example.com,+1-597-954-1578,Portland,VIP,2025-12-06,2025-12-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+474,CUST-00474,Nancy White,nancy.white474@example.com,+1-930-427-9759,Chicago,VIP,2025-12-26,2025-12-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+475,CUST-00475,Daniel Taylor,daniel.taylor475@example.com,+1-507-374-3967,Phoenix,Retail,2025-09-09,2025-09-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+476,CUST-00476,Emily Harris,emily.harris476@example.com,+1-387-896-6499,Chicago,Retail,2026-01-01,2026-01-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+477,CUST-00477,Karen Wilson,karen.wilson477@example.com,+1-539-580-5269,Portland,Retail,2025-12-07,2025-12-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+478,CUST-00478,Patricia Ramirez,patricia.ramirez478@example.com,+1-849-797-2166,Seattle,Retail,2025-10-30,2025-10-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+479,CUST-00479,Matthew Taylor,matthew.taylor479@example.com,+1-505-623-1885,Seattle,Retail,2026-04-14,2026-04-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+480,CUST-00480,Nancy Wilson,nancy.wilson480@example.com,+1-783-668-3346,Phoenix,Retail,2025-09-15,2025-09-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+481,CUST-00481,Hernandez & Ashley Retailers,purchasing@hernandezashley481.com,+1-520-849-1950,Chicago,Corporate,2025-04-22,2025-04-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+482,CUST-00482,William Jackson,william.jackson482@example.com,+1-982-362-9021,Chicago,Retail,2026-02-26,2026-02-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+483,CUST-00483,Lee & Margaret LLC,purchasing@leemargaret483.com,+1-613-639-8821,Seattle,Corporate,2025-10-04,2025-10-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+484,CUST-00484,Lisa Walker,lisa.walker484@example.com,+1-214-529-9700,Portland,Retail,2025-08-09,2025-08-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+485,CUST-00485,Davis & Jessica Group,purchasing@davisjessica485.com,+1-519-332-2682,Austin,Corporate,2025-10-04,2025-10-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+486,CUST-00486,Martinez & Robert Supplies,purchasing@martinezrobert486.com,+1-666-945-9524,Seattle,Wholesale,2025-12-10,2025-12-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+487,CUST-00487,David Hernandez,david.hernandez487@example.com,+1-701-567-4087,Phoenix,Retail,2025-07-31,2025-07-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+488,CUST-00488,Mary Davis,mary.davis488@example.com,+1-429-944-3149,Chicago,VIP,2025-08-15,2025-08-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+489,CUST-00489,Linda Lopez,linda.lopez489@example.com,+1-928-866-1612,Denver,Retail,2025-10-01,2025-10-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+490,CUST-00490,Johnson & Michelle Enterprises,purchasing@johnsonmichelle490.com,+1-877-310-1323,Chicago,Wholesale,2025-06-05,2025-06-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+491,CUST-00491,Linda Moore,linda.moore491@example.com,+1-458-685-3508,San Francisco,Retail,2025-08-14,2025-08-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+492,CUST-00492,Perez & Anthony Logistics,purchasing@perezanthony492.com,+1-878-732-5423,Seattle,Corporate,2025-12-20,2025-12-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+493,CUST-00493,Taylor & Michael Logistics,purchasing@taylormichael493.com,+1-489-316-2741,San Francisco,Corporate,2025-11-07,2025-11-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+494,CUST-00494,Miller & Kimberly Group,purchasing@millerkimberly494.com,+1-920-619-5839,Chicago,Wholesale,2025-07-29,2025-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+495,CUST-00495,Donald Hernandez,donald.hernandez495@example.com,+1-440-202-1208,Phoenix,Retail,2026-01-08,2026-01-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+496,CUST-00496,Ashley Jones,ashley.jones496@example.com,+1-292-998-9383,Chicago,VIP,2025-06-22,2025-06-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+497,CUST-00497,Anderson & Joseph Supplies,purchasing@andersonjoseph497.com,+1-470-675-1820,Phoenix,Corporate,2025-07-04,2025-07-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+498,CUST-00498,Charles Lopez,charles.lopez498@example.com,+1-893-520-7979,Seattle,Retail,2026-02-04,2026-02-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+499,CUST-00499,Robert Smith,robert.smith499@example.com,+1-341-879-3793,Chicago,Retail,2025-09-18,2025-09-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+500,CUST-00500,Sarah Lewis,sarah.lewis500@example.com,+1-950-295-7105,Phoenix,VIP,2026-03-13,2026-03-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+501,CUST-00501,Sandra Rodriguez,sandra.rodriguez501@example.com,+1-594-906-8835,San Francisco,Retail,2026-03-05,2026-03-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+502,CUST-00502,Jones & Linda Enterprises,purchasing@joneslinda502.com,+1-363-306-7816,Chicago,Wholesale,2026-05-12,2026-05-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+503,CUST-00503,Mark Garcia,mark.garcia503@example.com,+1-825-588-6875,Denver,Retail,2025-12-16,2025-12-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+504,CUST-00504,David Thomas,david.thomas504@example.com,+1-699-315-7738,Chicago,VIP,2025-10-21,2025-10-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+505,CUST-00505,James Thompson,james.thompson505@example.com,+1-894-737-4669,Austin,Retail,2026-07-18,2026-07-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+506,CUST-00506,Thompson & Kimberly Logistics,purchasing@thompsonkimberly506.com,+1-643-877-5072,San Francisco,Wholesale,2025-11-02,2025-11-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+507,CUST-00507,Clark & Elizabeth Enterprises,purchasing@clarkelizabeth507.com,+1-211-858-3571,Austin,Wholesale,2025-11-10,2025-11-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+508,CUST-00508,William Williams,william.williams508@example.com,+1-969-703-6253,Denver,Retail,2025-08-25,2025-08-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+509,CUST-00509,Joseph Moore,joseph.moore509@example.com,+1-858-587-7607,Seattle,VIP,2026-03-14,2026-03-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+510,CUST-00510,Andrew Anderson,andrew.anderson510@example.com,+1-290-710-8324,San Francisco,Retail,2025-09-15,2025-09-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+511,CUST-00511,Mary Brown,mary.brown511@example.com,+1-613-622-1587,Chicago,VIP,2025-11-27,2025-11-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+512,CUST-00512,Joshua Walker,joshua.walker512@example.com,+1-833-852-5990,Seattle,Retail,2026-04-27,2026-04-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+513,CUST-00513,Walker & Sandra Group,purchasing@walkersandra513.com,+1-572-255-4652,Austin,Wholesale,2026-03-29,2026-03-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+514,CUST-00514,Joshua Thomas,joshua.thomas514@example.com,+1-933-872-6952,Chicago,Retail,2026-01-26,2026-01-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+515,CUST-00515,Joseph Smith,joseph.smith515@example.com,+1-549-563-5783,Chicago,Retail,2025-11-24,2025-11-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+516,CUST-00516,William Thomas,william.thomas516@example.com,+1-343-934-7704,Seattle,Retail,2025-07-07,2025-07-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+517,CUST-00517,Miller & Betty Corp,purchasing@millerbetty517.com,+1-395-933-6536,Portland,Wholesale,2025-07-08,2025-07-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+518,CUST-00518,Donna Brown,donna.brown518@example.com,+1-990-661-8493,Phoenix,Retail,2026-01-02,2026-01-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+519,CUST-00519,Ashley Smith,ashley.smith519@example.com,+1-743-953-1795,Seattle,VIP,2025-11-26,2025-11-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+520,CUST-00520,Steven Harris,steven.harris520@example.com,+1-381-908-3845,Denver,Retail,2026-02-01,2026-02-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+521,CUST-00521,Joshua Martin,joshua.martin521@example.com,+1-529-716-7302,San Francisco,Retail,2025-10-14,2025-10-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+522,CUST-00522,Rodriguez & Jessica LLC,purchasing@rodriguezjessica522.com,+1-551-501-8419,Austin,Wholesale,2026-03-08,2026-03-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+523,CUST-00523,Steven Martinez,steven.martinez523@example.com,+1-918-760-6143,Austin,Retail,2026-01-24,2026-01-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+524,CUST-00524,Richard Miller,richard.miller524@example.com,+1-839-931-5760,Austin,VIP,2026-01-14,2026-01-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+525,CUST-00525,Barbara Taylor,barbara.taylor525@example.com,+1-755-910-6281,Seattle,VIP,2026-01-23,2026-01-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+526,CUST-00526,Jackson & Donna LLC,purchasing@jacksondonna526.com,+1-890-965-9747,Denver,Corporate,2025-09-07,2025-09-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+527,CUST-00527,Brown & Kimberly Enterprises,purchasing@brownkimberly527.com,+1-590-348-1869,Chicago,Corporate,2026-01-07,2026-01-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+528,CUST-00528,William Martinez,william.martinez528@example.com,+1-899-456-3399,Chicago,Retail,2026-03-26,2026-03-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+529,CUST-00529,Johnson & Paul Group,purchasing@johnsonpaul529.com,+1-663-304-4675,Portland,Corporate,2026-02-06,2026-02-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+530,CUST-00530,Thompson & Charles Enterprises,purchasing@thompsoncharles530.com,+1-590-596-7825,Portland,Wholesale,2026-06-21,2026-06-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+531,CUST-00531,Emily Johnson,emily.johnson531@example.com,+1-213-961-5117,Portland,VIP,2025-08-13,2025-08-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+532,CUST-00532,Mark Clark,mark.clark532@example.com,+1-430-848-7025,Chicago,VIP,2026-02-12,2026-02-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+533,CUST-00533,Richard Martinez,richard.martinez533@example.com,+1-659-381-2220,Austin,Retail,2025-08-07,2025-08-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+534,CUST-00534,Matthew Johnson,matthew.johnson534@example.com,+1-638-485-5329,Denver,Retail,2025-07-17,2025-07-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+535,CUST-00535,Anderson & Nancy Retailers,purchasing@andersonnancy535.com,+1-240-357-6285,Portland,Wholesale,2025-12-11,2025-12-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+536,CUST-00536,Thomas & Karen Group,purchasing@thomaskaren536.com,+1-274-924-6207,Austin,Corporate,2025-11-16,2025-11-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+537,CUST-00537,Steven Garcia,steven.garcia537@example.com,+1-625-756-9798,Denver,VIP,2025-10-10,2025-10-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+538,CUST-00538,Nancy Hernandez,nancy.hernandez538@example.com,+1-569-500-4579,Phoenix,Retail,2026-06-15,2026-06-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+539,CUST-00539,Clark & Emily Enterprises,purchasing@clarkemily539.com,+1-317-884-6668,Denver,Wholesale,2025-10-22,2025-10-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+540,CUST-00540,Michelle Davis,michelle.davis540@example.com,+1-240-898-6258,Austin,VIP,2025-10-03,2025-10-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+541,CUST-00541,Moore & Thomas Supplies,purchasing@moorethomas541.com,+1-225-729-7143,Seattle,Corporate,2025-11-13,2025-11-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+542,CUST-00542,Charles Lewis,charles.lewis542@example.com,+1-867-397-6248,Denver,Retail,2025-11-13,2025-11-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+543,CUST-00543,Paul Moore,paul.moore543@example.com,+1-207-841-2072,Seattle,VIP,2025-08-15,2025-08-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+544,CUST-00544,Clark & Margaret Logistics,purchasing@clarkmargaret544.com,+1-410-750-8130,Portland,Wholesale,2025-12-29,2025-12-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+545,CUST-00545,Elizabeth Smith,elizabeth.smith545@example.com,+1-670-934-6434,Chicago,VIP,2025-05-29,2025-05-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+546,CUST-00546,Thomas Moore,thomas.moore546@example.com,+1-272-788-4729,Seattle,Retail,2026-05-12,2026-05-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+547,CUST-00547,Betty Wilson,betty.wilson547@example.com,+1-523-217-7381,San Francisco,Retail,2026-01-08,2026-01-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+548,CUST-00548,Michelle Williams,michelle.williams548@example.com,+1-974-963-1745,Austin,Retail,2026-01-19,2026-01-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+549,CUST-00549,Michael Martinez,michael.martinez549@example.com,+1-902-508-2417,Phoenix,Retail,2025-09-05,2025-09-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+550,CUST-00550,Mary Thomas,mary.thomas550@example.com,+1-360-746-4602,San Francisco,VIP,2025-07-20,2025-07-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+551,CUST-00551,Paul Martinez,paul.martinez551@example.com,+1-849-347-5883,Chicago,Retail,2026-01-10,2026-01-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+552,CUST-00552,Lisa Walker,lisa.walker552@example.com,+1-211-766-3316,Chicago,VIP,2025-07-14,2025-07-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+553,CUST-00553,Paul Moore,paul.moore553@example.com,+1-287-512-4441,Austin,Retail,2026-02-09,2026-02-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+554,CUST-00554,Anthony Lewis,anthony.lewis554@example.com,+1-861-724-3333,San Francisco,VIP,2025-07-29,2025-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+555,CUST-00555,Richard Brown,richard.brown555@example.com,+1-385-887-1891,Chicago,Retail,2026-04-02,2026-04-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+556,CUST-00556,Sandra Lee,sandra.lee556@example.com,+1-762-274-5762,Phoenix,VIP,2026-01-08,2026-01-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+557,CUST-00557,Donna Thomas,donna.thomas557@example.com,+1-538-565-3100,Portland,Retail,2026-01-07,2026-01-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+558,CUST-00558,John Lewis,john.lewis558@example.com,+1-398-525-8960,Portland,Retail,2025-10-24,2025-10-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+559,CUST-00559,Jones & Donna Group,purchasing@jonesdonna559.com,+1-523-638-3762,Portland,Wholesale,2025-04-22,2025-04-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+560,CUST-00560,Margaret Rodriguez,margaret.rodriguez560@example.com,+1-568-337-6432,Portland,Retail,2026-04-19,2026-04-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+561,CUST-00561,Karen Thomas,karen.thomas561@example.com,+1-764-311-3879,San Francisco,Retail,2025-12-29,2025-12-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+562,CUST-00562,David Lewis,david.lewis562@example.com,+1-751-401-5312,Portland,Retail,2026-02-02,2026-02-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+563,CUST-00563,Ramirez & Mary Enterprises,purchasing@ramirezmary563.com,+1-795-792-7637,Chicago,Wholesale,2026-02-18,2026-02-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+564,CUST-00564,Thomas Moore,thomas.moore564@example.com,+1-752-683-3435,Seattle,Retail,2025-09-29,2025-09-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+565,CUST-00565,Charles Jones,charles.jones565@example.com,+1-675-713-9362,Chicago,Retail,2025-06-30,2025-06-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+566,CUST-00566,Jessica Ramirez,jessica.ramirez566@example.com,+1-828-900-3717,Seattle,Retail,2026-02-13,2026-02-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+567,CUST-00567,Andrew Walker,andrew.walker567@example.com,+1-779-875-3395,Seattle,Retail,2026-02-03,2026-02-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+568,CUST-00568,Joseph Harris,joseph.harris568@example.com,+1-699-437-2029,San Francisco,Retail,2025-09-01,2025-09-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+569,CUST-00569,Kimberly Robinson,kimberly.robinson569@example.com,+1-569-597-8695,Austin,Retail,2026-05-17,2026-05-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+570,CUST-00570,Christopher Brown,christopher.brown570@example.com,+1-920-733-5480,Seattle,VIP,2026-03-24,2026-03-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+571,CUST-00571,Barbara Gonzalez,barbara.gonzalez571@example.com,+1-869-587-6985,Denver,Retail,2025-12-07,2025-12-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+572,CUST-00572,Thomas Gonzalez,thomas.gonzalez572@example.com,+1-428-728-7649,Seattle,VIP,2025-09-25,2025-09-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+573,CUST-00573,Donald Lewis,donald.lewis573@example.com,+1-818-206-9222,Denver,VIP,2026-04-21,2026-04-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+574,CUST-00574,Steven Lee,steven.lee574@example.com,+1-487-416-3461,Portland,Retail,2025-08-07,2025-08-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+575,CUST-00575,Linda Perez,linda.perez575@example.com,+1-435-624-6410,Austin,Retail,2026-01-28,2026-01-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+576,CUST-00576,Susan Jackson,susan.jackson576@example.com,+1-365-862-7732,Denver,Retail,2025-05-16,2025-05-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+577,CUST-00577,William Jones,william.jones577@example.com,+1-844-724-1642,Denver,Retail,2026-04-27,2026-04-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+578,CUST-00578,Barbara Taylor,barbara.taylor578@example.com,+1-615-813-1305,Seattle,Retail,2026-04-19,2026-04-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+579,CUST-00579,Miller & Jennifer Corp,purchasing@millerjennifer579.com,+1-821-682-8891,Chicago,Corporate,2025-08-02,2025-08-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+580,CUST-00580,Clark & Donna Retailers,purchasing@clarkdonna580.com,+1-838-875-9369,Austin,Corporate,2025-09-01,2025-09-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+581,CUST-00581,Martin & Sandra Logistics,purchasing@martinsandra581.com,+1-435-587-7315,San Francisco,Corporate,2025-07-18,2025-07-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+582,CUST-00582,Steven Perez,steven.perez582@example.com,+1-629-353-2577,Denver,Retail,2025-08-04,2025-08-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+583,CUST-00583,Paul Taylor,paul.taylor583@example.com,+1-970-320-2526,Austin,VIP,2025-11-02,2025-11-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+584,CUST-00584,James Lewis,james.lewis584@example.com,+1-993-894-8069,Austin,Retail,2025-11-15,2025-11-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+585,CUST-00585,Kimberly Wilson,kimberly.wilson585@example.com,+1-434-693-7246,Seattle,Retail,2025-09-24,2025-09-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+586,CUST-00586,Brown & Andrew LLC,purchasing@brownandrew586.com,+1-337-460-8817,Phoenix,Corporate,2026-02-17,2026-02-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+587,CUST-00587,Joshua Lewis,joshua.lewis587@example.com,+1-756-618-5223,Seattle,VIP,2025-08-08,2025-08-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+588,CUST-00588,Taylor & Andrew Logistics,purchasing@taylorandrew588.com,+1-732-207-7144,Chicago,Corporate,2026-01-01,2026-01-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+589,CUST-00589,Brown & Lisa Retailers,purchasing@brownlisa589.com,+1-636-867-5155,Portland,Corporate,2025-08-31,2025-08-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+590,CUST-00590,Michelle Rodriguez,michelle.rodriguez590@example.com,+1-896-606-4337,Denver,Retail,2025-10-12,2025-10-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+591,CUST-00591,Moore & Lisa Corp,purchasing@moorelisa591.com,+1-459-514-6641,Denver,Corporate,2026-02-21,2026-02-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+592,CUST-00592,Linda White,linda.white592@example.com,+1-435-657-3650,Seattle,Retail,2025-07-04,2025-07-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+593,CUST-00593,Emily Martin,emily.martin593@example.com,+1-913-900-1852,Chicago,Retail,2025-07-29,2025-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+594,CUST-00594,Jennifer Clark,jennifer.clark594@example.com,+1-348-682-8133,Seattle,VIP,2025-06-28,2025-06-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+595,CUST-00595,Joshua Johnson,joshua.johnson595@example.com,+1-941-593-7564,San Francisco,Retail,2025-12-17,2025-12-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+596,CUST-00596,Joshua Johnson,joshua.johnson596@example.com,+1-992-379-9099,Austin,Retail,2025-10-20,2025-10-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+597,CUST-00597,Kimberly Martinez,kimberly.martinez597@example.com,+1-399-234-9364,Austin,Retail,2025-11-13,2025-11-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+598,CUST-00598,Robert Lopez,robert.lopez598@example.com,+1-444-870-1004,Seattle,Retail,2026-07-15,2026-07-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+599,CUST-00599,Betty Lopez,betty.lopez599@example.com,+1-885-604-7642,Portland,Retail,2025-12-07,2025-12-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+600,CUST-00600,John Robinson,john.robinson600@example.com,+1-292-762-5661,Chicago,Retail,2026-01-30,2026-01-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+601,CUST-00601,Walker & Daniel Supplies,purchasing@walkerdaniel601.com,+1-431-820-4187,Denver,Wholesale,2025-10-25,2025-10-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+602,CUST-00602,Barbara Wilson,barbara.wilson602@example.com,+1-718-309-2185,Seattle,Retail,2025-11-09,2025-11-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+603,CUST-00603,Steven Walker,steven.walker603@example.com,+1-463-750-5098,Seattle,Retail,2026-01-17,2026-01-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+604,CUST-00604,Jessica Harris,jessica.harris604@example.com,+1-547-994-8517,Denver,VIP,2026-01-12,2026-01-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+605,CUST-00605,Donald Brown,donald.brown605@example.com,+1-464-269-7269,Chicago,VIP,2025-12-24,2025-12-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+606,CUST-00606,Joseph Sanchez,joseph.sanchez606@example.com,+1-523-622-6785,Austin,VIP,2025-11-13,2025-11-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+607,CUST-00607,Jessica Martinez,jessica.martinez607@example.com,+1-295-608-6603,Chicago,Retail,2025-06-22,2025-06-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+608,CUST-00608,Daniel Miller,daniel.miller608@example.com,+1-787-475-3994,Denver,VIP,2026-06-12,2026-06-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+609,CUST-00609,White & Ashley Solutions,purchasing@whiteashley609.com,+1-440-953-4965,Phoenix,Corporate,2026-04-15,2026-04-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+610,CUST-00610,Jessica Clark,jessica.clark610@example.com,+1-833-564-3555,Portland,Retail,2026-02-23,2026-02-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+611,CUST-00611,Ashley Martin,ashley.martin611@example.com,+1-206-982-9871,Seattle,Retail,2026-06-23,2026-06-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+612,CUST-00612,Thomas & Christopher Supplies,purchasing@thomaschristopher612.com,+1-702-387-9374,San Francisco,Corporate,2025-09-05,2025-09-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+613,CUST-00613,Patricia Taylor,patricia.taylor613@example.com,+1-633-689-9859,Denver,Retail,2025-05-25,2025-05-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+614,CUST-00614,Barbara Anderson,barbara.anderson614@example.com,+1-323-915-9490,Chicago,Retail,2025-10-27,2025-10-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+615,CUST-00615,Gonzalez & Susan Logistics,purchasing@gonzalezsusan615.com,+1-533-570-5254,Seattle,Corporate,2025-08-07,2025-08-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+616,CUST-00616,Michelle Hernandez,michelle.hernandez616@example.com,+1-574-388-9171,Portland,Retail,2025-10-16,2025-10-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+617,CUST-00617,Lisa Ramirez,lisa.ramirez617@example.com,+1-610-486-8384,Chicago,Retail,2025-08-05,2025-08-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+618,CUST-00618,Joseph Clark,joseph.clark618@example.com,+1-302-938-5422,Denver,Retail,2026-03-08,2026-03-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+619,CUST-00619,Jones & Richard Retailers,purchasing@jonesrichard619.com,+1-684-209-3893,Chicago,Wholesale,2025-10-15,2025-10-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+620,CUST-00620,Kimberly Moore,kimberly.moore620@example.com,+1-937-523-8972,Phoenix,Retail,2025-09-11,2025-09-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+621,CUST-00621,Brown & Betty Retailers,purchasing@brownbetty621.com,+1-261-420-5166,Denver,Wholesale,2025-11-01,2025-11-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+622,CUST-00622,Rodriguez & Nancy Group,purchasing@rodrigueznancy622.com,+1-568-773-5222,San Francisco,Wholesale,2025-09-23,2025-09-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+623,CUST-00623,Joshua Miller,joshua.miller623@example.com,+1-790-789-9821,San Francisco,Retail,2025-08-03,2025-08-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+624,CUST-00624,Thomas & Steven Corp,purchasing@thomassteven624.com,+1-280-590-5694,San Francisco,Corporate,2025-10-28,2025-10-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+625,CUST-00625,Nancy Wilson,nancy.wilson625@example.com,+1-846-827-7631,Chicago,VIP,2026-04-01,2026-04-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+626,CUST-00626,Joseph Hernandez,joseph.hernandez626@example.com,+1-524-868-5773,Seattle,Retail,2026-01-23,2026-01-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+627,CUST-00627,Harris & Mark Group,purchasing@harrismark627.com,+1-965-801-9535,San Francisco,Wholesale,2026-07-02,2026-07-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+628,CUST-00628,Mary Jones,mary.jones628@example.com,+1-945-440-5122,Portland,Retail,2026-06-05,2026-06-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+629,CUST-00629,Gonzalez & William Logistics,purchasing@gonzalezwilliam629.com,+1-297-265-8752,Seattle,Corporate,2025-11-24,2025-11-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+630,CUST-00630,Jennifer Brown,jennifer.brown630@example.com,+1-468-832-3544,San Francisco,Retail,2025-06-26,2025-06-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+631,CUST-00631,Joseph Davis,joseph.davis631@example.com,+1-955-490-8260,San Francisco,VIP,2025-12-21,2025-12-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+632,CUST-00632,Mary Johnson,mary.johnson632@example.com,+1-879-565-6328,Chicago,Retail,2026-04-10,2026-04-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+633,CUST-00633,Sarah Moore,sarah.moore633@example.com,+1-655-338-9835,Chicago,Retail,2025-08-04,2025-08-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+634,CUST-00634,Wilson & Andrew Supplies,purchasing@wilsonandrew634.com,+1-555-693-9841,Austin,Wholesale,2025-08-20,2025-08-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+635,CUST-00635,Anthony Rodriguez,anthony.rodriguez635@example.com,+1-359-510-1172,Portland,Retail,2025-04-04,2025-04-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+636,CUST-00636,Martinez & Daniel Corp,purchasing@martinezdaniel636.com,+1-747-208-9059,Chicago,Corporate,2026-06-11,2026-06-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+637,CUST-00637,Margaret Sanchez,margaret.sanchez637@example.com,+1-499-811-4788,Seattle,Retail,2026-03-04,2026-03-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+638,CUST-00638,Emily Wilson,emily.wilson638@example.com,+1-604-455-3675,Portland,Retail,2026-01-25,2026-01-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+639,CUST-00639,Rodriguez & Joseph Logistics,purchasing@rodriguezjoseph639.com,+1-632-840-4924,Chicago,Wholesale,2025-11-13,2025-11-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+640,CUST-00640,Martinez & Sarah Supplies,purchasing@martinezsarah640.com,+1-622-392-2121,Austin,Corporate,2025-08-06,2025-08-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+641,CUST-00641,Michelle Anderson,michelle.anderson641@example.com,+1-478-917-9060,Austin,Retail,2025-08-08,2025-08-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+642,CUST-00642,Paul Smith,paul.smith642@example.com,+1-390-304-5622,Seattle,Retail,2025-09-02,2025-09-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+643,CUST-00643,Williams & Joseph Retailers,purchasing@williamsjoseph643.com,+1-215-705-4558,Chicago,Corporate,2025-09-22,2025-09-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+644,CUST-00644,Lisa Anderson,lisa.anderson644@example.com,+1-913-232-6410,Chicago,Retail,2025-06-24,2025-06-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+645,CUST-00645,Harris & Sarah LLC,purchasing@harrissarah645.com,+1-273-756-8702,Seattle,Corporate,2025-08-06,2025-08-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+646,CUST-00646,Matthew Clark,matthew.clark646@example.com,+1-212-324-5078,Portland,VIP,2025-10-04,2025-10-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+647,CUST-00647,Robert Miller,robert.miller647@example.com,+1-671-952-2539,Portland,VIP,2025-11-15,2025-11-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+648,CUST-00648,Karen Robinson,karen.robinson648@example.com,+1-530-362-1691,Denver,VIP,2026-02-07,2026-02-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+649,CUST-00649,Donald Lee,donald.lee649@example.com,+1-505-403-6905,Seattle,Retail,2026-04-25,2026-04-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+650,CUST-00650,Linda Davis,linda.davis650@example.com,+1-848-644-6316,Portland,VIP,2025-05-08,2025-05-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+651,CUST-00651,Sanchez & Betty Solutions,purchasing@sanchezbetty651.com,+1-209-243-8786,Denver,Corporate,2026-01-14,2026-01-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+652,CUST-00652,Jessica Garcia,jessica.garcia652@example.com,+1-711-293-6544,Chicago,Retail,2026-05-28,2026-05-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+653,CUST-00653,Patricia Lopez,patricia.lopez653@example.com,+1-860-357-9787,Austin,VIP,2026-03-01,2026-03-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+654,CUST-00654,Emily Sanchez,emily.sanchez654@example.com,+1-860-974-6690,Portland,Retail,2026-03-08,2026-03-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+655,CUST-00655,Matthew Lopez,matthew.lopez655@example.com,+1-941-337-5107,Portland,Retail,2026-05-03,2026-05-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+656,CUST-00656,Charles Moore,charles.moore656@example.com,+1-913-701-4109,San Francisco,Retail,2025-11-30,2025-11-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+657,CUST-00657,Sandra Rodriguez,sandra.rodriguez657@example.com,+1-813-767-3627,San Francisco,Retail,2025-06-18,2025-06-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+658,CUST-00658,Thomas Moore,thomas.moore658@example.com,+1-575-664-1011,Portland,Retail,2026-02-22,2026-02-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+659,CUST-00659,Mary Martin,mary.martin659@example.com,+1-572-994-4912,Chicago,Retail,2025-09-16,2025-09-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+660,CUST-00660,Matthew Miller,matthew.miller660@example.com,+1-736-899-9151,Phoenix,Retail,2026-02-17,2026-02-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+661,CUST-00661,Anthony Lee,anthony.lee661@example.com,+1-529-313-2577,Portland,Retail,2025-11-16,2025-11-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+662,CUST-00662,David Garcia,david.garcia662@example.com,+1-232-406-2753,Chicago,Retail,2025-11-03,2025-11-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+663,CUST-00663,Matthew Perez,matthew.perez663@example.com,+1-701-738-5193,Denver,Retail,2025-06-06,2025-06-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+664,CUST-00664,James Robinson,james.robinson664@example.com,+1-413-871-9051,Austin,Retail,2026-05-26,2026-05-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+665,CUST-00665,Lopez & Patricia LLC,purchasing@lopezpatricia665.com,+1-577-925-1955,San Francisco,Corporate,2026-03-18,2026-03-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+666,CUST-00666,John Clark,john.clark666@example.com,+1-511-279-4537,Seattle,Retail,2026-06-26,2026-06-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+667,CUST-00667,Paul Gonzalez,paul.gonzalez667@example.com,+1-394-397-9621,Chicago,Retail,2026-01-02,2026-01-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+668,CUST-00668,White & Emily LLC,purchasing@whiteemily668.com,+1-964-308-6864,Phoenix,Wholesale,2026-01-09,2026-01-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+669,CUST-00669,Garcia & Michael Retailers,purchasing@garciamichael669.com,+1-763-611-9268,San Francisco,Corporate,2025-09-21,2025-09-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+670,CUST-00670,Mark Robinson,mark.robinson670@example.com,+1-560-522-6319,Phoenix,Retail,2026-03-30,2026-03-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+671,CUST-00671,Christopher Martin,christopher.martin671@example.com,+1-446-776-9939,Austin,Retail,2025-08-16,2025-08-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+672,CUST-00672,Lopez & Thomas Corp,purchasing@lopezthomas672.com,+1-658-606-1003,Phoenix,Corporate,2026-01-30,2026-01-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+673,CUST-00673,Kimberly Jones,kimberly.jones673@example.com,+1-509-206-5920,Austin,VIP,2026-07-29,2026-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+674,CUST-00674,Sarah Robinson,sarah.robinson674@example.com,+1-766-723-3534,Portland,Retail,2025-07-01,2025-07-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+675,CUST-00675,Thomas Lopez,thomas.lopez675@example.com,+1-796-455-4817,Seattle,Retail,2025-08-29,2025-08-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+676,CUST-00676,Andrew Robinson,andrew.robinson676@example.com,+1-422-951-2264,Denver,Retail,2026-01-29,2026-01-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+677,CUST-00677,Clark & Andrew Logistics,purchasing@clarkandrew677.com,+1-809-857-5921,Seattle,Corporate,2025-05-29,2025-05-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+678,CUST-00678,Robinson & Patricia Group,purchasing@robinsonpatricia678.com,+1-556-644-7824,San Francisco,Corporate,2026-05-27,2026-05-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+679,CUST-00679,Joshua Robinson,joshua.robinson679@example.com,+1-211-849-7266,Chicago,Retail,2025-06-09,2025-06-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+680,CUST-00680,Andrew Jones,andrew.jones680@example.com,+1-534-714-4617,Portland,Retail,2025-07-26,2025-07-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+681,CUST-00681,Harris & Mark Logistics,purchasing@harrismark681.com,+1-427-642-5747,Phoenix,Corporate,2026-02-27,2026-02-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+682,CUST-00682,Donald Jackson,donald.jackson682@example.com,+1-963-250-9980,San Francisco,Retail,2025-10-08,2025-10-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+683,CUST-00683,David Harris,david.harris683@example.com,+1-338-692-4245,Denver,Retail,2025-11-04,2025-11-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+684,CUST-00684,White & Michelle Solutions,purchasing@whitemichelle684.com,+1-448-273-5362,Portland,Wholesale,2026-02-22,2026-02-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+685,CUST-00685,Jennifer Brown,jennifer.brown685@example.com,+1-887-623-7939,Phoenix,Retail,2025-09-29,2025-09-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+686,CUST-00686,Mary Harris,mary.harris686@example.com,+1-512-373-6729,San Francisco,Retail,2025-12-18,2025-12-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+687,CUST-00687,Elizabeth Anderson,elizabeth.anderson687@example.com,+1-245-439-4271,San Francisco,VIP,2026-01-13,2026-01-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+688,CUST-00688,Jennifer Brown,jennifer.brown688@example.com,+1-957-255-4982,Chicago,Retail,2026-06-13,2026-06-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+689,CUST-00689,Charles Smith,charles.smith689@example.com,+1-551-910-2823,Chicago,VIP,2025-09-12,2025-09-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+690,CUST-00690,Paul Miller,paul.miller690@example.com,+1-408-759-9573,San Francisco,Retail,2026-02-10,2026-02-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+691,CUST-00691,Elizabeth Thompson,elizabeth.thompson691@example.com,+1-915-884-1301,Austin,Retail,2025-10-02,2025-10-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+692,CUST-00692,Thomas Garcia,thomas.garcia692@example.com,+1-261-490-4288,Denver,VIP,2026-02-28,2026-02-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+693,CUST-00693,Williams & James LLC,purchasing@williamsjames693.com,+1-876-477-6901,Seattle,Wholesale,2026-04-10,2026-04-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+694,CUST-00694,Matthew Davis,matthew.davis694@example.com,+1-589-720-2631,Chicago,Retail,2026-05-06,2026-05-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+695,CUST-00695,Jennifer Garcia,jennifer.garcia695@example.com,+1-403-712-8503,Austin,Retail,2025-11-28,2025-11-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+696,CUST-00696,Martinez & Kimberly Group,purchasing@martinezkimberly696.com,+1-701-602-3572,Seattle,Corporate,2025-05-12,2025-05-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+697,CUST-00697,Davis & Karen Supplies,purchasing@daviskaren697.com,+1-263-840-5221,San Francisco,Corporate,2026-04-19,2026-04-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+698,CUST-00698,Mary Walker,mary.walker698@example.com,+1-768-486-4695,Chicago,VIP,2025-07-26,2025-07-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+699,CUST-00699,Jennifer White,jennifer.white699@example.com,+1-591-733-4726,Austin,VIP,2025-10-14,2025-10-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+700,CUST-00700,Robinson & Karen Group,purchasing@robinsonkaren700.com,+1-659-755-3158,San Francisco,Wholesale,2025-08-14,2025-08-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+701,CUST-00701,Richard Ramirez,richard.ramirez701@example.com,+1-341-516-9582,Denver,Retail,2026-05-11,2026-05-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+702,CUST-00702,Elizabeth Lee,elizabeth.lee702@example.com,+1-778-361-6201,Phoenix,Retail,2025-06-18,2025-06-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+703,CUST-00703,Barbara Hernandez,barbara.hernandez703@example.com,+1-349-944-1483,Austin,Retail,2026-02-17,2026-02-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+704,CUST-00704,Anthony Martinez,anthony.martinez704@example.com,+1-653-963-5485,San Francisco,VIP,2025-07-26,2025-07-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+705,CUST-00705,Mary Harris,mary.harris705@example.com,+1-826-831-5372,Seattle,Retail,2025-12-14,2025-12-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+706,CUST-00706,Perez & Joseph Enterprises,purchasing@perezjoseph706.com,+1-567-281-8808,Austin,Wholesale,2025-07-19,2025-07-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+707,CUST-00707,Garcia & Lisa LLC,purchasing@garcialisa707.com,+1-703-685-3253,San Francisco,Corporate,2025-07-30,2025-07-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+708,CUST-00708,James Robinson,james.robinson708@example.com,+1-476-622-4646,San Francisco,Retail,2026-02-06,2026-02-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+709,CUST-00709,John Garcia,john.garcia709@example.com,+1-649-831-9027,Chicago,VIP,2026-01-14,2026-01-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+710,CUST-00710,Margaret Gonzalez,margaret.gonzalez710@example.com,+1-994-242-7232,Phoenix,VIP,2026-01-28,2026-01-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+711,CUST-00711,Andrew Martin,andrew.martin711@example.com,+1-749-737-1630,Phoenix,Retail,2025-11-15,2025-11-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+712,CUST-00712,Robert Lewis,robert.lewis712@example.com,+1-451-731-9812,Chicago,Retail,2025-10-07,2025-10-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+713,CUST-00713,Harris & Kimberly Enterprises,purchasing@harriskimberly713.com,+1-394-498-8201,Denver,Corporate,2025-10-08,2025-10-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+714,CUST-00714,Sandra Garcia,sandra.garcia714@example.com,+1-632-501-1893,Chicago,Retail,2026-01-15,2026-01-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+715,CUST-00715,Mark Williams,mark.williams715@example.com,+1-939-712-2854,San Francisco,VIP,2025-08-05,2025-08-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+716,CUST-00716,Jones & Paul LLC,purchasing@jonespaul716.com,+1-623-531-8387,Phoenix,Wholesale,2025-05-18,2025-05-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+717,CUST-00717,Richard Lewis,richard.lewis717@example.com,+1-665-292-5097,Phoenix,Retail,2025-09-17,2025-09-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+718,CUST-00718,Thompson & William Logistics,purchasing@thompsonwilliam718.com,+1-293-316-8362,Austin,Wholesale,2025-12-24,2025-12-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+719,CUST-00719,Steven Martin,steven.martin719@example.com,+1-363-587-7235,Austin,Retail,2025-06-02,2025-06-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+720,CUST-00720,Elizabeth Garcia,elizabeth.garcia720@example.com,+1-348-383-1840,San Francisco,Retail,2025-10-14,2025-10-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+721,CUST-00721,Mark Martinez,mark.martinez721@example.com,+1-841-385-2926,Chicago,Retail,2026-05-03,2026-05-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+722,CUST-00722,Thomas Smith,thomas.smith722@example.com,+1-669-709-9169,Seattle,VIP,2025-11-22,2025-11-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+723,CUST-00723,Jessica Miller,jessica.miller723@example.com,+1-802-875-8794,Phoenix,Retail,2025-10-25,2025-10-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+724,CUST-00724,James Davis,james.davis724@example.com,+1-760-484-4401,Austin,Retail,2025-06-06,2025-06-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+725,CUST-00725,Robert Jones,robert.jones725@example.com,+1-233-883-5889,Austin,Retail,2025-09-19,2025-09-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+726,CUST-00726,Barbara Garcia,barbara.garcia726@example.com,+1-888-491-3906,Seattle,Retail,2026-07-03,2026-07-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+727,CUST-00727,Williams & Robert Supplies,purchasing@williamsrobert727.com,+1-530-577-7208,San Francisco,Corporate,2026-03-16,2026-03-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+728,CUST-00728,Martinez & John Corp,purchasing@martinezjohn728.com,+1-337-324-5496,Chicago,Corporate,2025-09-18,2025-09-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+729,CUST-00729,Susan Martin,susan.martin729@example.com,+1-259-311-9666,Portland,Retail,2026-08-03,2026-08-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+730,CUST-00730,Charles Wilson,charles.wilson730@example.com,+1-823-524-5254,Austin,Retail,2025-11-16,2025-11-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+731,CUST-00731,David Martin,david.martin731@example.com,+1-776-708-9514,San Francisco,VIP,2026-01-31,2026-01-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+732,CUST-00732,Michelle Davis,michelle.davis732@example.com,+1-925-497-4171,Chicago,Retail,2025-04-13,2025-04-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+733,CUST-00733,Linda White,linda.white733@example.com,+1-412-830-7793,Austin,Retail,2025-10-13,2025-10-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+734,CUST-00734,Susan Smith,susan.smith734@example.com,+1-855-406-5614,Denver,Retail,2025-08-29,2025-08-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+735,CUST-00735,Emily Hernandez,emily.hernandez735@example.com,+1-985-206-2865,Portland,Retail,2026-01-13,2026-01-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+736,CUST-00736,Michelle Walker,michelle.walker736@example.com,+1-229-379-4178,Chicago,Retail,2025-09-19,2025-09-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+737,CUST-00737,Donald Sanchez,donald.sanchez737@example.com,+1-236-861-3224,Austin,Retail,2025-11-02,2025-11-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+738,CUST-00738,Lewis & Paul Group,purchasing@lewispaul738.com,+1-673-623-1917,Phoenix,Wholesale,2026-03-24,2026-03-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+739,CUST-00739,Christopher Moore,christopher.moore739@example.com,+1-748-219-4412,Chicago,Retail,2025-12-04,2025-12-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+740,CUST-00740,Daniel Williams,daniel.williams740@example.com,+1-352-487-1510,Phoenix,Retail,2025-09-21,2025-09-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+741,CUST-00741,William Jackson,william.jackson741@example.com,+1-820-598-4070,Denver,Retail,2025-12-10,2025-12-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+742,CUST-00742,Christopher Thompson,christopher.thompson742@example.com,+1-232-478-7780,Chicago,VIP,2025-06-28,2025-06-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+743,CUST-00743,Karen Miller,karen.miller743@example.com,+1-737-509-3867,San Francisco,VIP,2025-07-10,2025-07-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+744,CUST-00744,Anderson & Jennifer Enterprises,purchasing@andersonjennifer744.com,+1-694-712-3524,Chicago,Corporate,2025-08-08,2025-08-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+745,CUST-00745,Kimberly Martinez,kimberly.martinez745@example.com,+1-994-535-3347,Chicago,VIP,2026-02-19,2026-02-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+746,CUST-00746,Kimberly Perez,kimberly.perez746@example.com,+1-335-410-1598,Phoenix,Retail,2025-10-26,2025-10-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+747,CUST-00747,Martinez & James Enterprises,purchasing@martinezjames747.com,+1-903-808-2426,Denver,Corporate,2025-09-20,2025-09-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+748,CUST-00748,Karen Smith,karen.smith748@example.com,+1-791-976-6114,Seattle,VIP,2025-12-26,2025-12-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+749,CUST-00749,Charles Rodriguez,charles.rodriguez749@example.com,+1-745-526-8227,Portland,Retail,2026-01-07,2026-01-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+750,CUST-00750,Linda Smith,linda.smith750@example.com,+1-837-773-9422,Seattle,Retail,2025-07-05,2025-07-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+751,CUST-00751,Sarah Jones,sarah.jones751@example.com,+1-921-490-5011,Denver,Retail,2025-08-02,2025-08-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+752,CUST-00752,Paul Anderson,paul.anderson752@example.com,+1-251-333-1475,Phoenix,Retail,2025-10-30,2025-10-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+753,CUST-00753,Williams & Patricia LLC,purchasing@williamspatricia753.com,+1-601-383-8304,Seattle,Corporate,2025-12-18,2025-12-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+754,CUST-00754,Paul Williams,paul.williams754@example.com,+1-973-982-8629,Chicago,Retail,2025-11-30,2025-11-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+755,CUST-00755,Sandra Brown,sandra.brown755@example.com,+1-666-517-8625,Chicago,Retail,2025-10-30,2025-10-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+756,CUST-00756,Michelle Rodriguez,michelle.rodriguez756@example.com,+1-572-601-4004,Seattle,VIP,2026-01-19,2026-01-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+757,CUST-00757,Anderson & Christopher Corp,purchasing@andersonchristopher757.com,+1-230-266-8787,Chicago,Wholesale,2025-07-10,2025-07-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+758,CUST-00758,Charles Harris,charles.harris758@example.com,+1-556-818-3087,Chicago,Retail,2025-11-11,2025-11-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+759,CUST-00759,Michael Hernandez,michael.hernandez759@example.com,+1-769-865-2162,Austin,Retail,2026-03-02,2026-03-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+760,CUST-00760,Anthony Davis,anthony.davis760@example.com,+1-835-449-9977,San Francisco,Retail,2025-07-28,2025-07-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+761,CUST-00761,Susan Clark,susan.clark761@example.com,+1-910-805-8063,Seattle,Retail,2026-02-26,2026-02-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+762,CUST-00762,Paul Thompson,paul.thompson762@example.com,+1-441-377-2276,Chicago,Retail,2026-02-05,2026-02-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+763,CUST-00763,Jackson & Linda Corp,purchasing@jacksonlinda763.com,+1-533-768-2599,Chicago,Corporate,2026-03-17,2026-03-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+764,CUST-00764,John Martin,john.martin764@example.com,+1-311-901-7208,Phoenix,Retail,2025-09-18,2025-09-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+765,CUST-00765,Clark & Susan Retailers,purchasing@clarksusan765.com,+1-794-973-1003,Seattle,Wholesale,2026-02-13,2026-02-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+766,CUST-00766,Gonzalez & Charles Corp,purchasing@gonzalezcharles766.com,+1-400-410-6187,San Francisco,Wholesale,2025-09-10,2025-09-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+767,CUST-00767,Thompson & Margaret Group,purchasing@thompsonmargaret767.com,+1-291-796-1133,Austin,Corporate,2025-12-16,2025-12-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+768,CUST-00768,Charles Johnson,charles.johnson768@example.com,+1-578-762-1870,Chicago,Retail,2025-04-10,2025-04-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+769,CUST-00769,Ramirez & Linda Supplies,purchasing@ramirezlinda769.com,+1-231-440-8073,Phoenix,Wholesale,2026-01-20,2026-01-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+770,CUST-00770,Matthew Gonzalez,matthew.gonzalez770@example.com,+1-590-645-9931,Portland,Retail,2025-08-15,2025-08-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+771,CUST-00771,Emily Gonzalez,emily.gonzalez771@example.com,+1-568-627-3527,Seattle,Retail,2025-09-07,2025-09-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+772,CUST-00772,James Williams,james.williams772@example.com,+1-863-216-3359,Seattle,VIP,2026-01-28,2026-01-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+773,CUST-00773,David Williams,david.williams773@example.com,+1-340-857-7813,San Francisco,Retail,2026-04-08,2026-04-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+774,CUST-00774,Margaret Martin,margaret.martin774@example.com,+1-384-665-9346,Austin,VIP,2025-10-16,2025-10-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+775,CUST-00775,Garcia & Joseph LLC,purchasing@garciajoseph775.com,+1-819-207-9161,San Francisco,Corporate,2026-03-31,2026-03-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+776,CUST-00776,Anthony Robinson,anthony.robinson776@example.com,+1-759-790-7012,Denver,Retail,2025-05-26,2025-05-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+777,CUST-00777,Lisa Brown,lisa.brown777@example.com,+1-794-693-2311,Denver,Retail,2025-07-22,2025-07-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+778,CUST-00778,Anderson & Sarah Logistics,purchasing@andersonsarah778.com,+1-735-824-2449,Phoenix,Corporate,2025-08-26,2025-08-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+779,CUST-00779,Perez & John Supplies,purchasing@perezjohn779.com,+1-827-254-6628,Austin,Wholesale,2025-11-19,2025-11-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+780,CUST-00780,Donald Jackson,donald.jackson780@example.com,+1-951-539-7897,San Francisco,Retail,2025-09-25,2025-09-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+781,CUST-00781,William Johnson,william.johnson781@example.com,+1-911-811-5981,Portland,VIP,2026-01-30,2026-01-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+782,CUST-00782,Jackson & Donald Retailers,purchasing@jacksondonald782.com,+1-786-252-5780,Seattle,Wholesale,2026-03-10,2026-03-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+783,CUST-00783,Jones & Jennifer Logistics,purchasing@jonesjennifer783.com,+1-484-458-3171,Portland,Wholesale,2025-12-17,2025-12-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+784,CUST-00784,Linda Martin,linda.martin784@example.com,+1-378-805-3476,Portland,Retail,2026-01-03,2026-01-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+785,CUST-00785,Jessica Thomas,jessica.thomas785@example.com,+1-385-740-1542,Seattle,Retail,2025-09-22,2025-09-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+786,CUST-00786,Elizabeth Clark,elizabeth.clark786@example.com,+1-707-970-7765,Seattle,Retail,2026-02-19,2026-02-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+787,CUST-00787,William Miller,william.miller787@example.com,+1-791-951-6653,San Francisco,Retail,2025-06-09,2025-06-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+788,CUST-00788,Patricia Garcia,patricia.garcia788@example.com,+1-675-608-8802,Chicago,Retail,2025-09-11,2025-09-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+789,CUST-00789,Davis & Paul LLC,purchasing@davispaul789.com,+1-899-922-7390,Chicago,Corporate,2025-10-31,2025-10-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+790,CUST-00790,James Martinez,james.martinez790@example.com,+1-659-591-6172,Chicago,Retail,2026-06-27,2026-06-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+791,CUST-00791,Lee & Paul Group,purchasing@leepaul791.com,+1-642-825-5466,Seattle,Corporate,2025-09-20,2025-09-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+792,CUST-00792,Donna Gonzalez,donna.gonzalez792@example.com,+1-672-991-4961,Seattle,Retail,2026-02-03,2026-02-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+793,CUST-00793,Perez & Nancy Retailers,purchasing@pereznancy793.com,+1-520-760-1173,Portland,Wholesale,2026-01-08,2026-01-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+794,CUST-00794,Taylor & Michael Logistics,purchasing@taylormichael794.com,+1-901-656-6759,Seattle,Corporate,2025-08-18,2025-08-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+795,CUST-00795,Mary Martin,mary.martin795@example.com,+1-294-258-4552,Portland,Retail,2026-06-15,2026-06-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+796,CUST-00796,Williams & Linda Retailers,purchasing@williamslinda796.com,+1-584-872-4027,Austin,Wholesale,2026-05-01,2026-05-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+797,CUST-00797,Perez & Sandra Logistics,purchasing@perezsandra797.com,+1-854-664-5528,Portland,Corporate,2026-02-19,2026-02-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+798,CUST-00798,Rodriguez & Christopher Retailers,purchasing@rodriguezchristopher798.com,+1-999-275-5543,Austin,Corporate,2026-02-22,2026-02-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+799,CUST-00799,Patricia Rodriguez,patricia.rodriguez799@example.com,+1-471-382-8218,San Francisco,Retail,2025-06-18,2025-06-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+800,CUST-00800,Betty Garcia,betty.garcia800@example.com,+1-860-703-2776,Portland,VIP,2025-07-23,2025-07-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+801,CUST-00801,Robinson & Michael Corp,purchasing@robinsonmichael801.com,+1-932-465-2692,Portland,Corporate,2025-05-27,2025-05-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+802,CUST-00802,Mark Smith,mark.smith802@example.com,+1-709-352-1014,Chicago,Retail,2026-05-29,2026-05-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+803,CUST-00803,Lewis & Nancy LLC,purchasing@lewisnancy803.com,+1-788-203-9444,Portland,Wholesale,2026-01-22,2026-01-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+804,CUST-00804,Ramirez & Betty Logistics,purchasing@ramirezbetty804.com,+1-753-431-1054,Denver,Corporate,2025-10-04,2025-10-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+805,CUST-00805,Jackson & Linda Group,purchasing@jacksonlinda805.com,+1-541-898-5961,Chicago,Corporate,2025-10-09,2025-10-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+806,CUST-00806,Lopez & Jennifer Group,purchasing@lopezjennifer806.com,+1-282-670-5750,Phoenix,Wholesale,2025-12-29,2025-12-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+807,CUST-00807,Matthew Perez,matthew.perez807@example.com,+1-395-506-7391,Seattle,Retail,2026-05-01,2026-05-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+808,CUST-00808,Lewis & Jennifer Corp,purchasing@lewisjennifer808.com,+1-952-394-3292,San Francisco,Wholesale,2025-05-27,2025-05-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+809,CUST-00809,Jessica Thomas,jessica.thomas809@example.com,+1-598-264-9856,Phoenix,Retail,2025-12-28,2025-12-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+810,CUST-00810,Mark Walker,mark.walker810@example.com,+1-216-237-6558,Phoenix,Retail,2025-06-11,2025-06-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+811,CUST-00811,Miller & Linda Corp,purchasing@millerlinda811.com,+1-894-749-3440,Seattle,Corporate,2026-02-06,2026-02-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+812,CUST-00812,Elizabeth Thomas,elizabeth.thomas812@example.com,+1-869-219-8720,Seattle,Retail,2026-05-09,2026-05-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+813,CUST-00813,Smith & David Retailers,purchasing@smithdavid813.com,+1-847-251-6035,Portland,Wholesale,2026-03-16,2026-03-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+814,CUST-00814,Donna Williams,donna.williams814@example.com,+1-308-316-9145,Austin,Retail,2025-12-10,2025-12-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+815,CUST-00815,Wilson & Richard Group,purchasing@wilsonrichard815.com,+1-955-894-7586,Seattle,Wholesale,2025-09-17,2025-09-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+816,CUST-00816,David Hernandez,david.hernandez816@example.com,+1-418-982-1746,Denver,VIP,2025-12-09,2025-12-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+817,CUST-00817,Elizabeth Harris,elizabeth.harris817@example.com,+1-625-372-7060,Seattle,Retail,2025-11-26,2025-11-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+818,CUST-00818,Robert Jones,robert.jones818@example.com,+1-302-847-7162,Phoenix,Retail,2026-02-22,2026-02-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+819,CUST-00819,James Smith,james.smith819@example.com,+1-383-291-5648,Denver,Retail,2025-10-13,2025-10-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+820,CUST-00820,Miller & David Retailers,purchasing@millerdavid820.com,+1-855-477-9570,Chicago,Corporate,2025-10-24,2025-10-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+821,CUST-00821,Robert Martin,robert.martin821@example.com,+1-384-934-9190,Seattle,Retail,2025-12-16,2025-12-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+822,CUST-00822,Karen Lopez,karen.lopez822@example.com,+1-628-204-4860,Chicago,Retail,2025-08-09,2025-08-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+823,CUST-00823,Michelle Lopez,michelle.lopez823@example.com,+1-979-752-9315,Phoenix,VIP,2025-08-18,2025-08-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+824,CUST-00824,Johnson & Sarah Solutions,purchasing@johnsonsarah824.com,+1-315-352-8772,Austin,Corporate,2025-11-07,2025-11-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+825,CUST-00825,Patricia Lee,patricia.lee825@example.com,+1-572-491-4433,Phoenix,Retail,2025-10-19,2025-10-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+826,CUST-00826,Sandra Johnson,sandra.johnson826@example.com,+1-306-958-1859,Chicago,Retail,2026-05-23,2026-05-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+827,CUST-00827,Ashley Taylor,ashley.taylor827@example.com,+1-318-272-4855,Chicago,Retail,2026-01-28,2026-01-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+828,CUST-00828,White & Richard Group,purchasing@whiterichard828.com,+1-435-997-2804,San Francisco,Wholesale,2025-09-18,2025-09-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+829,CUST-00829,Richard Gonzalez,richard.gonzalez829@example.com,+1-425-275-8716,Chicago,Retail,2025-12-06,2025-12-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+830,CUST-00830,Susan Robinson,susan.robinson830@example.com,+1-824-665-3917,San Francisco,Retail,2025-10-05,2025-10-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+831,CUST-00831,Daniel Rodriguez,daniel.rodriguez831@example.com,+1-407-543-3084,Austin,Retail,2025-05-24,2025-05-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+832,CUST-00832,Ramirez & Linda Corp,purchasing@ramirezlinda832.com,+1-669-628-3804,Portland,Wholesale,2026-02-14,2026-02-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+833,CUST-00833,William Sanchez,william.sanchez833@example.com,+1-853-826-3784,Portland,Retail,2025-12-04,2025-12-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+834,CUST-00834,Ramirez & Anthony Corp,purchasing@ramirezanthony834.com,+1-421-805-8757,Portland,Wholesale,2026-03-25,2026-03-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+835,CUST-00835,Jessica Davis,jessica.davis835@example.com,+1-535-644-4643,Chicago,Retail,2026-04-28,2026-04-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+836,CUST-00836,Lewis & Andrew Enterprises,purchasing@lewisandrew836.com,+1-627-245-1656,Seattle,Wholesale,2026-08-12,2026-08-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+837,CUST-00837,Taylor & Margaret LLC,purchasing@taylormargaret837.com,+1-690-913-2605,Denver,Corporate,2025-10-24,2025-10-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+838,CUST-00838,James Thompson,james.thompson838@example.com,+1-949-616-4571,Denver,Retail,2025-07-18,2025-07-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+839,CUST-00839,Jennifer Smith,jennifer.smith839@example.com,+1-691-885-5994,Austin,Retail,2025-07-29,2025-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+840,CUST-00840,Donna Smith,donna.smith840@example.com,+1-665-674-3271,Denver,Retail,2026-04-16,2026-04-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+841,CUST-00841,Lisa Lee,lisa.lee841@example.com,+1-675-920-1022,Chicago,Retail,2026-04-08,2026-04-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+842,CUST-00842,Nancy Taylor,nancy.taylor842@example.com,+1-233-503-7977,Phoenix,Retail,2026-02-11,2026-02-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+843,CUST-00843,Sanchez & Andrew Solutions,purchasing@sanchezandrew843.com,+1-901-282-6500,Austin,Corporate,2026-02-03,2026-02-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+844,CUST-00844,Lisa Lewis,lisa.lewis844@example.com,+1-252-313-7274,Phoenix,Retail,2025-09-29,2025-09-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+845,CUST-00845,Lee & Barbara Logistics,purchasing@leebarbara845.com,+1-774-926-4354,San Francisco,Wholesale,2025-07-21,2025-07-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+846,CUST-00846,Donald White,donald.white846@example.com,+1-970-794-4437,Denver,Retail,2026-02-11,2026-02-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+847,CUST-00847,Taylor & Sarah LLC,purchasing@taylorsarah847.com,+1-483-255-2038,San Francisco,Corporate,2025-10-01,2025-10-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+848,CUST-00848,Linda Thomas,linda.thomas848@example.com,+1-926-744-9730,Denver,Retail,2026-05-03,2026-05-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+849,CUST-00849,John Miller,john.miller849@example.com,+1-668-289-2313,San Francisco,Retail,2025-10-06,2025-10-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+850,CUST-00850,John Brown,john.brown850@example.com,+1-368-482-2835,Phoenix,Retail,2026-01-18,2026-01-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+851,CUST-00851,Kimberly Walker,kimberly.walker851@example.com,+1-842-223-5803,Chicago,Retail,2025-10-13,2025-10-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+852,CUST-00852,Lopez & Donald LLC,purchasing@lopezdonald852.com,+1-654-955-1351,Phoenix,Corporate,2025-09-08,2025-09-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+853,CUST-00853,Joseph Clark,joseph.clark853@example.com,+1-732-860-6503,Chicago,Retail,2025-10-12,2025-10-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+854,CUST-00854,Christopher Thomas,christopher.thomas854@example.com,+1-807-881-9686,Austin,Retail,2026-03-28,2026-03-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+855,CUST-00855,David Lewis,david.lewis855@example.com,+1-513-375-5259,Portland,Retail,2025-08-20,2025-08-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+856,CUST-00856,Patricia Jones,patricia.jones856@example.com,+1-561-491-8469,Portland,Retail,2026-06-21,2026-06-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+857,CUST-00857,Martinez & Paul Retailers,purchasing@martinezpaul857.com,+1-379-925-3514,Seattle,Wholesale,2025-07-29,2025-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+858,CUST-00858,Andrew Jones,andrew.jones858@example.com,+1-651-466-7056,Phoenix,Retail,2025-08-07,2025-08-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+859,CUST-00859,Lopez & Christopher Retailers,purchasing@lopezchristopher859.com,+1-581-659-9845,Seattle,Wholesale,2026-07-15,2026-07-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+860,CUST-00860,Mary Gonzalez,mary.gonzalez860@example.com,+1-711-986-3381,Seattle,Retail,2026-06-12,2026-06-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+861,CUST-00861,Paul Taylor,paul.taylor861@example.com,+1-539-862-5842,Seattle,VIP,2025-10-31,2025-10-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+862,CUST-00862,Andrew Perez,andrew.perez862@example.com,+1-350-778-8243,Phoenix,Retail,2025-09-21,2025-09-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+863,CUST-00863,Robert Jones,robert.jones863@example.com,+1-894-764-2914,Denver,Retail,2025-09-13,2025-09-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+864,CUST-00864,Mark Lopez,mark.lopez864@example.com,+1-294-534-1901,Chicago,Retail,2025-12-15,2025-12-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+865,CUST-00865,Sarah Miller,sarah.miller865@example.com,+1-223-285-9821,Denver,Retail,2026-04-01,2026-04-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+866,CUST-00866,Gonzalez & Steven Solutions,purchasing@gonzalezsteven866.com,+1-702-525-9381,Phoenix,Corporate,2026-06-08,2026-06-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+867,CUST-00867,Elizabeth Thompson,elizabeth.thompson867@example.com,+1-637-578-7326,San Francisco,VIP,2025-10-01,2025-10-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+868,CUST-00868,Mark Ramirez,mark.ramirez868@example.com,+1-774-289-4533,San Francisco,Retail,2026-01-31,2026-01-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+869,CUST-00869,Mark Martinez,mark.martinez869@example.com,+1-367-945-7944,Phoenix,Retail,2026-01-31,2026-01-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+870,CUST-00870,Joshua Williams,joshua.williams870@example.com,+1-347-412-5968,Chicago,Retail,2025-10-31,2025-10-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+871,CUST-00871,John Robinson,john.robinson871@example.com,+1-804-974-7156,Phoenix,VIP,2025-06-28,2025-06-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+872,CUST-00872,Anthony Garcia,anthony.garcia872@example.com,+1-769-673-3243,Phoenix,Retail,2025-08-12,2025-08-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+873,CUST-00873,Johnson & Ashley Supplies,purchasing@johnsonashley873.com,+1-799-511-9095,Portland,Corporate,2025-11-28,2025-11-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+874,CUST-00874,James Jones,james.jones874@example.com,+1-468-507-8742,Seattle,Retail,2025-07-15,2025-07-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+875,CUST-00875,Thomas & Barbara Solutions,purchasing@thomasbarbara875.com,+1-229-322-5541,Portland,Wholesale,2025-11-06,2025-11-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+876,CUST-00876,Lisa Jackson,lisa.jackson876@example.com,+1-692-779-8144,Austin,VIP,2026-04-13,2026-04-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+877,CUST-00877,Lopez & Linda Enterprises,purchasing@lopezlinda877.com,+1-465-366-1958,Denver,Wholesale,2025-07-24,2025-07-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+878,CUST-00878,Daniel Garcia,daniel.garcia878@example.com,+1-254-479-6917,Austin,Retail,2025-10-14,2025-10-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+879,CUST-00879,Charles Martinez,charles.martinez879@example.com,+1-742-854-2258,San Francisco,VIP,2025-11-12,2025-11-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+880,CUST-00880,Martin & Michael Retailers,purchasing@martinmichael880.com,+1-756-530-6180,Portland,Corporate,2026-03-19,2026-03-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+881,CUST-00881,Brown & Lisa Group,purchasing@brownlisa881.com,+1-347-213-3243,Portland,Corporate,2025-11-14,2025-11-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+882,CUST-00882,Nancy Robinson,nancy.robinson882@example.com,+1-366-304-4569,Denver,Retail,2025-07-27,2025-07-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+883,CUST-00883,Emily Martin,emily.martin883@example.com,+1-906-738-9717,Portland,Retail,2026-01-24,2026-01-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+884,CUST-00884,Anderson & Anthony Logistics,purchasing@andersonanthony884.com,+1-319-334-1284,Chicago,Corporate,2025-11-02,2025-11-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+885,CUST-00885,Mark Lewis,mark.lewis885@example.com,+1-811-735-6604,San Francisco,Retail,2025-08-02,2025-08-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+886,CUST-00886,Linda Davis,linda.davis886@example.com,+1-331-910-3332,Chicago,Retail,2026-01-14,2026-01-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+887,CUST-00887,Jennifer Wilson,jennifer.wilson887@example.com,+1-907-981-2830,Portland,Retail,2025-06-23,2025-06-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+888,CUST-00888,Miller & Robert Logistics,purchasing@millerrobert888.com,+1-233-875-9412,Chicago,Corporate,2025-12-09,2025-12-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+889,CUST-00889,Robert Williams,robert.williams889@example.com,+1-508-883-1168,Phoenix,Retail,2026-02-12,2026-02-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+890,CUST-00890,Jackson & Susan Solutions,purchasing@jacksonsusan890.com,+1-389-886-6759,Phoenix,Corporate,2025-05-22,2025-05-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+891,CUST-00891,Sarah Walker,sarah.walker891@example.com,+1-793-556-6770,Chicago,Retail,2025-07-29,2025-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+892,CUST-00892,Jessica Taylor,jessica.taylor892@example.com,+1-783-269-2623,Chicago,Retail,2026-03-16,2026-03-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+893,CUST-00893,Walker & Richard Supplies,purchasing@walkerrichard893.com,+1-375-972-9800,Denver,Corporate,2025-04-21,2025-04-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+894,CUST-00894,Ramirez & Steven Corp,purchasing@ramirezsteven894.com,+1-575-914-4033,Phoenix,Corporate,2025-10-20,2025-10-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+895,CUST-00895,Daniel Gonzalez,daniel.gonzalez895@example.com,+1-634-419-9425,Portland,VIP,2025-08-21,2025-08-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+896,CUST-00896,Linda Anderson,linda.anderson896@example.com,+1-312-732-3226,Phoenix,Retail,2025-11-07,2025-11-07 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+897,CUST-00897,Robert Williams,robert.williams897@example.com,+1-535-705-2895,Portland,Retail,2025-10-04,2025-10-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+898,CUST-00898,Mark Davis,mark.davis898@example.com,+1-767-617-5761,Chicago,Retail,2026-07-30,2026-07-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+899,CUST-00899,Donald Walker,donald.walker899@example.com,+1-895-576-3937,Chicago,Retail,2025-05-05,2025-05-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+900,CUST-00900,Anderson & Betty Logistics,purchasing@andersonbetty900.com,+1-322-346-7468,Austin,Corporate,2025-10-09,2025-10-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+901,CUST-00901,Williams & William Group,purchasing@williamswilliam901.com,+1-403-546-4281,Seattle,Wholesale,2025-12-10,2025-12-10 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+902,CUST-00902,Margaret White,margaret.white902@example.com,+1-711-485-5472,Seattle,VIP,2026-02-12,2026-02-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+903,CUST-00903,Thomas & Daniel LLC,purchasing@thomasdaniel903.com,+1-696-723-5569,Phoenix,Corporate,2025-07-24,2025-07-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+904,CUST-00904,Ashley Thomas,ashley.thomas904@example.com,+1-436-843-3205,Seattle,Retail,2025-05-22,2025-05-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+905,CUST-00905,Perez & Ashley Enterprises,purchasing@perezashley905.com,+1-383-591-6356,Chicago,Corporate,2025-07-26,2025-07-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+906,CUST-00906,Perez & John Corp,purchasing@perezjohn906.com,+1-677-406-5809,Seattle,Wholesale,2026-01-04,2026-01-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+907,CUST-00907,Nancy Sanchez,nancy.sanchez907@example.com,+1-753-759-1289,Portland,Retail,2026-06-17,2026-06-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+908,CUST-00908,Linda Gonzalez,linda.gonzalez908@example.com,+1-660-522-7165,San Francisco,Retail,2025-10-21,2025-10-21 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+909,CUST-00909,Karen Lewis,karen.lewis909@example.com,+1-923-368-9052,Seattle,Retail,2025-10-18,2025-10-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+910,CUST-00910,Linda Jackson,linda.jackson910@example.com,+1-891-702-9837,San Francisco,Retail,2025-12-02,2025-12-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+911,CUST-00911,Steven Johnson,steven.johnson911@example.com,+1-600-469-9105,Chicago,Retail,2025-12-09,2025-12-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+912,CUST-00912,Charles Hernandez,charles.hernandez912@example.com,+1-262-228-1739,Austin,Retail,2025-07-16,2025-07-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+913,CUST-00913,Donna Smith,donna.smith913@example.com,+1-983-840-6591,Chicago,Retail,2025-10-03,2025-10-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+914,CUST-00914,Anthony Lopez,anthony.lopez914@example.com,+1-257-877-5001,Phoenix,Retail,2025-08-27,2025-08-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+915,CUST-00915,Ramirez & John Supplies,purchasing@ramirezjohn915.com,+1-317-545-3781,Austin,Wholesale,2025-05-13,2025-05-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+916,CUST-00916,Margaret Jackson,margaret.jackson916@example.com,+1-727-631-5368,San Francisco,Retail,2025-05-14,2025-05-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+917,CUST-00917,Christopher Gonzalez,christopher.gonzalez917@example.com,+1-784-599-6282,Seattle,Retail,2025-12-02,2025-12-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+918,CUST-00918,Hernandez & Susan Corp,purchasing@hernandezsusan918.com,+1-714-983-6563,Seattle,Corporate,2025-07-31,2025-07-31 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+919,CUST-00919,Richard Thomas,richard.thomas919@example.com,+1-850-277-9779,Phoenix,Retail,2025-08-16,2025-08-16 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+920,CUST-00920,Andrew Gonzalez,andrew.gonzalez920@example.com,+1-431-839-2506,Portland,Retail,2026-01-26,2026-01-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+921,CUST-00921,Williams & Sarah Corp,purchasing@williamssarah921.com,+1-637-414-6690,Austin,Wholesale,2026-03-03,2026-03-03 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+922,CUST-00922,Wilson & Karen Group,purchasing@wilsonkaren922.com,+1-404-624-7591,Portland,Wholesale,2025-08-28,2025-08-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+923,CUST-00923,Emily Garcia,emily.garcia923@example.com,+1-219-842-9457,Austin,Retail,2026-04-09,2026-04-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+924,CUST-00924,Rodriguez & Sandra LLC,purchasing@rodriguezsandra924.com,+1-779-944-1981,Portland,Wholesale,2025-11-15,2025-11-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+925,CUST-00925,Elizabeth White,elizabeth.white925@example.com,+1-901-983-5919,Seattle,Retail,2026-03-29,2026-03-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+926,CUST-00926,John Lee,john.lee926@example.com,+1-408-622-5373,Chicago,Retail,2026-03-18,2026-03-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+927,CUST-00927,Davis & Joshua LLC,purchasing@davisjoshua927.com,+1-444-316-3456,Portland,Wholesale,2025-08-09,2025-08-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+928,CUST-00928,Sandra Thomas,sandra.thomas928@example.com,+1-773-646-7914,Chicago,Retail,2025-12-29,2025-12-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+929,CUST-00929,David Smith,david.smith929@example.com,+1-464-484-3883,Seattle,Retail,2025-12-28,2025-12-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+930,CUST-00930,Mary Johnson,mary.johnson930@example.com,+1-285-521-5882,Chicago,Retail,2026-04-12,2026-04-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+931,CUST-00931,Lisa Perez,lisa.perez931@example.com,+1-873-292-7502,San Francisco,VIP,2026-06-08,2026-06-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+932,CUST-00932,Jackson & Linda Logistics,purchasing@jacksonlinda932.com,+1-734-880-9605,Seattle,Corporate,2025-08-28,2025-08-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+933,CUST-00933,Linda Harris,linda.harris933@example.com,+1-520-537-7388,Portland,VIP,2026-03-08,2026-03-08 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+934,CUST-00934,Jones & Susan Logistics,purchasing@jonessusan934.com,+1-379-419-5498,Phoenix,Corporate,2025-10-20,2025-10-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+935,CUST-00935,Ashley Moore,ashley.moore935@example.com,+1-583-916-2850,Denver,Retail,2025-09-15,2025-09-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+936,CUST-00936,Sarah Lewis,sarah.lewis936@example.com,+1-348-571-8786,Austin,Retail,2026-01-26,2026-01-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+937,CUST-00937,Johnson & Joshua Enterprises,purchasing@johnsonjoshua937.com,+1-907-887-4926,Seattle,Corporate,2025-08-28,2025-08-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+938,CUST-00938,Lisa Lewis,lisa.lewis938@example.com,+1-901-324-9763,Austin,Retail,2026-04-12,2026-04-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+939,CUST-00939,Betty Robinson,betty.robinson939@example.com,+1-461-508-2478,San Francisco,VIP,2026-06-01,2026-06-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+940,CUST-00940,Robinson & William Corp,purchasing@robinsonwilliam940.com,+1-846-524-7656,Portland,Corporate,2026-02-28,2026-02-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+941,CUST-00941,Ashley Thomas,ashley.thomas941@example.com,+1-954-622-6451,Seattle,Retail,2026-01-26,2026-01-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+942,CUST-00942,William Thompson,william.thompson942@example.com,+1-467-718-2087,Chicago,VIP,2025-09-25,2025-09-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+943,CUST-00943,Anderson & Christopher Enterprises,purchasing@andersonchristopher943.com,+1-980-253-4010,Chicago,Wholesale,2025-12-23,2025-12-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+944,CUST-00944,Miller & Betty Supplies,purchasing@millerbetty944.com,+1-521-789-2347,Seattle,Corporate,2025-07-09,2025-07-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+945,CUST-00945,David Ramirez,david.ramirez945@example.com,+1-808-902-7722,Austin,Retail,2026-03-02,2026-03-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+946,CUST-00946,David Rodriguez,david.rodriguez946@example.com,+1-377-903-6367,Denver,Retail,2026-03-05,2026-03-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+947,CUST-00947,Barbara Gonzalez,barbara.gonzalez947@example.com,+1-586-784-4677,San Francisco,Retail,2025-05-14,2025-05-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+948,CUST-00948,Michelle Lee,michelle.lee948@example.com,+1-434-291-8576,Denver,Retail,2025-08-11,2025-08-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+949,CUST-00949,Martin & Betty LLC,purchasing@martinbetty949.com,+1-814-466-3445,Seattle,Corporate,2025-06-29,2025-06-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+950,CUST-00950,Linda Smith,linda.smith950@example.com,+1-935-738-8129,Phoenix,Retail,2026-02-20,2026-02-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+951,CUST-00951,Ashley Brown,ashley.brown951@example.com,+1-429-930-4328,Chicago,VIP,2025-08-09,2025-08-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+952,CUST-00952,Charles White,charles.white952@example.com,+1-706-591-3133,Chicago,VIP,2025-10-18,2025-10-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+953,CUST-00953,Charles White,charles.white953@example.com,+1-893-393-7853,Portland,Retail,2025-08-05,2025-08-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+954,CUST-00954,Davis & Thomas Corp,purchasing@davisthomas954.com,+1-454-578-8506,Seattle,Corporate,2025-06-27,2025-06-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+955,CUST-00955,Betty Perez,betty.perez955@example.com,+1-417-930-7283,Chicago,Retail,2026-01-23,2026-01-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+956,CUST-00956,Moore & Michael Enterprises,purchasing@mooremichael956.com,+1-253-540-4847,Portland,Corporate,2025-10-30,2025-10-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+957,CUST-00957,Joshua Thompson,joshua.thompson957@example.com,+1-966-246-1087,Austin,Retail,2025-08-28,2025-08-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+958,CUST-00958,Perez & Betty Group,purchasing@perezbetty958.com,+1-335-772-1673,Portland,Wholesale,2025-12-05,2025-12-05 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+959,CUST-00959,Nancy Lewis,nancy.lewis959@example.com,+1-679-335-2468,Denver,Retail,2025-09-15,2025-09-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+960,CUST-00960,Linda Hernandez,linda.hernandez960@example.com,+1-245-330-9179,Seattle,Retail,2026-04-15,2026-04-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+961,CUST-00961,Martinez & Margaret Supplies,purchasing@martinezmargaret961.com,+1-827-979-5321,Chicago,Corporate,2025-11-14,2025-11-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+962,CUST-00962,Ashley Harris,ashley.harris962@example.com,+1-354-769-8208,Seattle,Retail,2025-06-09,2025-06-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+963,CUST-00963,Robert Thomas,robert.thomas963@example.com,+1-466-367-8653,Portland,Retail,2025-10-19,2025-10-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+964,CUST-00964,Robert Anderson,robert.anderson964@example.com,+1-565-926-8949,Phoenix,VIP,2025-10-26,2025-10-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+965,CUST-00965,Elizabeth Brown,elizabeth.brown965@example.com,+1-557-295-4337,Austin,Retail,2026-04-12,2026-04-12 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+966,CUST-00966,Steven Clark,steven.clark966@example.com,+1-479-776-4479,Seattle,Retail,2025-12-06,2025-12-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+967,CUST-00967,Andrew Garcia,andrew.garcia967@example.com,+1-626-278-5033,Denver,VIP,2026-02-18,2026-02-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+968,CUST-00968,Martinez & Mary Logistics,purchasing@martinezmary968.com,+1-603-582-2737,Phoenix,Corporate,2026-03-25,2026-03-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+969,CUST-00969,Donald Anderson,donald.anderson969@example.com,+1-843-475-1095,Seattle,Retail,2025-09-19,2025-09-19 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+970,CUST-00970,Mark Hernandez,mark.hernandez970@example.com,+1-949-951-3118,Austin,Retail,2025-08-15,2025-08-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+971,CUST-00971,Christopher Sanchez,christopher.sanchez971@example.com,+1-256-961-2158,Austin,Retail,2025-11-23,2025-11-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+972,CUST-00972,Garcia & Thomas Solutions,purchasing@garciathomas972.com,+1-989-608-2461,Seattle,Wholesale,2025-05-14,2025-05-14 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+973,CUST-00973,Betty Martinez,betty.martinez973@example.com,+1-862-970-3525,San Francisco,Retail,2025-07-13,2025-07-13 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+974,CUST-00974,Karen Lewis,karen.lewis974@example.com,+1-901-817-3151,San Francisco,Retail,2025-09-27,2025-09-27 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+975,CUST-00975,Richard Thomas,richard.thomas975@example.com,+1-656-597-8805,San Francisco,Retail,2025-09-02,2025-09-02 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+976,CUST-00976,Sanchez & Margaret Group,purchasing@sanchezmargaret976.com,+1-828-390-8112,Seattle,Wholesale,2025-12-23,2025-12-23 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+977,CUST-00977,Sandra Perez,sandra.perez977@example.com,+1-429-863-3540,Denver,Retail,2026-05-28,2026-05-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+978,CUST-00978,Jennifer Martinez,jennifer.martinez978@example.com,+1-679-647-2297,Austin,Retail,2026-05-09,2026-05-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+979,CUST-00979,David Perez,david.perez979@example.com,+1-507-454-9570,Seattle,Retail,2025-10-17,2025-10-17 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+980,CUST-00980,Taylor & Robert Logistics,purchasing@taylorrobert980.com,+1-722-635-7766,Denver,Wholesale,2025-07-01,2025-07-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+981,CUST-00981,Lopez & Thomas Supplies,purchasing@lopezthomas981.com,+1-799-283-9248,Denver,Wholesale,2025-05-09,2025-05-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+982,CUST-00982,Clark & Barbara LLC,purchasing@clarkbarbara982.com,+1-246-285-7819,San Francisco,Corporate,2026-04-18,2026-04-18 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+983,CUST-00983,Sandra Harris,sandra.harris983@example.com,+1-886-660-5342,Denver,Retail,2025-09-22,2025-09-22 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+984,CUST-00984,Susan Garcia,susan.garcia984@example.com,+1-280-964-5248,Chicago,VIP,2026-04-15,2026-04-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+985,CUST-00985,James Gonzalez,james.gonzalez985@example.com,+1-319-213-3813,Denver,Retail,2026-01-01,2026-01-01 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+986,CUST-00986,Joshua White,joshua.white986@example.com,+1-698-510-6910,San Francisco,Retail,2026-01-15,2026-01-15 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+987,CUST-00987,Karen Williams,karen.williams987@example.com,+1-328-338-1227,Austin,VIP,2025-08-09,2025-08-09 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+988,CUST-00988,Ramirez & Richard Enterprises,purchasing@ramirezrichard988.com,+1-414-692-3378,Austin,Corporate,2025-12-30,2025-12-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+989,CUST-00989,Paul Miller,paul.miller989@example.com,+1-288-508-8592,Austin,Retail,2025-07-24,2025-07-24 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+990,CUST-00990,Elizabeth White,elizabeth.white990@example.com,+1-919-655-8947,Seattle,Retail,2025-10-30,2025-10-30 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+991,CUST-00991,Richard Martinez,richard.martinez991@example.com,+1-783-601-1834,Denver,VIP,2025-09-20,2025-09-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+992,CUST-00992,Margaret Wilson,margaret.wilson992@example.com,+1-707-954-5764,Chicago,Retail,2025-05-28,2025-05-28 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+993,CUST-00993,Michelle Robinson,michelle.robinson993@example.com,+1-894-699-4799,Denver,Retail,2026-01-25,2026-01-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+994,CUST-00994,Christopher Moore,christopher.moore994@example.com,+1-265-474-7834,San Francisco,Retail,2026-04-26,2026-04-26 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+995,CUST-00995,Daniel Anderson,daniel.anderson995@example.com,+1-914-646-1340,Austin,Retail,2025-07-29,2025-07-29 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+996,CUST-00996,Davis & Mark Solutions,purchasing@davismark996.com,+1-801-901-6556,San Francisco,Corporate,2026-05-20,2026-05-20 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+997,CUST-00997,Sandra Jones,sandra.jones997@example.com,+1-500-940-7395,Austin,VIP,2026-06-25,2026-06-25 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+998,CUST-00998,Sanchez & Lisa Corp,purchasing@sanchezlisa998.com,+1-365-836-4394,Austin,Corporate,2025-09-06,2025-09-06 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+999,CUST-00999,Garcia & David Solutions,purchasing@garciadavid999.com,+1-360-820-9063,Austin,Corporate,2025-07-04,2025-07-04 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00
+1000,CUST-01000,Karen Davis,karen.davis1000@example.com,+1-414-770-1770,Phoenix,Retail,2026-09-11,2026-09-11 00:00:00+00:00,2026-09-24 15:51:32.423952+00:00

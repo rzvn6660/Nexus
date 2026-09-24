@@ -144,16 +144,22 @@ nexus/
 | **Backend Core** | **Implemented** | FastAPI application factory, Pydantic v2 settings, SQLAlchemy 2.x engine pooling, Alembic migration foundation, correlation ID middleware, structured logging |
 | **Health API** | **Implemented** | `GET /api/health` providing service telemetry, runtime version, environment, and non-blocking database ping |
 | **API Versioning** | **Implemented** | `/api/v1` router namespace with modular endpoint isolation |
+| **Data Layer** | **Implemented** | Normalized SQLAlchemy 2.x models (Customers, Products, Sales, SaleItems, Inventory, Expenses), Alembic migration, Decimal financial precision, non-negative & uniqueness constraints |
+| **Data Ingestion** | **Implemented** | `CSVIngestionService` and `CSVConnector` with Pydantic contract validation, type coercion, and row-level error reporting |
+| **Data Profiling** | **Implemented** | `DataProfiler` computing null rates, uniqueness, duplicate detection, descriptive statistics, date spans, and categorical distributions |
+| **Data Quality Engine** | **Implemented** | `DataQualityChecker` enforcing business rules, referential integrity, and financial total reconciliations into structured `QualityReport` |
+| **Synthetic Generator** | **Implemented** | `RetailDataGenerator` producing reproducible 18-month retail datasets with Pareto popularity, segmentation, and Q4 seasonality |
+| **Data API** | **Implemented** | `GET /api/v1/data/health`, `GET /tables`, `GET /profile/{dataset}`, `GET /quality/{dataset}`, `POST /ingest/csv` |
 | **Docker Compose** | **Implemented** | Multi-service Compose environment orchestrating PostgreSQL 16, backend, and frontend |
 | **Frontend Foundation** | **Implemented** | React 18 + Vite + Tailwind CSS dashboard visualizing live telemetry, 11-step workflow, and domain entities |
-| **Test Suite** | **Implemented** | Pytest test suite covering health endpoints, settings defaults, and DB disconnection fallbacks |
-| **Documentation** | **Implemented** | System architecture, backend architecture, agent topology, analytics taxonomy, semantic layer, evidence packets, HITL workflow |
+| **Test Suite** | **Implemented** | 34 Pytest tests covering health, models, generator, ingestion, profiling, quality rules, and API endpoints |
+| **Documentation** | **Implemented** | Architecture blueprints in `docs/architecture/` and comprehensive data documentation in `docs/data/` |
 | **CI Automation** | **Implemented** | GitHub Actions workflow executing backend tests, type checks, and frontend build |
-| **Retail Data Schemas** | *Planned (Phase 2)* | Schema definitions and seeds for Sales, Customers, Products, Inventory, and Expenses |
-| **Deterministic Analytics** | *Planned (Phase 2)* | Descriptive KPI calculations, variance decomposition, and forecasting modules |
-| **LangGraph Agents** | *Planned (Phase 3)* | Multi-node state machine and tool calling routines |
-| **Semantic Layer** | *Planned (Phase 3)* | Explicit metric catalog and formula compiler |
-| **Evidence & HITL** | *Future (Phase 4)* | Cryptographic evidence hashing and analyst approval console |
+| **Deterministic Analytics** | *Planned (Phase 3)* | Descriptive KPI calculations, variance decomposition, statistics, and forecasting modules |
+| **LangGraph Agents** | *Planned (Phase 4)* | Multi-node state machine and tool calling routines |
+| **Semantic Layer** | *Planned (Phase 5)* | Explicit metric catalog and formula compiler |
+| **Evidence & HITL** | *Future (Phase 6)* | Cryptographic evidence hashing and analyst approval console |
+
 
 ---
 
@@ -229,9 +235,9 @@ npm run build
 
 ---
 
-## 10. Architectural Documentation Index
+## 10. Architectural & Data Documentation Index
 
-For in-depth architectural specifications, see the `/docs/architecture/` directory:
+### System Blueprints (`/docs/architecture/`)
 - [System Architecture](file:///docs/architecture/system_architecture.md)
 - [Backend Architecture](file:///docs/architecture/backend_architecture.md)
 - [Agent Architecture & State Machine](file:///docs/architecture/agent_architecture.md)
@@ -241,20 +247,37 @@ For in-depth architectural specifications, see the `/docs/architecture/` directo
 - [Evidence & Validation Framework](file:///docs/architecture/evidence_validation.md)
 - [Human-in-the-Loop Workflow](file:///docs/architecture/human_in_the_loop.md)
 
+### Data Layer Specifications (`/docs/data/`)
+- [Data Layer Architecture](file:///docs/data/data_architecture.md)
+- [Database Schema Specification](file:///docs/data/database_schema.md)
+- [Business Data Dictionary](file:///docs/data/data_dictionary.md)
+- [Data Ingestion Design](file:///docs/data/ingestion_design.md)
+- [Data Profiling Design](file:///docs/data/profiling_design.md)
+- [Data Quality Rules Catalog](file:///docs/data/quality_rules.md)
+- [Synthetic Retail Dataset Design](file:///docs/data/synthetic_data_design.md)
+- [Business Validation Rules](file:///docs/data/validation_rules.md)
+
 ---
 
 ## 11. Project Roadmap
 
-- [x] **Phase 1: Foundation (Current)**
+- [x] **Phase 1: Foundation (Completed)**
   - Repository structure, FastAPI backend, SQLAlchemy 2.x, Alembic, Docker Compose, React frontend, health endpoints, test runner, comprehensive architecture docs, CI pipeline.
-- [ ] **Phase 2: Retail Data Domain & Deterministic Analytics Engine**
-  - Small retail/distribution schema (sales, customers, products, inventory, expenses), data ingestion, profiling, descriptive KPIs, variance decomposition, demand forecasting.
-- [ ] **Phase 3: Stateful Agent Orchestration & Semantic Layer**
-  - LangGraph workflow integration, explicit metric catalog, hybrid business context retrieval (RAG), tool calling guardrails.
-- [ ] **Phase 4: Evidence Engine & Human-in-the-Loop Console**
-  - Traceable query hashing, proof slices, assumption tracking, analyst review interface, closed-loop outcome measurement.
-- [ ] **Phase 5: Enterprise Scaling & Multi-Tenancy**
-  - Tenant isolation, role-based access control (RBAC), multi-branch retail distribution support, production deployment manifests.
+- [x] **Phase 2: Data Layer (Completed)**
+  - Normalized relational models (customers, products, sales, sale_items, inventory, expenses), Alembic migration, CSV ingestion service, data profiler, data quality checker, synthetic retail data generator, database seeder, data layer API endpoints.
+- [ ] **Phase 3: Analytics Engine**
+  - Descriptive KPIs (Net Sales, Gross Margin, AOV, Inventory Turnover), diagnostic variance decomposition, scientific computing (SciPy, NumPy), time-series forecasting baselines.
+- [ ] **Phase 4: NEXUS Agent / LangGraph**
+  - Stateful multi-node workflow orchestration, tool calling guardrails, iterative hypothesis investigation.
+- [ ] **Phase 5: RAG + Semantic Layer**
+  - Explicit metric formulas as code, business rule catalog, hybrid context retrieval.
+- [ ] **Phase 6: Investigation + Evidence**
+  - Cryptographic query hashing, proof slices, assumption tracking, analyst review interface.
+- [ ] **Phase 7: Predictive Intelligence**
+- [ ] **Phase 8: Product UI**
+- [ ] **Phase 9: Evaluation**
+- [ ] **Phase 10: Production**
+
 
 ---
 
