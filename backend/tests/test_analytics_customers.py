@@ -8,7 +8,6 @@ from app.analytics.core.context import AnalysisContext
 from app.analytics.customer.rfm import RFMAnalyzer
 from app.analytics.customer.cohorts import CustomerCohortAnalyzer
 from app.analytics.customer.repeat_purchase import RepeatPurchaseAnalyzer
-from backend.tests.test_analytics_financial import multi_period_db
 
 
 def test_repeat_purchase_metrics(multi_period_db: Session):

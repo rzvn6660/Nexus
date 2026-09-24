@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.analytics.core.context import AnalysisContext
 from app.analytics.inventory.stock import InventoryStockAnalyzer
 from app.analytics.inventory.turnover import InventoryTurnoverCalculator
-from backend.tests.test_analytics_financial import multi_period_db
 from app.models.inventory import Inventory
 from app.models.product import Product
 

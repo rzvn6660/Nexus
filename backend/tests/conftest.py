@@ -207,3 +207,174 @@ def client(test_app) -> TestClient:
     """Provide a TestClient instance bound to the test application."""
     with TestClient(test_app) as test_client:
         yield test_client
+
+
+@pytest.fixture(scope="function")
+def multi_period_db(db_session: Session) -> Session:
+    """Populate database with multi-period retail data for financial verification."""
+    # Customers
+    c1 = Customer(
+        customer_code="CUST-001",
+        name="Corp Buyer A",
+        email="buyer@corpa.com",
+        city="Seattle",
+        customer_segment="Corporate",
+        acquisition_date=date(2023, 1, 10),
+    )
+    c2 = Customer(
+        customer_code="CUST-002",
+        name="Retail Buyer B",
+        email="buyer@retailb.com",
+        city="Portland",
+        customer_segment="Retail",
+        acquisition_date=date(2023, 2, 15),
+    )
+    db_session.add_all([c1, c2])
+    db_session.flush()
+
+    # Products
+    p1 = Product(
+        sku="SKU-A",
+        name="Widget A",
+        category="Hardware",
+        subcategory="Tools",
+        unit_cost=Decimal("15.00"),
+        selling_price=Decimal("35.00"),
+        active=True,
+    )
+    p2 = Product(
+        sku="SKU-B",
+        name="Gadget B",
+        category="Electronics",
+        subcategory="Accessories",
+        unit_cost=Decimal("6.00"),
+        selling_price=Decimal("18.00"),
+        active=True,
+    )
+    db_session.add_all([p1, p2])
+    db_session.flush()
+
+    # Inventory
+    inv1 = Inventory(
+        product_id=p1.id,
+        stock_quantity=50,
+        reorder_threshold=10,
+        warehouse_location="Warehouse North",
+    )
+    inv2 = Inventory(
+        product_id=p2.id,
+        stock_quantity=3,
+        reorder_threshold=10,
+        warehouse_location="Warehouse South",
+    )
+    db_session.add_all([inv1, inv2])
+    db_session.flush()
+
+    # May 2023 (Baseline period)
+    s1 = Sale(
+        transaction_number="TXN-202305-01",
+        customer_id=c1.id,
+        transaction_date=datetime(2023, 5, 10, 10, 0, tzinfo=timezone.utc),
+        status="completed",
+        subtotal=Decimal("70.00"),
+        discount_amount=Decimal("5.00"),
+        tax_amount=Decimal("5.20"),
+        total_amount=Decimal("70.20"),
+    )
+    db_session.add(s1)
+    db_session.flush()
+    i1 = SaleItem(
+        sale_id=s1.id,
+        product_id=p1.id,
+        quantity=2,
+        unit_price=Decimal("35.00"),
+        discount_amount=Decimal("5.00"),
+        line_total=Decimal("65.00"),
+    )
+    db_session.add(i1)
+
+    s2 = Sale(
+        transaction_number="TXN-202305-02",
+        customer_id=c2.id,
+        transaction_date=datetime(2023, 5, 20, 14, 0, tzinfo=timezone.utc),
+        status="completed",
+        subtotal=Decimal("90.00"),
+        discount_amount=Decimal("0.00"),
+        tax_amount=Decimal("7.20"),
+        total_amount=Decimal("97.20"),
+    )
+    db_session.add(s2)
+    db_session.flush()
+    i2 = SaleItem(
+        sale_id=s2.id,
+        product_id=p2.id,
+        quantity=5,
+        unit_price=Decimal("18.00"),
+        discount_amount=Decimal("0.00"),
+        line_total=Decimal("90.00"),
+    )
+    db_session.add(i2)
+
+    # June 2023 (Current period)
+    s3 = Sale(
+        transaction_number="TXN-202306-01",
+        customer_id=c1.id,
+        transaction_date=datetime(2023, 6, 5, 11, 0, tzinfo=timezone.utc),
+        status="completed",
+        subtotal=Decimal("140.00"),
+        discount_amount=Decimal("0.00"),
+        tax_amount=Decimal("11.20"),
+        total_amount=Decimal("151.20"),
+    )
+    db_session.add(s3)
+    db_session.flush()
+    i3 = SaleItem(
+        sale_id=s3.id,
+        product_id=p1.id,
+        quantity=4,
+        unit_price=Decimal("35.00"),
+        discount_amount=Decimal("0.00"),
+        line_total=Decimal("140.00"),
+    )
+    db_session.add(i3)
+
+    s4 = Sale(
+        transaction_number="TXN-202306-02",
+        customer_id=c1.id,
+        transaction_date=datetime(2023, 6, 20, 16, 0, tzinfo=timezone.utc),
+        status="completed",
+        subtotal=Decimal("200.00"),
+        discount_amount=Decimal("0.00"),
+        tax_amount=Decimal("16.00"),
+        total_amount=Decimal("216.00"),
+    )
+    db_session.add(s4)
+    db_session.flush()
+    i4 = SaleItem(
+        sale_id=s4.id,
+        product_id=p2.id,
+        quantity=10,
+        unit_price=Decimal("20.00"),
+        discount_amount=Decimal("0.00"),
+        line_total=Decimal("200.00"),
+    )
+    db_session.add(i4)
+
+    # Operating Expenses
+    exp_may = Expense(
+        expense_date=date(2023, 5, 1),
+        category="Rent",
+        description="May Rent",
+        amount=Decimal("100.00"),
+        recurring=True,
+    )
+    exp_june = Expense(
+        expense_date=date(2023, 6, 1),
+        category="Rent",
+        description="June Rent",
+        amount=Decimal("120.00"),
+        recurring=True,
+    )
+    db_session.add_all([exp_may, exp_june])
+    db_session.commit()
+    return db_session

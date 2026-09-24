@@ -3,7 +3,6 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from backend.tests.test_analytics_financial import multi_period_db
 
 
 def test_api_analytics_summary(client: TestClient, multi_period_db: Session):

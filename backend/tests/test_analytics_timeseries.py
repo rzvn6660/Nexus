@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.analytics.core.types import PeriodGranularity
 from app.analytics.core.context import AnalysisContext
 from app.analytics.descriptive.time_series import TimeSeriesAnalyzer
-from backend.tests.test_analytics_financial import multi_period_db
 
 
 def test_monthly_timeseries_aggregation(multi_period_db: Session):

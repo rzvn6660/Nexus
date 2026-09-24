@@ -8,7 +8,6 @@ from app.analytics.core.context import AnalysisContext
 from app.analytics.core.types import TrendDirection
 from app.analytics.diagnostic.variance import VarianceDiagnosticAnalyzer
 from app.analytics.diagnostic.decomposition import PriceVolumeMixAnalyzer
-from backend.tests.test_analytics_financial import multi_period_db
 
 
 def test_variance_analysis_dissection(multi_period_db: Session):

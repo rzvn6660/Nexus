@@ -8,7 +8,6 @@ from app.analytics.core.context import AnalysisContext
 from app.analytics.core.types import SortOrder
 from app.analytics.product.performance import ProductAnalyticsService
 from app.analytics.product.velocity import ProductVelocityCalculator
-from backend.tests.test_analytics_financial import multi_period_db
 
 
 def test_product_rankings_by_revenue(multi_period_db: Session):
