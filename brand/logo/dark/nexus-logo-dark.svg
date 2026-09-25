@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 120" width="560" height="120">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="primary-dark-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1120" />
+      <stop offset="100%" stop-color="#050811" />
+    </linearGradient>
+
+    <!-- Symbol Trail Gradients -->
+    <linearGradient id="p-sym-left" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+
+    <linearGradient id="p-sym-diag" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+
+    <linearGradient id="p-sym-right" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="p-core-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="560" height="120" rx="16" fill="url(#primary-dark-bg)" stroke="#1e293b" stroke-width="1.5" />
+
+  <!-- Standalone Symbol (72x72 box centered at x=64, y=60) -->
+  <g transform="translate(24, 20) scale(0.3125)">
+    <!-- Symbol viewBox 0 0 256 256 -->
+    <g stroke-linecap="round" stroke-linejoin="round">
+      <line x1="68" y1="64" x2="68" y2="192" stroke="url(#p-sym-left)" stroke-width="20" />
+      <line x1="188" y1="64" x2="188" y2="192" stroke="url(#p-sym-right)" stroke-width="20" />
+      <line x1="68" y1="64" x2="188" y2="192" stroke="url(#p-sym-diag)" stroke-width="20" />
+    </g>
+    <circle cx="68" cy="64" r="9" fill="#38bdf8" />
+    <circle cx="68" cy="192" r="9" fill="#0284c7" />
+    <circle cx="188" cy="64" r="9" fill="#0284c7" />
+    <circle cx="188" cy="192" r="9" fill="#4f46e5" />
+    <polygon points="128,106 150,128 128,150 106,128" fill="#38bdf8" opacity="0.5" filter="url(#p-core-glow)" />
+    <polygon points="128,112 144,128 128,144 112,128" fill="#ffffff" />
+  </g>
+
+  <!-- Subtle Vertical Divider -->
+  <line x1="126" y1="36" x2="126" y2="84" stroke="#334155" stroke-width="1.5" stroke-linecap="round" />
+
+  <!-- Wordmark & Subtitle -->
+  <text x="150" y="65" font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="40" font-weight="800" fill="#f8fafc" letter-spacing="0.12em">NEXUS</text>
+  <text x="152" y="86" font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="600" fill="#94a3b8" letter-spacing="0.22em">AGENTIC BUSINESS INTELLIGENCE</text>
+</svg>

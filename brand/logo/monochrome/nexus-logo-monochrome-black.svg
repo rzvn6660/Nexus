@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 120" width="560" height="120">
+  <!-- Monochrome Black Horizontal Lockup -->
+  <g transform="translate(24, 20) scale(0.3125)">
+    <g stroke="#000000" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="68" y1="64" x2="68" y2="192" stroke-width="22" />
+      <line x1="188" y1="64" x2="188" y2="192" stroke-width="22" />
+      <line x1="68" y1="64" x2="188" y2="192" stroke-width="22" />
+    </g>
+    <circle cx="68" cy="64" r="10" fill="#000000" />
+    <circle cx="68" cy="192" r="10" fill="#000000" />
+    <circle cx="188" cy="64" r="10" fill="#000000" />
+    <circle cx="188" cy="192" r="10" fill="#000000" />
+    <polygon points="128,106 150,128 128,150 106,128" fill="#000000" />
+  </g>
+
+  <line x1="126" y1="36" x2="126" y2="84" stroke="#000000" stroke-width="2" stroke-linecap="round" />
+
+  <text x="150" y="65" font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="40" font-weight="800" fill="#000000" letter-spacing="0.12em">NEXUS</text>
+  <text x="152" y="86" font-family="'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="600" fill="#000000" letter-spacing="0.22em">AGENTIC BUSINESS INTELLIGENCE</text>
+</svg>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#060911" />
+    </radialGradient>
+
+    <!-- Trail Gradients -->
+    <linearGradient id="nexus-left-rail" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+
+    <linearGradient id="nexus-diagonal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+
+    <linearGradient id="nexus-right-rail" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+
+    <!-- Node Glow Filter -->
+    <filter id="core-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Deep Studio Canvas -->
+  <rect width="256" height="256" rx="48" fill="url(#bg-glow)" />
+
+  <!-- Subtle Precision Framing Grid -->
+  <circle cx="128" cy="128" r="88" fill="none" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="4 8" opacity="0.6" />
+
+  <!-- Connecting Vector Pathways (Architectural 'N' & Convergence) -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left Data Rail -->
+    <line x1="68" y1="64" x2="68" y2="192" stroke="url(#nexus-left-rail)" stroke-width="18" />
+
+    <!-- Right Decision Rail -->
+    <line x1="188" y1="64" x2="188" y2="192" stroke="url(#nexus-right-rail)" stroke-width="18" />
+
+    <!-- Converging Diagonal Nexus Bridge -->
+    <line x1="68" y1="64" x2="188" y2="192" stroke="url(#nexus-diagonal)" stroke-width="18" />
+  </g>
+
+  <!-- Peripheral Evidence Anchors -->
+  <circle cx="68" cy="64" r="8" fill="#38bdf8" />
+  <circle cx="68" cy="192" r="8" fill="#0284c7" />
+  <circle cx="188" cy="64" r="8" fill="#0284c7" />
+  <circle cx="188" cy="192" r="8" fill="#4f46e5" />
+
+  <!-- Central Nexus Core (The Decision Node) -->
+  <g filter="url(#core-glow)">
+    <polygon points="128,104 152,128 128,152 104,128" fill="#00f2fe" opacity="0.4" />
+    <polygon points="128,110 146,128 128,146 110,128" fill="#ffffff" />
+  </g>
+</svg>
