@@ -117,3 +117,20 @@ class AgentState(TypedDict, total=False):
     is_definitional_only: bool
     iteration_count: int
     max_iterations: int
+
+    # Phase 6 Investigation State
+    is_investigation_required: bool
+    investigation_id: str | None
+    investigation_goal: str | None
+    investigation_type: str | None
+    investigation_plan: dict[str, Any] | None
+    investigation_steps: list[dict[str, Any]]
+    current_investigation_step: int
+    hypotheses: list[dict[str, Any]]
+    hypothesis_results: list[dict[str, Any]]
+    evidence_items: list[dict[str, Any]]
+    evidence_gaps: list[dict[str, Any]]
+    investigation_status: str | None
+    investigation_iterations: int
+    max_investigation_iterations: int
+    diagnostic_summary: dict[str, Any] | None

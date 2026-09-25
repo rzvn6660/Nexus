@@ -4,6 +4,7 @@ from typing import Any
 
 from app.agents.providers.factory import get_llm_provider
 from app.agents.state.models import AgentState, AnalysisPlan, ExplanationLevel
+from app.investigation.validators import CausalitySafeguard
 
 
 def generate_explanation_node(state: AgentState) -> dict[str, Any]:
@@ -82,7 +83,9 @@ def generate_explanation_node(state: AgentState) -> dict[str, Any]:
         follow_ups.append("Would you like to compare these figures with the previous period?")
         follow_ups.append("Should we generate a visual timeseries breakdown?")
 
+    sanitized_answer = CausalitySafeguard.sanitize_diagnostic_text(explanation)
+
     return {
-        "final_answer": explanation,
+        "final_answer": sanitized_answer,
         "follow_up_questions": follow_ups,
     }

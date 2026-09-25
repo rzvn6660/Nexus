@@ -20,6 +20,10 @@ class AgentAnalyzeRequest(BaseModel):
         default=None,
         description="Optional anchor date for relative temporal parsing (defaults to today)"
     )
+    is_investigation: bool = Field(
+        default=False,
+        description="Whether to run an adaptive multi-step diagnostic investigation"
+    )
 
 
 class AgentExecutionMetadata(BaseModel):
@@ -49,6 +53,10 @@ class AgentResponse(BaseModel):
     semantic_context: dict[str, Any] | None = Field(
         default=None,
         description="Resolved KPI ontology and terminology mapping"
+    )
+    diagnostic_summary: dict[str, Any] | None = Field(
+        default=None,
+        description="Phase 6 diagnostic investigation summary and findings if applicable"
     )
     calculations: list[dict[str, Any]] = Field(
         default_factory=list,

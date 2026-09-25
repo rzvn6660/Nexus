@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     RAG_SIMILARITY_THRESHOLD: float = 0.2
     MAX_DOCUMENT_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB max document size
 
+    # Investigation / Diagnostic Intelligence Layer
+    MAX_INVESTIGATION_STEPS: int = 8
+    INVESTIGATION_ENABLED: bool = True
+
     @property
     def is_production(self) -> bool:
         """Helper to verify if running in production mode."""

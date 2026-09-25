@@ -7,6 +7,11 @@ from langgraph.graph import END, START, StateGraph
 from app.agents.nodes.evaluation import check_evidence_node, inspect_result_node
 from app.agents.nodes.execution import execute_tool_node
 from app.agents.nodes.explanation import generate_explanation_node
+from app.agents.nodes.investigation_node import (
+    create_investigation_plan_node,
+    execute_investigation_step_node,
+    synthesize_investigation_node,
+)
 from app.agents.nodes.planning import create_plan_node, validate_plan_node
 from app.agents.nodes.semantic_node import retrieve_context_node, semantic_resolution_node
 from app.agents.nodes.specialized import handle_clarification_node, handle_unsupported_node
@@ -38,11 +43,27 @@ def route_after_semantic_resolution(
 
 def route_after_context_retrieval(
     state: AgentState
-) -> Literal["generate_explanation", "create_plan"]:
+) -> Literal["generate_explanation", "create_investigation_plan", "create_plan"]:
     """If the query is purely definitional, skip numerical tools and explain directly."""
     if state.get("is_definitional_only"):
         return "generate_explanation"
+    if state.get("is_investigation_required"):
+        return "create_investigation_plan"
     return "create_plan"
+
+
+def route_after_investigation_step(
+    state: AgentState
+) -> Literal["execute_investigation_step", "synthesize_investigation"]:
+    """Loop through investigation steps or finalize and synthesize."""
+    current_idx = state.get("current_investigation_step", 0)
+    steps = state.get("investigation_steps", [])
+    iters = state.get("investigation_iterations", 0)
+    max_iters = state.get("max_investigation_iterations", 8)
+
+    if current_idx < len(steps) and iters < max_iters:
+        return "execute_investigation_step"
+    return "synthesize_investigation"
 
 
 def route_after_plan_validation(
@@ -116,6 +137,9 @@ def build_agent_graph() -> StateGraph:
     builder.add_node("inspect_result", inspect_result_node)
     builder.add_node("check_evidence", check_evidence_node)
     builder.add_node("generate_explanation", generate_explanation_node)
+    builder.add_node("create_investigation_plan", create_investigation_plan_node)
+    builder.add_node("execute_investigation_step", execute_investigation_step_node)
+    builder.add_node("synthesize_investigation", synthesize_investigation_node)
 
     # 2. Wire Edges
     builder.add_edge(START, "understand_request")
@@ -145,9 +169,22 @@ def build_agent_graph() -> StateGraph:
         route_after_context_retrieval,
         {
             "generate_explanation": "generate_explanation",
+            "create_investigation_plan": "create_investigation_plan",
             "create_plan": "create_plan",
         },
     )
+
+    # Investigation branch
+    builder.add_edge("create_investigation_plan", "execute_investigation_step")
+    builder.add_conditional_edges(
+        "execute_investigation_step",
+        route_after_investigation_step,
+        {
+            "execute_investigation_step": "execute_investigation_step",
+            "synthesize_investigation": "synthesize_investigation",
+        },
+    )
+    builder.add_edge("synthesize_investigation", END)
 
     builder.add_edge("handle_unsupported", END)
     builder.add_edge("handle_clarification", END)
