@@ -25,6 +25,36 @@ def understand_request_node(state: AgentState) -> dict[str, Any]:
     ref_date = date.fromisoformat(ref_date_str) if ref_date_str else None
     resolved_dates = DateInterpreter.interpret(user_query, reference_date=ref_date)
 
+    # Check for underspecified requests asking for breakdowns/drilldowns without metric or dimension
+    import re
+    q_clean = re.sub(r"[^\w\s]", "", user_query.lower()).strip()
+    generic_breakdown_phrases = [
+        "give me a breakdown",
+        "show me a breakdown",
+        "provide a breakdown",
+        "breakdown please",
+        "run a breakdown",
+        "breakdown",
+        "give a breakdown",
+        "break it down",
+        "drill down",
+        "give me a decomposition",
+    ]
+    if any(q_clean == p or q_clean.startswith(p + " ") or q_clean.endswith(" " + p) for p in generic_breakdown_phrases):
+        metric_tokens = ["revenue", "sales", "profit", "margin", "order", "orders", "unit", "units", "cogs", "expense", "inventory", "turnover", "customer"]
+        dim_tokens = ["category", "product", "sku", "brand", "segment", "channel", "month", "quarter", "year", "region", "store"]
+        has_metric = any(m in q_clean for m in metric_tokens)
+        has_dim = any(d in q_clean for d in dim_tokens)
+        if not (has_metric and has_dim):
+            return {
+                "intent": {"category": "ambiguous", "confidence": 1.0, "reasoning": "Query requests a breakdown without specifying metric and dimension."},
+                "resolved_dates": resolved_dates,
+                "needs_clarification": True,
+                "clarification_question": "Please specify which metric you would like to break down (e.g., revenue, gross profit, or order volume) and across which dimension (e.g., product category, customer segment, or monthly timeframe).",
+                "evidence_status": "INSUFFICIENT",
+                "is_unsupported": False,
+            }
+
     # Intent classification via LLM provider
     provider = get_llm_provider()
     supported_intents = [e.value for e in IntentCategory]

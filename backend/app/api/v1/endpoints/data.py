@@ -120,8 +120,9 @@ async def ingest_csv(
             detail=f"Target dataset '{dataset}' not supported. Supported: {list(MODEL_REGISTRY.keys())}",
         )
 
-    # Validate file extension
-    filename = file.filename or "upload.csv"
+    # Validate and sanitize file name
+    from app.security import sanitize_filename
+    filename = sanitize_filename(file.filename)
     if not filename.lower().endswith(".csv"):
         raise HTTPException(
             status_code=400,

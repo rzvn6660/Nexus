@@ -41,7 +41,8 @@ async def upload_document(
 ) -> DocumentUploadResponse:
     """Upload and index a business context document file."""
     file_bytes = await file.read()
-    filename = file.filename or "document.txt"
+    from app.security import sanitize_filename
+    filename = sanitize_filename(file.filename)
     doc_title = title or filename
 
     parsed_tags: list[str] = []

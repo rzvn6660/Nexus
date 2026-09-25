@@ -12,6 +12,7 @@ from app.agents.state.models import AgentState
 from app.analytics.evidence.models import EvidenceRecord
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.models.history import AnalysisRun, DecisionRecord
 from app.rag.retrieval.models import RAGEvidence
 from app.schemas.agent import AgentExecutionMetadata, AgentResponse
 
@@ -169,6 +170,46 @@ class NexusAgentService:
             f"Completed agent analysis run. Request ID: {request_id}, "
             f"Status: {status}, Tools: {metadata.tools_executed}, Elapsed: {elapsed_ms}ms"
         )
+
+        # Persist audit record in AnalysisRun and DecisionRecord tables
+        try:
+            run_record = AnalysisRun(
+                request_id=request_id,
+                query=query,
+                intent=intent_label,
+                status=status,
+                explanation_level=explanation_level,
+                answer=final_state.get("final_answer") or "Analysis completed.",
+                execution_time_ms=elapsed_ms,
+                tools_used=metadata.tools_executed,
+                calculations=final_state.get("calculations", []),
+                assumptions=final_state.get("assumptions", []),
+                limitations=final_state.get("limitations", []),
+                evidence_records=[e.model_dump() for e in evidence_records],
+                rag_citations=[r.model_dump() for r in rag_records],
+            )
+            self.session.add(run_record)
+            self.session.flush()
+
+            # Auto-register pending decision records if recommendations exist
+            recommendations = final_state.get("recommendations", [])
+            for rec in recommendations:
+                rec_text = rec if isinstance(rec, str) else str(rec.get("action", rec))
+                decision = DecisionRecord(
+                    analysis_id=run_record.id,
+                    recommendation_text=rec_text,
+                    status="PENDING",
+                )
+                self.session.add(decision)
+
+            self.session.commit()
+            logger.info(f"Persisted AnalysisRun #{run_record.id} for request {request_id}")
+        except Exception as db_err:
+            logger.debug(f"Could not persist AnalysisRun audit record: {db_err}")
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
 
         return AgentResponse(
             answer=final_state.get("final_answer") or "Analysis completed.",

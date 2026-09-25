@@ -376,6 +376,7 @@ class DateInterpreter:
         matched_expression: str,
         granularity: str = "monthly",
     ) -> ParsedDateInterval:
+        is_far_future = bool(d_from and d_from.year > 2025)
         return ParsedDateInterval({
             "date_from": d_from.isoformat(),
             "date_to": d_to.isoformat(),
@@ -385,5 +386,6 @@ class DateInterpreter:
             "matched_expression": matched_expression,
             "is_ambiguous": False,
             "is_forecast": False,
+            "is_far_future": is_far_future,
             "forecast_horizon": None,
         })

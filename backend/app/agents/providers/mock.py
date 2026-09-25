@@ -487,6 +487,12 @@ class MockLLMProvider(BaseLLMProvider):
                 chg_str = f"{chg:+.2f}%" if chg is not None else "undefined"
                 lines.append(f"Compared to the preceding baseline, revenue changed by {chg_str} (${float(comp.get('absolute_change', 0)):+,.2f}).")
 
+            if plan and plan.context_dates and plan.context_dates.get("is_far_future"):
+                date_str = f"{plan.context_dates.get('date_from')} to {plan.context_dates.get('date_to')}"
+                lines.append(f"Temporal Boundary Notice: The requested date range ({date_str}) is in the far future and beyond the historical operational horizon of the enterprise dataset (transactions recorded through 2024). No historical transactions exist for this period. To project future revenue, request a time-series forecast.")
+            elif int(orders or 0) == 0:
+                lines.append("Note: no transactional records in specified temporal range.")
+
         # 5. Inventory Overview / Turnover
         elif "get_inventory_overview" in tools_executed:
             inv = next((r["result"] for r in tool_results if r["tool"] == "get_inventory_overview"), {})
