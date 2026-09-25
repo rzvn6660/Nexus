@@ -1,13 +1,15 @@
 """NEXUS FastAPI Application Entrypoint.
 
 Starts backend API server with structured logging, CORS handling,
-request correlation tracking, and versioned routing.
+request correlation tracking, production error shielding, and versioned routing.
 """
 
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.database import engine, check_database_connection
@@ -65,14 +67,36 @@ def create_application() -> FastAPI:
     # Request correlation and logging middleware
     app.add_middleware(RequestCorrelationMiddleware)
 
-    # Cross-Origin Resource Sharing
-    if settings.BACKEND_CORS_ORIGINS:
+    # Cross-Origin Resource Sharing (strictly sanitized for production)
+    allowed_origins = settings.get_sanitized_cors_origins()
+    if allowed_origins:
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+            allow_origins=allowed_origins,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
+        )
+
+    # Global unhandled exception handler: shields internal tracebacks in production
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        correlation_id = getattr(request.state, "correlation_id", "-")
+        logger.error(
+            f"Unhandled server exception on {request.method} {request.url.path}: {exc}",
+            exc_info=True,
+            extra={"correlation_id": correlation_id},
+        )
+        if settings.DEBUG:
+            detail_msg = f"Internal server error: {str(exc)}"
+        else:
+            detail_msg = (
+                f"An internal error occurred. Please contact system support "
+                f"referencing correlation ID: {correlation_id}"
+            )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": detail_msg, "correlation_id": correlation_id},
         )
 
     # API Routing
@@ -88,6 +112,8 @@ def create_application() -> FastAPI:
             "tagline": "Where Business Data Becomes Intelligence.",
             "docs": "/docs",
             "health": "/api/health",
+            "liveness": "/api/health/live",
+            "readiness": "/api/health/ready",
         }
 
     return app

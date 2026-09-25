@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-test:
-    name: Backend Test Suite (Python 3.12)
+    name: Backend Test Suite & Smoke Verification (Python 3.12)
     runs-on: ubuntu-latest
 
     services:
@@ -49,6 +49,14 @@ jobs:
         run: |
           cd backend
           pytest
+
+      - name: Run evaluation benchmark regression check
+        run: |
+          python -m evaluation.runner --all --compare-baseline
+
+      - name: Run production smoke test
+        run: |
+          python scripts/smoke_test.py
 
   frontend-build:
     name: Frontend Build & Typecheck (Node 20)

@@ -1,6 +1,6 @@
 # NEXUS Phase 9 — Evaluation & Benchmarking Report
 
-**Generated:** 2026-09-25 19:03:11 UTC  
+**Generated:** 2026-09-25 19:47:24 UTC  
 **System:** NEXUS Agentic Business Intelligence Platform  
 **Evaluation Harness:** Pipeline-Wide Multi-Dimensional Correctness
 
@@ -29,9 +29,9 @@
 
 ## 2. Latency Telemetry
 
-- **Mean Latency:** 30.4 ms
-- **Median Latency:** 15.4 ms
-- **P95 Latency:** 235.5 ms
+- **Mean Latency:** 30.2 ms
+- **Median Latency:** 15.1 ms
+- **P95 Latency:** 236.8 ms
 
 ---
 

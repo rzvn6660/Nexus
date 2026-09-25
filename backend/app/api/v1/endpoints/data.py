@@ -99,6 +99,9 @@ def audit_dataset_quality(
         raise HTTPException(status_code=500, detail=f"Quality audit failed: {str(exc)}")
 
 
+from app.core.config import settings
+
+
 @router.post("/ingest/csv", response_model=IngestionResult, summary="Ingest CSV Data File")
 async def ingest_csv(
     dataset: str = Form(..., description="Target dataset name: customers, products, inventory, expenses"),
@@ -108,16 +111,40 @@ async def ingest_csv(
 ) -> IngestionResult:
     """
     Validate and optionally ingest a CSV file against target domain contract schemas.
-    Provides row-level error reporting and prevents malformed data corruption.
+    Provides row-level error reporting, format whitelist checking, and file size limits.
     """
+    target_key = dataset.lower().strip()
+    if target_key not in MODEL_REGISTRY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Target dataset '{dataset}' not supported. Supported: {list(MODEL_REGISTRY.keys())}",
+        )
+
+    # Validate file extension
+    filename = file.filename or "upload.csv"
+    if not filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file format for '{filename}'. Only .csv files are supported.",
+        )
+
     content = await file.read()
+
+    # Enforce upload size limits
+    if len(content) > settings.MAX_DOCUMENT_SIZE_BYTES:
+        max_mb = settings.MAX_DOCUMENT_SIZE_BYTES / (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"CSV file size ({len(content)} bytes) exceeds the maximum limit of {max_mb:.1f}MB.",
+        )
+
     string_io = io.StringIO(content.decode("utf-8", errors="replace"))
 
     ingestion_service = CSVIngestionService(db=db)
     result = ingestion_service.ingest_csv(
-        dataset=dataset,
+        dataset=target_key,
         source=string_io,
-        filename=file.filename,
+        filename=filename,
         persist=persist,
     )
     return result

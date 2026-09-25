@@ -101,10 +101,25 @@ class Settings(BaseSettings):
     MIN_OBSERVATIONS_DAILY: int = 14
     FORECASTING_ENABLED: bool = True
 
+    # Security & Access Control (Phase 10)
+    API_KEY_ENABLED: bool = False
+    API_KEY: str | None = None
+
+    # Operational Boundaries & Timeouts (Phase 10)
+    REQUEST_TIMEOUT_SECONDS: int = 60
+    METRICS_ENABLED: bool = True
+    UPLOAD_DIR: str = "./data/uploads"
+
     @property
     def is_production(self) -> bool:
         """Helper to verify if running in production mode."""
         return self.APP_ENV.lower() == "production"
+
+    def get_sanitized_cors_origins(self) -> List[str]:
+        """Return allowed CORS origins, strictly stripping wildcards in production."""
+        if self.is_production:
+            return [o for o in self.BACKEND_CORS_ORIGINS if o != "*"]
+        return list(self.BACKEND_CORS_ORIGINS)
 
 
 @lru_cache()
