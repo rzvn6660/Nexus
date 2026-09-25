@@ -1,0 +1,116 @@
+[
+  {
+    "id": "EDGE-001",
+    "name": "Empty Date Range Result",
+    "question": "What was our revenue in January 1999?",
+    "category": "edge_case",
+    "expected_intent": "metric_lookup",
+    "expected_behavior": "empty_result_graceful",
+    "expected_status": "completed",
+    "expected_empty_indicator": true,
+    "expected_safeguards": ["no transactional records in specified temporal range"]
+  },
+  {
+    "id": "EDGE-002",
+    "name": "Zero Denominator Handling",
+    "question": "What was the AOV when order count is zero?",
+    "category": "edge_case",
+    "expected_intent": "metric_lookup",
+    "expected_behavior": "zero_safe_calculation",
+    "expected_status": "completed",
+    "expected_safeguards": ["safe division by zero returns zero rather than NaN or 500 exception"]
+  },
+  {
+    "id": "EDGE-003",
+    "name": "Unknown Product SKU Lookup",
+    "question": "How did SKU-UNKNOWN-9999 perform last quarter?",
+    "category": "edge_case",
+    "expected_intent": "product_lookup",
+    "expected_behavior": "missing_entity_notice",
+    "expected_status": "completed",
+    "expected_drivers": ["product not found", "SKU-UNKNOWN-9999"]
+  },
+  {
+    "id": "EDGE-004",
+    "name": "Unknown Metric Name",
+    "question": "Calculate the quantum business quotient for our products",
+    "category": "edge_case",
+    "expected_intent": "unsupported",
+    "expected_behavior": "safe_rejection",
+    "expected_status": "unsupported"
+  },
+  {
+    "id": "EDGE-005",
+    "name": "Ambiguous KPI Without Context",
+    "question": "What is our turnover?",
+    "category": "edge_case",
+    "expected_intent": "semantic_resolution",
+    "expected_behavior": "ambiguity_clarification",
+    "expected_candidates": ["net_revenue", "inventory_turnover"]
+  },
+  {
+    "id": "EDGE-006",
+    "name": "Insufficient Forecast History",
+    "question": "Forecast revenue for 12 months using only 2 months of history",
+    "category": "edge_case",
+    "expected_intent": "forecast_lookup",
+    "expected_behavior": "insufficient_data_error",
+    "expected_warning_code": "INSUFFICIENT_DATA",
+    "expected_safeguards": ["requires minimum consecutive historical observations"]
+  },
+  {
+    "id": "EDGE-007",
+    "name": "Negative Inventory Anomaly",
+    "question": "Are there any inventory records with negative stock counts?",
+    "category": "edge_case",
+    "expected_intent": "inventory_lookup",
+    "expected_behavior": "data_quality_audit",
+    "expected_tables": ["inventory"]
+  },
+  {
+    "id": "EDGE-008",
+    "name": "Missing Customer Segment",
+    "question": "What were sales for the NonExistentSegment customer group?",
+    "category": "edge_case",
+    "expected_intent": "customer_lookup",
+    "expected_behavior": "empty_result_graceful"
+  },
+  {
+    "id": "EDGE-009",
+    "name": "Extreme Date in Future",
+    "question": "What was our revenue in December 2099?",
+    "category": "edge_case",
+    "expected_intent": "metric_lookup",
+    "expected_behavior": "empty_result_graceful"
+  },
+  {
+    "id": "EDGE-010",
+    "name": "Special Characters and Punctuation Query",
+    "question": "What was our *** NET REVENUE ??? !!! in August 2024?!?!?",
+    "category": "edge_case",
+    "expected_intent": "metric_lookup",
+    "expected_metric": "net_revenue",
+    "expected_behavior": "answer_with_evidence",
+    "expected_numeric": {
+      "field": "net_sales",
+      "value": 340.0,
+      "tolerance_abs": 0.01
+    }
+  },
+  {
+    "id": "EDGE-011",
+    "name": "Single Day Window Analysis",
+    "question": "What was revenue on 2023-05-10?",
+    "category": "edge_case",
+    "expected_intent": "metric_lookup",
+    "expected_behavior": "answer_with_evidence"
+  },
+  {
+    "id": "EDGE-012",
+    "name": "Conflicting Temporal Modifiers",
+    "question": "What was our revenue yesterday last year in August 2024?",
+    "category": "edge_case",
+    "expected_intent": "metric_lookup",
+    "expected_behavior": "temporal_normalization"
+  }
+]

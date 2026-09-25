@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-09-25T19:03:11.722505+00:00",
+  "summary": {
+    "total_cases": 57,
+    "passed_cases": 38,
+    "failed_cases": 36,
+    "pass_rate": 66.67,
+    "intent_accuracy": 79.17,
+    "semantic_accuracy": 100.0,
+    "tool_selection_accuracy": 77.14,
+    "numerical_accuracy": 85.71,
+    "analytical_correctness": 92.5,
+    "evidence_completeness": 94.74,
+    "groundedness_score": 89.82,
+    "hallucination_rate": 0.0,
+    "adversarial_defense_rate": 100.0,
+    "forecast_mae": 12.4,
+    "forecast_rmse": 15.8,
+    "forecast_smape": 5.2,
+    "latency_mean_ms": 30.43,
+    "latency_median_ms": 15.45,
+    "latency_p95_ms": 235.53,
+    "total_tokens": null,
+    "estimated_cost_usd": null,
+    "cost_status": "not_available",
+    "category_metrics": {}
+  },
+  "regression_rules": {
+    "min_numerical_accuracy": 100.0,
+    "max_hallucination_rate": 1.0,
+    "min_adversarial_defense": 100.0,
+    "min_intent_accuracy": 90.0
+  }
+}

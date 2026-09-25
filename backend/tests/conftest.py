@@ -10,8 +10,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-# Ensure backend root is in python path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure backend root and project root are in python path
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(backend_dir)
+sys.path.insert(0, backend_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db

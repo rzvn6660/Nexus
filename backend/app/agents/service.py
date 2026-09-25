@@ -121,7 +121,24 @@ class NexusAgentService:
         evidence_records: list[EvidenceRecord] = []
         for ev in final_state.get("evidence", []):
             try:
-                evidence_records.append(EvidenceRecord.model_validate(ev))
+                if isinstance(ev, dict) and "forecast_id" in ev and "calculation" not in ev:
+                    # Map ForecastEvidence into compatible EvidenceRecord
+                    mapped = {
+                        "analysis_id": ev.get("forecast_id"),
+                        "metric": ev.get("target_metric", "forecast"),
+                        "source_tables": ev.get("source_tables", ["sales", "sale_items"]),
+                        "source_columns": ev.get("source_columns", ["transaction_date", "subtotal"]),
+                        "calculation": f"Forecast using model {ev.get('model_name', 'statistical')}",
+                        "method": ev.get("method", "time_series_forecasting"),
+                        "date_range": ev.get("historical_range", {}),
+                        "assumptions": ev.get("assumptions", []),
+                        "limitations": ev.get("limitations", []),
+                        "data_quality_status": ev.get("data_quality_status", "verified"),
+                        "generated_at": ev.get("generated_at"),
+                    }
+                    evidence_records.append(EvidenceRecord.model_validate(mapped))
+                else:
+                    evidence_records.append(EvidenceRecord.model_validate(ev))
             except (ValidationError, ValueError, TypeError) as ex:
                 logger.warning(f"Failed to validate EvidenceRecord in agent response: {ex}")
 
