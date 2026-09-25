@@ -7,7 +7,20 @@ and baseline comparison periods without requiring LLM date arithmetic.
 import calendar
 import re
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, ClassVar
+
+
+class ParsedDateInterval(dict):
+    """Dictionary supporting both dictionary key indexing and dot attribute access."""
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'ParsedDateInterval' object has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
 
 
 class DateInterpreter:
@@ -18,7 +31,7 @@ class DateInterpreter:
     into explicit ISO-8601 date ranges and preceding comparison periods.
     """
 
-    MONTH_MAP = {
+    MONTH_MAP: ClassVar[dict[str, int]] = {
         "january": 1, "jan": 1,
         "february": 2, "feb": 2,
         "march": 3, "mar": 3,
@@ -67,7 +80,70 @@ class DateInterpreter:
             except ValueError:
                 pass
 
-        # 2. Check "last month" / "previous month"
+        # 2. Check prospective/future forecast expressions
+        next_m_match = re.search(r'next\s+(\d+)\s+months?', q_lower)
+        if next_m_match or "next month" in q_lower or "upcoming month" in q_lower:
+            n_months = int(next_m_match.group(1)) if next_m_match else 1
+            start_m = (ref.month % 12) + 1
+            start_y = ref.year + (1 if ref.month == 12 else 0)
+            d_from = date(start_y, start_m, 1)
+
+            end_m_raw = start_m + n_months - 1
+            end_y = start_y + (end_m_raw - 1) // 12
+            end_m = ((end_m_raw - 1) % 12) + 1
+            _, last_day = calendar.monthrange(end_y, end_m)
+            d_to = date(end_y, end_m, last_day)
+
+            comp_to = d_from - timedelta(days=1)
+            comp_from = comp_to - (d_to - d_from)
+
+            res = cls._build_result(d_from, d_to, comp_from, comp_to, f"next_{n_months}_months", "monthly")
+            res["is_forecast"] = True
+            res["forecast_horizon"] = n_months
+            return res
+
+        if "next quarter" in q_lower:
+            curr_q = (ref.month - 1) // 3 + 1
+            next_q = (curr_q % 4) + 1
+            year = ref.year + (1 if curr_q == 4 else 0)
+            start_m = (next_q - 1) * 3 + 1
+            end_m = start_m + 2
+            _, last_day = calendar.monthrange(year, end_m)
+            d_from = date(year, start_m, 1)
+            d_to = date(year, end_m, last_day)
+            comp_from = date(ref.year, (curr_q - 1) * 3 + 1, 1)
+            _, comp_last_day = calendar.monthrange(ref.year, (curr_q - 1) * 3 + 3)
+            comp_to = date(ref.year, (curr_q - 1) * 3 + 3, comp_last_day)
+            res = cls._build_result(d_from, d_to, comp_from, comp_to, "next_quarter", "monthly")
+            res["is_forecast"] = True
+            res["forecast_horizon"] = 3
+            return res
+
+        next_days_match = re.search(r'next\s+(\d+)\s+days?', q_lower)
+        if next_days_match:
+            n_days = int(next_days_match.group(1))
+            d_from = ref + timedelta(days=1)
+            d_to = ref + timedelta(days=n_days)
+            comp_to = ref
+            comp_from = ref - timedelta(days=n_days - 1)
+            res = cls._build_result(d_from, d_to, comp_from, comp_to, f"next_{n_days}_days", "daily")
+            res["is_forecast"] = True
+            res["forecast_horizon"] = n_days
+            return res
+
+        next_weeks_match = re.search(r'next\s+(\d+)\s+weeks?', q_lower)
+        if next_weeks_match or "next week" in q_lower:
+            n_weeks = int(next_weeks_match.group(1)) if next_weeks_match else 1
+            d_from = ref + timedelta(days=1)
+            d_to = ref + timedelta(days=n_weeks * 7)
+            comp_to = ref
+            comp_from = ref - timedelta(days=n_weeks * 7 - 1)
+            res = cls._build_result(d_from, d_to, comp_from, comp_to, f"next_{n_weeks}_weeks", "weekly")
+            res["is_forecast"] = True
+            res["forecast_horizon"] = n_weeks
+            return res
+
+        # 3. Check "last month" / "previous month"
         if "last month" in q_lower or "previous month" in q_lower or "prior month" in q_lower:
             year = ref.year
             month = ref.month - 1
@@ -278,7 +354,7 @@ class DateInterpreter:
             return cls._build_result(d_from, d_to, comp_from, comp_to, "recent_variance_baseline", "monthly")
 
         # 13. No date specified: Check if query has open-ended context or is all-time
-        return {
+        return ParsedDateInterval({
             "date_from": None,
             "date_to": None,
             "comparison_date_from": None,
@@ -286,7 +362,9 @@ class DateInterpreter:
             "granularity": "monthly",
             "matched_expression": None,
             "is_ambiguous": False,
-        }
+            "is_forecast": False,
+            "forecast_horizon": None,
+        })
 
     @classmethod
     def _build_result(
@@ -297,8 +375,8 @@ class DateInterpreter:
         comp_to: date | None,
         matched_expression: str,
         granularity: str = "monthly",
-    ) -> dict[str, Any]:
-        return {
+    ) -> ParsedDateInterval:
+        return ParsedDateInterval({
             "date_from": d_from.isoformat(),
             "date_to": d_to.isoformat(),
             "comparison_date_from": comp_from.isoformat() if comp_from else None,
@@ -306,4 +384,6 @@ class DateInterpreter:
             "granularity": granularity,
             "matched_expression": matched_expression,
             "is_ambiguous": False,
-        }
+            "is_forecast": False,
+            "forecast_horizon": None,
+        })

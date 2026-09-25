@@ -36,6 +36,7 @@ class NexusAgentService:
         reference_date: date | None = None,
         max_iterations: int | None = None,
         is_investigation: bool = False,
+        is_forecast: bool = False,
     ) -> AgentResponse:
         """
         Execute deterministic analytical reasoning for a user query.
@@ -64,6 +65,11 @@ class NexusAgentService:
             "explanation_level": explanation_level,
             "reference_date": reference_date.isoformat() if reference_date else None,
             "is_investigation_required": is_investigation,
+            "is_forecast_required": is_forecast,
+            "forecast_target": None,
+            "forecast_horizon": None,
+            "forecast_frequency": None,
+            "forecast_result": None,
             "intent": None,
             "resolved_dates": {},
             "analysis_plan": None,
@@ -155,6 +161,7 @@ class NexusAgentService:
             rag_evidence=rag_records,
             semantic_context=final_state.get("semantic_context"),
             diagnostic_summary=final_state.get("diagnostic_summary"),
+            forecast_summary=final_state.get("forecast_result"),
             calculations=final_state.get("calculations", []),
             assumptions=final_state.get("assumptions", []),
             limitations=final_state.get("limitations", []),

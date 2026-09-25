@@ -18,6 +18,7 @@ from app.agents.tools.models import (
     CustomerSegmentsToolInput,
     ExpenseAnalyticsToolInput,
     FinancialSummaryToolInput,
+    ForecastMetricToolInput,
     HypothesisTestToolInput,
     InventoryOverviewToolInput,
     InventoryTurnoverToolInput,
@@ -70,6 +71,11 @@ class AnalyticsTool:
         self.input_schema = input_schema
         self.handler = handler
 
+    @property
+    def parameters_schema(self) -> dict[str, Any]:
+        """Expose json schema of input parameters for discovery."""
+        return self.input_schema.model_json_schema()
+
     def execute(self, session: Session, arguments: dict[str, Any]) -> ToolExecutionResult:
         start_time = time.perf_counter()
         try:
@@ -107,6 +113,15 @@ class ToolRegistry:
 
     def get_tool(self, name: str) -> AnalyticsTool | None:
         return self._tools.get(name)
+
+    @classmethod
+    def get(cls, name: str) -> AnalyticsTool:
+        """Lookup tool by name on default registry, raising KeyError if not found."""
+        inst = cls()
+        tool = inst.get_tool(name)
+        if not tool:
+            raise KeyError(f"Tool '{name}' is not registered.")
+        return tool
 
     def has_tool(self, name: str) -> bool:
         return name in self._tools
@@ -568,6 +583,46 @@ class ToolRegistry:
             category="statistics",
             input_schema=HypothesisTestToolInput,
             handler=_exec_hypothesis,
+        ))
+
+        # 17. Forecast Metric (Phase 7 Predictive Intelligence)
+        def _exec_forecast(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
+            from app.predictive.schemas import ForecastRequest, ModelPolicy
+            from app.predictive.services.forecasting_service import ForecastingService
+
+            policy_str = args.get("model_policy", "validated_best")
+            try:
+                policy = ModelPolicy(policy_str)
+            except ValueError:
+                policy = ModelPolicy.VALIDATED_BEST
+
+            req = ForecastRequest(
+                target_metric=args.get("target_metric", "revenue"),
+                entity_type=args.get("entity_type"),
+                entity_id=args.get("entity_id"),
+                forecast_horizon=int(args.get("forecast_horizon", 3)),
+                frequency=args.get("frequency", "monthly"),
+                model_policy=policy,
+                specific_model=args.get("specific_model"),
+                confidence_level=float(args.get("confidence_level", 0.95)),
+            )
+            svc = ForecastingService(session)
+            res = svc.forecast(req)
+            return ToolExecutionResult(
+                tool="forecast_metric",
+                status="success" if res.status == "completed" else "unavailable",
+                result=_serialize_obj(res),
+                evidence=_serialize_obj(res.evidence),
+                assumptions=res.assumptions,
+                limitations=res.limitations,
+            )
+
+        self.register(AnalyticsTool(
+            name="forecast_metric",
+            description="Generates deterministic time-series forecasts with out-of-sample backtesting and prediction intervals.",
+            category="predictive",
+            input_schema=ForecastMetricToolInput,
+            handler=_exec_forecast,
         ))
 
 

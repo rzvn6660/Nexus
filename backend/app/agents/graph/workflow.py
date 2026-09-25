@@ -41,12 +41,17 @@ def route_after_semantic_resolution(
     return "retrieve_context"
 
 
+from app.agents.nodes.predictive_node import execute_forecast_node
+
+
 def route_after_context_retrieval(
     state: AgentState
-) -> Literal["generate_explanation", "create_investigation_plan", "create_plan"]:
-    """If the query is purely definitional, skip numerical tools and explain directly."""
+) -> Literal["generate_explanation", "create_investigation_plan", "execute_forecast", "create_plan"]:
+    """Branch to definitional, investigation, forecast, or standard analytical planning."""
     if state.get("is_definitional_only"):
         return "generate_explanation"
+    if state.get("is_forecast_required"):
+        return "execute_forecast"
     if state.get("is_investigation_required"):
         return "create_investigation_plan"
     return "create_plan"
@@ -140,6 +145,7 @@ def build_agent_graph() -> StateGraph:
     builder.add_node("create_investigation_plan", create_investigation_plan_node)
     builder.add_node("execute_investigation_step", execute_investigation_step_node)
     builder.add_node("synthesize_investigation", synthesize_investigation_node)
+    builder.add_node("execute_forecast", execute_forecast_node)
 
     # 2. Wire Edges
     builder.add_edge(START, "understand_request")
@@ -170,9 +176,13 @@ def build_agent_graph() -> StateGraph:
         {
             "generate_explanation": "generate_explanation",
             "create_investigation_plan": "create_investigation_plan",
+            "execute_forecast": "execute_forecast",
             "create_plan": "create_plan",
         },
     )
+
+    # Predictive branch
+    builder.add_edge("execute_forecast", END)
 
     # Investigation branch
     builder.add_edge("create_investigation_plan", "execute_investigation_step")

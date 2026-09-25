@@ -39,7 +39,7 @@ def understand_request_node(state: AgentState) -> dict[str, Any]:
             "unsupported_reason": (
                 "NEXUS is an agentic business intelligence platform specialized in deterministic analytics, "
                 "factual financial calculations, product performance, customer metrics, inventory tracking, "
-                "and diagnostics. Generic chit-chat, predictive forecasting, and speculative decisions "
+                "diagnostics, and time-series forecasting. Generic chit-chat, automated actions, and speculative decisions "
                 "are outside the current analytical engine boundary."
             ),
             "evidence_status": "INSUFFICIENT",
@@ -55,9 +55,16 @@ def understand_request_node(state: AgentState) -> dict[str, Any]:
             "evidence_status": "INSUFFICIENT",
         }
 
+    is_forecast = (
+        state.get("is_forecast_required", False)
+        or intent_result.category == IntentCategory.FORECASTING
+        or bool(resolved_dates.get("is_forecast"))
+    )
+
     return {
         "intent": intent_result.model_dump(),
         "resolved_dates": resolved_dates,
+        "is_forecast_required": is_forecast,
         "needs_clarification": False,
         "is_unsupported": False,
     }

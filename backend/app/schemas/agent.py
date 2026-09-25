@@ -24,6 +24,10 @@ class AgentAnalyzeRequest(BaseModel):
         default=False,
         description="Whether to run an adaptive multi-step diagnostic investigation"
     )
+    is_forecast: bool = Field(
+        default=False,
+        description="Whether to run predictive time-series forecasting"
+    )
 
 
 class AgentExecutionMetadata(BaseModel):
@@ -57,6 +61,10 @@ class AgentResponse(BaseModel):
     diagnostic_summary: dict[str, Any] | None = Field(
         default=None,
         description="Phase 6 diagnostic investigation summary and findings if applicable"
+    )
+    forecast_summary: dict[str, Any] | None = Field(
+        default=None,
+        description="Phase 7 predictive forecast results and metrics if applicable"
     )
     calculations: list[dict[str, Any]] = Field(
         default_factory=list,

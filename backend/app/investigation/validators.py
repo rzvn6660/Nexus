@@ -19,12 +19,13 @@ UNSUPPORTED_CAUSAL_PATTERNS = [
 
 # Prohibited prescriptive action patterns (strictly barred in Phase 6)
 PRESCRIPTIVE_PATTERNS = [
-    r"\b(?:you\s+should|we\s+should|recommend\s+to|must)\s+(?:raise|lower|reduce|increase|stop|cut|fire|discontinue|eliminate)\b",
+    r"\b(?:you\s+should|we\s+should|recommend\s+to|must)\s+(?:raise|lower|reduce|increase|stop|cut|fire|discontinue|eliminate|order)\b",
+    r"\border\s+\d+\s+units?\b",
     r"\braise\s+prices?\b",
-    r"\breduce\s+(?:inventory|stock|prices?)\b",
+    r"\breduce\s+(?:inventory|stock|prices?|staff)\b",
+    r"\bincrease\s+(?:inventory|marketing\s+spend|discounts?)\b",
     r"\bstop\s+selling\b",
     r"\bfire\s+supplier\b",
-    r"\bincrease\s+discounts?\b",
 ]
 
 
@@ -117,10 +118,16 @@ class CausalitySafeguard:
         Example:
         'Category A caused the decline' -> 'Category A contributed to the decline'
         """
+        # Replace aggressive causal assertions
         sanitized = text
-        # Replace 'caused' with 'contributed to'
         sanitized = re.sub(r"\bcaused\b", "contributed to", sanitized, flags=re.IGNORECASE)
         sanitized = re.sub(r"\bdirectly caused\b", "was a primary contributor to", sanitized, flags=re.IGNORECASE)
         sanitized = re.sub(r"\bis the root cause of\b", "is the largest measured contributor to", sanitized, flags=re.IGNORECASE)
         sanitized = re.sub(r"\bthe sole reason for\b", "a significant factor in", sanitized, flags=re.IGNORECASE)
+
+        # Neutralize prescriptive directives
+        sanitized = re.sub(r"\border\s+\d+\s+units?\b", "[prescriptive action omitted]", sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r"\braise\s+prices?\b", "[prescriptive action omitted]", sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r"\breduce\s+staff\b", "[prescriptive action omitted]", sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r"\bincrease\s+marketing\s+spend\b", "[prescriptive action omitted]", sanitized, flags=re.IGNORECASE)
         return sanitized

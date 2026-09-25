@@ -32,4 +32,5 @@ def analyze_business_query(
         explanation_level=payload.explanation_level,
         reference_date=payload.reference_date,
         is_investigation=payload.is_investigation,
+        is_forecast=payload.is_forecast,
     )

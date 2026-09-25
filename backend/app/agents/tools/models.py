@@ -100,6 +100,18 @@ class HypothesisTestToolInput(BaseToolInput):
     test_type: str = Field(default="two_sample_ttest", description="Statistical test method ('two_sample_ttest')")
 
 
+class ForecastMetricToolInput(BaseToolInput):
+    """Input for Phase 7 deterministic time-series forecasting."""
+    target_metric: str = Field(default="revenue", description="Target metric: 'revenue', 'net_revenue', 'gross_sales', 'units_sold', 'order_volume', 'product_demand'")
+    entity_type: str | None = Field(default=None, description="Optional entity scope ('product', 'category')")
+    entity_id: str | None = Field(default=None, description="Entity identifier (e.g. SKU code)")
+    forecast_horizon: int = Field(default=3, ge=1, le=12, description="Periods into the future to forecast (1-12)")
+    frequency: str = Field(default="monthly", description="Frequency: 'daily', 'weekly', or 'monthly'")
+    model_policy: str = Field(default="validated_best", description="Policy: 'validated_best', 'baseline_only', 'specific_model'")
+    specific_model: str | None = Field(default=None, description="Specific model name if model_policy is 'specific_model'")
+    confidence_level: float = Field(default=0.95, ge=0.5, le=0.99, description="Coverage probability for prediction intervals")
+
+
 class ToolExecutionResult(BaseModel):
     """Standardized deterministic execution payload returned by every agent tool."""
     tool: str = Field(description="Name of the executed tool")

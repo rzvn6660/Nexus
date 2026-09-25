@@ -18,6 +18,7 @@ class IntentCategory(str, Enum):
     EXPENSE_ANALYSIS = "expense_analysis"
     DIAGNOSTIC_ANALYSIS = "diagnostic_analysis"
     STATISTICAL_ANALYSIS = "statistical_analysis"
+    FORECASTING = "forecasting"
     UNSUPPORTED = "unsupported"
 
 
@@ -134,3 +135,10 @@ class AgentState(TypedDict, total=False):
     investigation_iterations: int
     max_investigation_iterations: int
     diagnostic_summary: dict[str, Any] | None
+
+    # Phase 7 Predictive State
+    is_forecast_required: bool
+    forecast_target: str | None
+    forecast_horizon: int | None
+    forecast_frequency: str | None
+    forecast_result: dict[str, Any] | None

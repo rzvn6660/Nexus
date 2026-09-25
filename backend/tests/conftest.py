@@ -396,3 +396,93 @@ def multi_period_db(db_session: Session) -> Session:
     db_session.add_all([exp_may, exp_june])
     db_session.commit()
     return db_session
+
+
+@pytest.fixture(scope="function")
+def predictive_db_session(db_session: Session) -> Session:
+    """Populate database with 12 consecutive months of retail sales for forecasting tests."""
+    for table in reversed(Base.metadata.sorted_tables):
+        db_session.execute(table.delete())
+    db_session.commit()
+
+    c = Customer(
+        customer_code="CUST-PRED-1",
+        name="Predictive Test Retailer",
+        email="test_pred@example.com",
+        city="New York",
+        customer_segment="Regular",
+        acquisition_date=date(2023, 1, 15),
+    )
+    db_session.add(c)
+    db_session.flush()
+
+    p1 = Product(
+        sku="SKU-PROD-A",
+        name="Predictive Widget Alpha",
+        category="Electronics",
+        subcategory="Gadgets",
+        unit_cost=Decimal("20.00"),
+        selling_price=Decimal("50.00"),
+        active=True,
+    )
+    p2 = Product(
+        sku="SKU-PROD-B",
+        name="Predictive Widget Beta",
+        category="Hardware",
+        subcategory="Tools",
+        unit_cost=Decimal("10.00"),
+        selling_price=Decimal("25.00"),
+        active=True,
+    )
+    db_session.add_all([p1, p2])
+    db_session.flush()
+
+    # Create sales across 12 consecutive months (2023-01 to 2023-12)
+    # Base pattern with steady trend and slight variance
+    base_qty_p1 = [10, 12, 14, 15, 18, 20, 22, 24, 25, 28, 30, 32]
+    base_qty_p2 = [20, 22, 21, 25, 24, 28, 30, 31, 33, 35, 38, 40]
+
+    for month_idx in range(1, 13):
+        # Transaction on the 10th of each month
+        dt = datetime(2023, month_idx, 10, 12, 0, tzinfo=timezone.utc)
+        qty1 = base_qty_p1[month_idx - 1]
+        qty2 = base_qty_p2[month_idx - 1]
+
+        subtotal1 = Decimal(str(qty1 * 50))
+        subtotal2 = Decimal(str(qty2 * 25))
+        total_subtotal = subtotal1 + subtotal2
+
+        s = Sale(
+            transaction_number=f"TXN-PRED-2023{month_idx:02d}",
+            customer_id=c.id,
+            transaction_date=dt,
+            status="completed",
+            subtotal=total_subtotal,
+            discount_amount=Decimal("0.00"),
+            tax_amount=Decimal(str(round(float(total_subtotal) * 0.08, 2))),
+            total_amount=Decimal(str(round(float(total_subtotal) * 1.08, 2))),
+        )
+        db_session.add(s)
+        db_session.flush()
+
+        item1 = SaleItem(
+            sale_id=s.id,
+            product_id=p1.id,
+            quantity=qty1,
+            unit_price=Decimal("50.00"),
+            discount_amount=Decimal("0.00"),
+            line_total=subtotal1,
+        )
+        item2 = SaleItem(
+            sale_id=s.id,
+            product_id=p2.id,
+            quantity=qty2,
+            unit_price=Decimal("25.00"),
+            discount_amount=Decimal("0.00"),
+            line_total=subtotal2,
+        )
+        db_session.add_all([item1, item2])
+
+    db_session.commit()
+    return db_session
+

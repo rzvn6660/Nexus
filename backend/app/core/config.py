@@ -94,6 +94,13 @@ class Settings(BaseSettings):
     MAX_INVESTIGATION_STEPS: int = 8
     INVESTIGATION_ENABLED: bool = True
 
+    # Phase 7 Predictive Intelligence & Forecasting
+    MAX_FORECAST_HORIZON: int = 12
+    DEFAULT_FORECAST_HORIZON: int = 3
+    MIN_OBSERVATIONS_MONTHLY: int = 4
+    MIN_OBSERVATIONS_DAILY: int = 14
+    FORECASTING_ENABLED: bool = True
+
     @property
     def is_production(self) -> bool:
         """Helper to verify if running in production mode."""

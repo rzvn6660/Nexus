@@ -30,10 +30,19 @@ class MockLLMProvider(BaseLLMProvider):
     ) -> IntentResult:
         q = query.lower()
 
-        # Check for unsupported questions (chit-chat, forecasting, generic requests)
+        # Check for predictive forecasting (Phase 7)
+        forecast_keywords = ["forecast", "predict", "projection", "look like next", "expected revenue", "expected sales", "expected units", "expected order"]
+        if any(w in q for w in forecast_keywords):
+            return IntentResult(
+                category=IntentCategory.FORECASTING,
+                confidence=0.95,
+                reasoning="Query requests deterministic time-series forecasting."
+            )
+
+        # Check for unsupported questions (chit-chat, speculative decisions, generic requests)
         unsupported_keywords = [
             "joke", "poem", "weather", "recipe", "song", "who are you",
-            "predict", "forecast", "machine learning", "stock price", "recommend stocks"
+            "machine learning", "stock price", "recommend stocks", "crypto"
         ]
         if any(w in q for w in unsupported_keywords):
             return IntentResult(
