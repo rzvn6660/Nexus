@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3,
-  DollarSign,
   Package,
-  Layers,
   Users,
   ShieldCheck,
   SearchCode,
-  ArrowUpRight,
+  TrendingUp,
+  TrendingDown,
   Sparkles,
 } from 'lucide-react';
 import {
@@ -25,7 +24,6 @@ import {
   getProfitTimeSeries,
   getSalesTimeSeries,
   getProductRankings,
-  getCategoryBreakdown,
   getCustomerSegments,
 } from '../services/analytics';
 import {
@@ -43,6 +41,7 @@ import {
 import { CardSkeleton } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
 import { EvidencePanel } from '../components/common/EvidencePanel';
+import { IntelligenceHeader } from '../components/intelligence/IntelligenceHeader';
 
 interface AnalyticsPageProps {
   onNavigate: (route: string) => void;
@@ -59,7 +58,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [timeSeries, setTimeSeries] = useState<TimeSeriesResponse | null>(null);
   const [products, setProducts] = useState<ProductRankingResponse | null>(null);
-  const [categories, setCategories] = useState<BreakdownResponse | null>(null);
   const [customerSegments, setCustomerSegments] = useState<BreakdownResponse | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -70,10 +68,9 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const [sumRes, prodRes, catRes, custRes] = await Promise.all([
+      const [sumRes, prodRes, custRes] = await Promise.all([
         getFinancialSummary({ granularity }),
         getProductRankings({ ranking_metric: selectedMetric, limit: 10 }),
-        getCategoryBreakdown({ metric: selectedMetric }),
         getCustomerSegments(),
       ]);
 
@@ -89,7 +86,6 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       setSummary(sumRes);
       setTimeSeries(tsRes);
       setProducts(prodRes);
-      setCategories(catRes);
       setCustomerSegments(custRes);
     } catch (err: any) {
       setError(err?.message || 'Failed to fetch deterministic analytics telemetry.');
@@ -102,429 +98,279 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     fetchAnalytics();
   }, [fetchAnalytics]);
 
+  if (loading && !summary) {
+    return <CardSkeleton rows={6} />;
+  }
+
+  if (error && !summary) {
+    return <ErrorState message={error} onRetry={fetchAnalytics} />;
+  }
+
   const s = summary?.data;
+
+  const currentMetricValue =
+    selectedMetric === 'revenue'
+      ? formatCurrency(s?.net_revenue?.value, true)
+      : selectedMetric === 'profit'
+      ? formatCurrency(s?.gross_profit?.value, true)
+      : formatNumber(s?.units_sold?.value ?? 0);
+
+  const currentMetricChange =
+    selectedMetric === 'revenue'
+      ? s?.net_revenue?.percentage_change
+      : selectedMetric === 'profit'
+      ? s?.gross_profit?.percentage_change
+      : s?.units_sold?.percentage_change;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
-      {/* Header & Controls Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-cyan-400" />
-            <span>Deterministic Business Analytics</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Audit-grade calculations verified by formal statistical and financial definitions.
-          </p>
-        </div>
+      {/* Header */}
+      <IntelligenceHeader
+        eyebrow="DETERMINISTIC ANALYTICS LAYER"
+        title="Deterministic Business Analytics"
+        subtitle="Mathematical business intelligence derived strictly from relational database tables. Zero LLM calculation hallucinations."
+        icon={BarChart3}
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onAskQuery(`Analyze the current ${selectedMetric} variance and drivers`)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-brand-cyan/40 text-brand-cyan text-xs font-medium transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Ask Analyst</span>
+            </button>
+            {summary?.evidence && (
+              <button
+                onClick={() => setActiveEvidence(summary.evidence)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-surface-elevated text-slate-200 text-xs font-medium transition-all"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Verify SQL Evidence</span>
+              </button>
+            )}
+          </div>
+        }
+      />
 
-        {/* Filter controls */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* Metric Selector */}
-          <div className="inline-flex rounded-xl bg-slate-900 border border-slate-800 p-1 text-xs font-mono">
-            <button
-              onClick={() => setSelectedMetric('revenue')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                selectedMetric === 'revenue'
-                  ? 'bg-cyan-600 text-white font-medium shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Revenue
-            </button>
-            <button
-              onClick={() => setSelectedMetric('profit')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                selectedMetric === 'profit'
-                  ? 'bg-cyan-600 text-white font-medium shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Profit
-            </button>
-            <button
-              onClick={() => setSelectedMetric('units')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                selectedMetric === 'units'
-                  ? 'bg-cyan-600 text-white font-medium shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Units
-            </button>
+      {/* 1. CONTINUOUS WORKFLOW ANCHOR: QUESTION -> METRIC -> RESULT -> INVESTIGATE / FORECAST */}
+      <section className="p-6 rounded-3xl bg-surface/60 border border-surface-elevated space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-elevated pb-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-brand-cyan font-semibold">
+              ANALYTICAL INQUIRY TARGET
+            </span>
+            <div className="flex items-baseline gap-3">
+              <h3 className="text-xl sm:text-2xl font-bold text-white font-sans capitalize">
+                Net {selectedMetric}
+              </h3>
+              <span className="text-2xl sm:text-3xl font-extrabold font-mono text-brand-cyan">
+                {currentMetricValue}
+              </span>
+              {currentMetricChange !== null && currentMetricChange !== undefined && (
+                <span
+                  className={`inline-flex items-center gap-1 text-xs font-mono font-semibold px-2 py-0.5 rounded ${
+                    currentMetricChange >= 0
+                      ? 'text-emerald-400 bg-emerald-950/70 border border-emerald-900/60'
+                      : 'text-rose-400 bg-rose-950/70 border border-rose-900/60'
+                  }`}
+                >
+                  {currentMetricChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  <span>{formatPercent(currentMetricChange)} vs prev</span>
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Granularity Selector */}
-          <div className="inline-flex rounded-xl bg-slate-900 border border-slate-800 p-1 text-xs font-mono">
+          {/* Workflow Action Triggers */}
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setGranularity('monthly')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all ${
-                granularity === 'monthly'
-                  ? 'bg-slate-800 text-cyan-300 font-semibold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              onClick={() => onNavigate('/investigations')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-brand-cyan/40 text-brand-cyan text-xs font-medium transition-all"
             >
-              Monthly
+              <SearchCode className="w-3.5 h-3.5" />
+              <span>Why did this change? [Investigate]</span>
             </button>
+
             <button
-              onClick={() => setGranularity('weekly')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all ${
-                granularity === 'weekly'
-                  ? 'bg-slate-800 text-cyan-300 font-semibold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              onClick={() => onNavigate('/forecasts')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-highlight border border-surface-highlight text-violet-300 text-xs font-medium transition-all"
             >
-              Weekly
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>What happens next? [Forecast]</span>
             </button>
           </div>
-
-          {/* Evidence Inspector Button */}
-          {summary?.evidence && (
-            <button
-              onClick={() => setActiveEvidence(summary.evidence)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition-all"
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Evidence</span>
-            </button>
-          )}
         </div>
-      </div>
 
-      {loading && !summary && <CardSkeleton rows={6} />}
-      {error && !summary && <ErrorState message={error} onRetry={fetchAnalytics} />}
-
-      {/* Main Dynamic Time Series Chart */}
-      <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div>
-            <h3 className="text-base font-semibold text-white capitalize">
-              {selectedMetric} Telemetry ({granularity})
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Verified metric points computed across completed retail ledger transactions.
-            </p>
+        {/* Filter Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Metric Target:</span>
+            <div className="inline-flex rounded-lg bg-void border border-surface-elevated p-0.5">
+              {(['revenue', 'profit', 'units'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setSelectedMetric(m)}
+                  className={`px-3 py-1 rounded-md transition-all capitalize ${
+                    selectedMetric === m
+                      ? 'bg-brand-cyan text-void font-bold shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => onNavigate('/investigations')}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 text-xs font-medium"
-            >
-              <SearchCode className="w-3.5 h-3.5" />
-              <span>Investigate Drivers</span>
-            </button>
-            <button
-              onClick={() => onNavigate('/forecasts')}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium"
-            >
-              <span>Forecast Trend</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
+            <span className="text-slate-400">Granularity:</span>
+            <div className="inline-flex rounded-lg bg-void border border-surface-elevated p-0.5">
+              {(['monthly', 'weekly'] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setGranularity(g)}
+                  className={`px-3 py-1 rounded-md transition-all capitalize ${
+                    granularity === g
+                      ? 'bg-surface-elevated text-white font-semibold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
           </div>
+        </div>
+      </section>
+
+      {/* 2. GRANULAR TIME SERIES CHART */}
+      <section className="rounded-3xl border border-surface-elevated bg-surface/50 p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-surface-elevated pb-3">
+          <div>
+            <h3 className="text-base font-bold text-white capitalize font-sans">
+              {selectedMetric} Telemetry Progression ({granularity})
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5 font-sans">
+              Aggregated from completed sales orders without sampling or approximation.
+            </p>
+          </div>
+
+          {timeSeries?.evidence && (
+            <button
+              onClick={() => setActiveEvidence(timeSeries.evidence)}
+              className="text-xs font-mono text-brand-cyan hover:underline flex items-center gap-1"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Inspect Time-Series SQL</span>
+            </button>
+          )}
         </div>
 
         <div className="h-72 w-full pt-2">
-          {timeSeries?.data?.points && timeSeries.data.points.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={timeSeries.data.points}
-                margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis
-                  dataKey="period_label"
-                  stroke="#64748b"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={{ stroke: '#334155' }}
-                />
-                <YAxis
-                  stroke="#64748b"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={{ stroke: '#334155' }}
-                  tickFormatter={(val) =>
-                    selectedMetric === 'units'
-                      ? formatNumber(val)
-                      : `₹${(val / 1000).toFixed(0)}K`
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={timeSeries?.data?.points?.map((pt) => ({ label: pt.period_label, value: pt.value })) || []}
+              margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: '#334155' }} />
+              <YAxis
+                stroke="#64748b"
+                fontSize={11}
+                tickLine={false}
+                axisLine={{ stroke: '#334155' }}
+                tickFormatter={(v) => (selectedMetric === 'units' ? formatNumber(v) : `₹${(v / 1000).toFixed(0)}K`)}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="rounded-xl border border-surface-highlight bg-void-sub p-3 shadow-xl text-xs font-mono">
+                        <p className="text-slate-400">{label}</p>
+                        <p className="text-brand-cyan font-bold text-sm">
+                          {selectedMetric === 'units'
+                            ? `${formatNumber(payload[0].value as number)} units`
+                            : formatCurrency(payload[0].value as number)}
+                        </p>
+                      </div>
+                    );
                   }
-                />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const pt = payload[0].payload;
-                      return (
-                        <div className="rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl text-xs space-y-1">
-                          <p className="font-semibold text-slate-200">{label}</p>
-                          <p className="font-mono text-cyan-400 font-bold">
-                            {selectedMetric.toUpperCase()}:{' '}
-                            {selectedMetric === 'units'
-                              ? formatNumber(pt.value)
-                              : formatCurrency(pt.value)}
-                          </p>
-                          {pt.growth_rate !== null && pt.growth_rate !== undefined && (
-                            <p className="text-[11px] text-slate-400">
-                              Period Growth: {formatPercent(pt.growth_rate)}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#0284c7"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: '#38bdf8' }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-slate-400">
-              No time series data available for the chosen parameters.
-            </div>
-          )}
+                  return null;
+                }}
+              />
+              <Line type="monotone" dataKey="value" stroke="#00F2FE" strokeWidth={2.5} dot={{ fill: '#00F2FE', r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </section>
 
-      {/* Financial Statement Summary (12 Canonical Business Metrics) */}
-      <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div>
-            <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-cyan-400" />
-              <span>Full Financial Performance Statement</span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              12 reconciled canonical metrics computed with deterministic SQL ledger aggregations.
-            </p>
-          </div>
-          <button
-            onClick={() => setActiveEvidence(summary?.evidence || null)}
-            className="text-xs text-cyan-400 hover:text-cyan-300 font-medium font-mono"
-          >
-            Audit Formula
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Gross Revenue</span>
-            <span className="font-mono font-semibold text-white text-base block mt-1">
-              {formatCurrency(s?.gross_revenue?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Discounts Applied</span>
-            <span className="font-mono font-semibold text-amber-400 text-base block mt-1">
-              {formatCurrency(s?.discounts?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Returns & Refunds</span>
-            <span className="font-mono font-semibold text-rose-400 text-base block mt-1">
-              {formatCurrency(s?.returns?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-800/40">
-            <span className="text-cyan-300 block text-[11px]">Net Revenue</span>
-            <span className="font-mono font-bold text-cyan-400 text-base block mt-1">
-              {formatCurrency(s?.net_revenue?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Cost of Goods Sold (COGS)</span>
-            <span className="font-mono font-semibold text-slate-300 text-base block mt-1">
-              {formatCurrency(s?.cogs?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-800/40">
-            <span className="text-emerald-300 block text-[11px]">Gross Profit</span>
-            <span className="font-mono font-bold text-emerald-400 text-base block mt-1">
-              {formatCurrency(s?.gross_profit?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Gross Margin</span>
-            <span className="font-mono font-semibold text-emerald-400 text-base block mt-1">
-              {s?.gross_margin_pct ? `${s.gross_margin_pct.toFixed(1)}%` : '—'}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Operating Expenses</span>
-            <span className="font-mono font-semibold text-slate-300 text-base block mt-1">
-              {formatCurrency(s?.operating_expenses?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Operating Profit</span>
-            <span className="font-mono font-semibold text-white text-base block mt-1">
-              {formatCurrency(s?.operating_profit?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Operating Margin</span>
-            <span className="font-mono font-semibold text-white text-base block mt-1">
-              {s?.operating_margin_pct ? `${s.operating_margin_pct.toFixed(1)}%` : '—'}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Order Volume</span>
-            <span className="font-mono font-semibold text-white text-base block mt-1">
-              {formatNumber(s?.orders_count?.value)}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <span className="text-slate-400 block text-[11px]">Average Order Value (AOV)</span>
-            <span className="font-mono font-semibold text-white text-base block mt-1">
-              {formatCurrency(s?.average_order_value?.value)}
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* Product Rankings Leaderboard */}
-      <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div>
-            <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <Package className="w-5 h-5 text-emerald-400" />
-              <span>Product Performance Rankings</span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Ranked dynamically by {selectedMetric.toUpperCase()}.
-            </p>
-          </div>
-          <span className="text-xs font-mono text-slate-400">
-            Evaluated {products?.data?.total_products_evaluated ?? 0} Products
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-mono text-[11px]">
-                <th className="py-2.5 px-3">Rank</th>
-                <th className="py-2.5 px-3">Product Name</th>
-                <th className="py-2.5 px-3">SKU</th>
-                <th className="py-2.5 px-3">Category</th>
-                <th className="py-2.5 px-3 text-right">Units Sold</th>
-                <th className="py-2.5 px-3 text-right">Revenue</th>
-                <th className="py-2.5 px-3 text-right">Gross Profit</th>
-                <th className="py-2.5 px-3 text-right">Margin %</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
-              {products?.data?.items?.map((p) => (
-                <tr key={p.product_id} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3 px-3 font-bold text-slate-300">#{p.rank}</td>
-                  <td className="py-3 px-3 font-sans font-medium text-white">{p.product_name}</td>
-                  <td className="py-3 px-3 text-slate-400">{p.sku}</td>
-                  <td className="py-3 px-3 text-slate-400 font-sans">{p.category}</td>
-                  <td className="py-3 px-3 text-right text-slate-300">{formatNumber(p.units_sold)}</td>
-                  <td className="py-3 px-3 text-right text-cyan-400 font-semibold">{formatCurrency(p.revenue)}</td>
-                  <td className="py-3 px-3 text-right text-emerald-400">{formatCurrency(p.gross_profit)}</td>
-                  <td className="py-3 px-3 text-right text-slate-300">
-                    {p.margin_pct ? `${p.margin_pct.toFixed(1)}%` : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Category Breakdown & Customer Segments Section */}
+      {/* 3. PRODUCT RANKINGS & SEGMENTS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Categories */}
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-cyan-400" />
-              <span>Category Revenue Contribution</span>
+        {/* Top Products Table */}
+        <section className="rounded-3xl border border-surface-elevated bg-surface/50 p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-surface-elevated pb-3">
+            <h3 className="text-base font-bold text-white font-sans flex items-center gap-2">
+              <Package className="w-4 h-4 text-brand-cyan" />
+              <span>Product Leaderboard (Top 10)</span>
             </h3>
-            <span className="text-xs font-mono text-slate-400">
-              {categories?.data?.items?.length ?? 0} Categories
-            </span>
+            <span className="text-[11px] font-mono text-slate-400">Ranked by {selectedMetric}</span>
           </div>
 
-          <div className="space-y-2">
-            {categories?.data?.items?.map((cat) => (
-              <div
-                key={cat.dimension_value}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs"
-              >
-                <div>
-                  <span className="font-semibold text-slate-200">{cat.dimension_value}</span>
-                  <span className="text-[11px] text-slate-400 block">
-                    Share: {cat.percentage_of_total?.toFixed(1)}% of total
-                  </span>
-                </div>
-                <span className="font-mono font-bold text-cyan-400">
-                  {formatCurrency(cat.metric_value)}
-                </span>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-surface-elevated text-slate-400 font-mono">
+                  <th className="pb-2">SKU / Product</th>
+                  <th className="pb-2 text-right">Metric Value</th>
+                  <th className="pb-2 text-right">Units</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-elevated">
+                {products?.data?.items?.map((p, idx) => (
+                  <tr key={idx} className="hover:bg-surface/60 transition-colors">
+                    <td className="py-2.5 font-medium text-slate-200">
+                      <div className="font-sans font-semibold">{p.product_name}</div>
+                      <div className="font-mono text-[10px] text-slate-500">{p.sku} • {p.category}</div>
+                    </td>
+                    <td className="py-2.5 text-right font-mono font-semibold text-white">
+                      {formatCurrency(p.metric_value, true)}
+                    </td>
+                    <td className="py-2.5 text-right font-mono text-slate-300">
+                      {formatNumber(p.units_sold)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
 
-        {/* Customer Segments */}
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+        {/* Customer Cohort Segments */}
+        <section className="rounded-3xl border border-surface-elevated bg-surface/50 p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-surface-elevated pb-3">
+            <h3 className="text-base font-bold text-white font-sans flex items-center gap-2">
               <Users className="w-4 h-4 text-emerald-400" />
-              <span>Customer Segment Distribution</span>
+              <span>Customer Segmentation Analysis</span>
             </h3>
-            <span className="text-xs font-mono text-slate-400">
-              {customerSegments?.data?.items?.length ?? 0} Segments
-            </span>
+            <span className="text-[11px] font-mono text-slate-400">Behavioral cohorts</span>
           </div>
 
-          <div className="space-y-2">
-            {customerSegments?.data?.items?.map((seg) => (
-              <div
-                key={seg.dimension_value}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs"
-              >
-                <div>
-                  <span className="font-semibold text-slate-200 capitalize">{seg.dimension_value}</span>
-                  <span className="text-[11px] text-slate-400 block">
-                    {seg.order_count ?? 0} orders recorded
-                  </span>
+          <div className="space-y-3">
+            {customerSegments?.data?.items?.map((seg, idx) => (
+              <div key={idx} className="p-3.5 rounded-2xl bg-void/60 border border-surface-elevated space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-200 font-sans capitalize">{seg.dimension_value}</span>
+                  <span className="font-mono font-bold text-brand-cyan">{formatCurrency(seg.metric_value, true)}</span>
                 </div>
-                <span className="font-mono font-bold text-emerald-400">
-                  {formatCurrency(seg.metric_value)}
-                </span>
+                <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                  <span>{formatNumber(seg.order_count || 0)} orders</span>
+                  <span>Share: {seg.percentage_of_total?.toFixed(1)}%</span>
+                </div>
               </div>
             ))}
           </div>
         </section>
       </div>
-
-      {/* Direct AI Inquiry Trigger */}
-      <section className="rounded-2xl border border-cyan-800/40 bg-cyan-950/20 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>Deepen Analysis with NEXUS Intelligence</span>
-          </h4>
-          <p className="text-xs text-slate-300 mt-0.5">
-            Query underlying causal drivers or forward-looking projections for {selectedMetric.toUpperCase()}.
-          </p>
-        </div>
-        <button
-          onClick={() => onAskQuery(`Analyze what is driving our ${selectedMetric} performance and variance`)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md shadow-cyan-600/25 transition-all shrink-0"
-        >
-          <span>Ask AI Analyst</span>
-          <ArrowUpRight className="w-4 h-4" />
-        </button>
-      </section>
 
       {/* Evidence Modal */}
       {activeEvidence && (

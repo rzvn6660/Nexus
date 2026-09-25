@@ -7,10 +7,13 @@ import {
   MessageSquare,
   Database,
   BookOpen,
+  History,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import { DatabaseHealth } from '../../types/api';
+import { NexusLogo } from '../brand/NexusLogo';
+import { NexusSymbol } from '../brand/NexusSymbol';
 
 interface SidebarProps {
   currentRoute: string;
@@ -21,6 +24,16 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
+interface NavGroup {
+  label?: string;
+  items: Array<{
+    title: string;
+    route: string;
+    icon: React.ElementType;
+    badge?: string;
+  }>;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({
   currentRoute,
   onNavigate,
@@ -29,45 +42,71 @@ export const Sidebar: React.FC<SidebarProps> = ({
   dbHealth,
   onCloseMobile,
 }) => {
-  const navItems = [
+  const navGroups: NavGroup[] = [
     {
-      title: 'Overview',
-      route: '/',
-      icon: LayoutDashboard,
-      badge: 'Live',
+      label: 'NEXUS INTELLIGENCE',
+      items: [
+        {
+          title: 'Overview',
+          route: '/',
+          icon: LayoutDashboard,
+          badge: 'Briefing',
+        },
+        {
+          title: 'Ask NEXUS',
+          route: '/ask',
+          icon: MessageSquare,
+          badge: 'Console',
+        },
+        {
+          title: 'Investigate',
+          route: '/investigations',
+          icon: SearchCode,
+          badge: 'Diagnostic',
+        },
+        {
+          title: 'Forecast',
+          route: '/forecasts',
+          icon: TrendingUp,
+          badge: 'Predictive',
+        },
+        {
+          title: 'Analytics',
+          route: '/analytics',
+          icon: BarChart3,
+        },
+      ],
     },
     {
-      title: 'Analytics',
-      route: '/analytics',
-      icon: BarChart3,
+      label: 'DATA LAYER',
+      items: [
+        {
+          title: 'Data Health & Schema',
+          route: '/data',
+          icon: Database,
+        },
+      ],
     },
     {
-      title: 'Investigations',
-      route: '/investigations',
-      icon: SearchCode,
-      badge: 'Diagnostic',
+      label: 'KNOWLEDGE & ONTOLOGY',
+      items: [
+        {
+          title: 'Context & KPI Dictionary',
+          route: '/knowledge',
+          icon: BookOpen,
+        },
+      ],
     },
     {
-      title: 'Forecasts',
-      route: '/forecasts',
-      icon: TrendingUp,
-      badge: 'Predictive',
-    },
-    {
-      title: 'Ask NEXUS',
-      route: '/ask',
-      icon: MessageSquare,
-      badge: 'Agent',
-    },
-    {
-      title: 'Data Health',
-      route: '/data',
-      icon: Database,
-    },
-    {
-      title: 'Knowledge & KPIs',
-      route: '/knowledge',
-      icon: BookOpen,
+      label: 'HISTORY & GOVERNANCE',
+      items: [
+        {
+          title: 'Analyses & Decisions',
+          route: '/history',
+          icon: History,
+          badge: 'Audit',
+        },
+      ],
     },
   ];
 
@@ -82,89 +121,94 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`h-screen sticky top-0 bg-slate-950/95 border-r border-slate-800/80 flex flex-col justify-between transition-all duration-300 z-30 select-none ${
+      className={`h-screen sticky top-0 bg-void border-r border-surface-elevated flex flex-col justify-between transition-all duration-300 z-30 select-none ${
         collapsed ? 'w-20' : 'w-64'
       }`}
     >
       {/* Top Branding Section */}
-      <div>
-        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800/60">
+      <div className="overflow-y-auto overflow-x-hidden">
+        <div className="h-16 px-4 flex items-center justify-between border-b border-surface-elevated">
           <div
             onClick={() => handleItemClick('/')}
-            className="flex items-center gap-3 cursor-pointer group"
+            className="cursor-pointer group flex items-center"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-sky-400 flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
-              <span className="font-extrabold text-white text-base tracking-wider font-mono">N</span>
-            </div>
-            {!collapsed && (
-              <div className="flex flex-col">
-                <span className="font-extrabold text-base tracking-wider text-white">NEXUS</span>
-                <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest -mt-1">
-                  Intelligence
-                </span>
-              </div>
+            {collapsed ? (
+              <NexusSymbol size={34} />
+            ) : (
+              <NexusLogo symbolSize={32} />
             )}
           </div>
 
           <button
             onClick={onToggleCollapse}
-            className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900 transition-colors"
-            title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-            aria-label={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-surface-elevated transition-colors"
+            title={collapsed ? 'Expand Workspace Rail' : 'Collapse Workspace Rail'}
+            aria-label={collapsed ? 'Expand Workspace Rail' : 'Collapse Workspace Rail'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Navigation Item List */}
-        <nav className="p-3 space-y-1.5 mt-2" aria-label="Main Navigation">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              currentRoute === item.route ||
-              (item.route !== '/' && currentRoute.startsWith(item.route));
-
-            return (
-              <button
-                key={item.route}
-                onClick={() => handleItemClick(item.route)}
-                title={collapsed ? item.title : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                  isActive
-                    ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/70 border border-transparent'
-                } ${collapsed ? 'justify-center px-0' : 'justify-between'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon
-                    className={`w-4 h-4 shrink-0 transition-colors ${
-                      isActive ? 'text-cyan-400' : 'text-slate-400 group-hover:text-slate-300'
-                    }`}
-                  />
-                  {!collapsed && <span>{item.title}</span>}
+        {/* Grouped Navigation */}
+        <nav className="p-3 space-y-5 mt-2" aria-label="Main Navigation">
+          {navGroups.map((group, gIdx) => (
+            <div key={gIdx} className="space-y-1">
+              {!collapsed && group.label && (
+                <div className="px-3 text-[10px] font-mono tracking-widest text-slate-400 uppercase font-semibold mb-1">
+                  {group.label}
                 </div>
+              )}
 
-                {!collapsed && item.badge && (
-                  <span
-                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive =
+                  item.route === '/'
+                    ? currentRoute === '/'
+                    : currentRoute === item.route || currentRoute.startsWith(`${item.route}/`);
+
+                return (
+                  <button
+                    key={item.route}
+                    onClick={() => handleItemClick(item.route)}
+                    title={collapsed ? item.title : undefined}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                       isActive
-                        ? 'bg-cyan-800/60 text-cyan-200'
-                        : 'bg-slate-800/60 text-slate-400'
-                    }`}
+                        ? 'bg-cyan-950/80 text-brand-cyan border border-brand-cyan/40 font-semibold shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-surface/80 border border-transparent'
+                    } ${collapsed ? 'justify-center px-0' : 'justify-between'}`}
                   >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Icon
+                        className={`w-4 h-4 shrink-0 transition-colors ${
+                          isActive ? 'text-brand-cyan' : 'text-slate-400 group-hover:text-slate-300'
+                        }`}
+                      />
+                      {!collapsed && <span className="truncate">{item.title}</span>}
+                    </div>
+
+                    {!collapsed && item.badge && (
+                      <span
+                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold ${
+                          isActive
+                            ? 'bg-cyan-900/60 text-brand-cyan'
+                            : 'bg-surface-elevated text-slate-400'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </div>
 
       {/* Bottom Infrastructure & System Status */}
-      <div className="p-3 border-t border-slate-800/60 space-y-2">
+      <div className="p-3 border-t border-surface-elevated space-y-2">
         <div
-          className={`flex items-center gap-2 p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] font-mono ${
+          className={`flex items-center gap-2 p-2 rounded-xl bg-surface/60 border border-surface-elevated text-[11px] font-mono ${
             collapsed ? 'justify-center' : 'justify-between'
           }`}
         >
@@ -191,8 +235,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {!collapsed && (
           <div className="px-2 py-1 text-[10px] font-mono text-slate-400 flex items-center justify-between">
-            <span>NEXUS v0.1.0</span>
-            <span className="text-cyan-400/80">Phase 8 UI</span>
+            <span className="font-bold text-slate-400">NEXUS v1.0.0</span>
+            <span className="text-brand-cyan/80">V1 Verified</span>
           </div>
         )}
       </div>

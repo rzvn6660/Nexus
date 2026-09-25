@@ -522,5 +522,59 @@ export interface KnowledgeSearchResponse {
   }>;
 }
 
+// ==========================================
+// 10. History, Decisions & Governance (Phase 11)
+// ==========================================
+
+export interface DecisionRecordItem {
+  id: number;
+  analysis_id?: number | null;
+  recommendation_text: str;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED' | string;
+  reviewer_notes?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DecisionReviewRequest {
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED';
+  reviewer_notes?: string;
+  reviewed_by?: string;
+}
+
+export interface AnalysisRunItem {
+  id: number;
+  request_id: string;
+  query: string;
+  intent?: string | null;
+  status: string;
+  explanation_level: string;
+  execution_time_ms?: number | null;
+  created_at: string;
+}
+
+export interface AnalysisRunDetail extends AnalysisRunItem {
+  answer: string;
+  tools_used?: string[] | null;
+  calculations?: Array<Record<string, any>> | null;
+  assumptions?: string[] | null;
+  limitations?: string[] | null;
+  evidence_records?: Array<Record<string, any>> | null;
+  rag_citations?: Array<Record<string, any>> | null;
+  decisions: DecisionRecordItem[];
+}
+
+export interface ReportExportResponse {
+  report_id: string;
+  analysis_id: number;
+  title: string;
+  format: string;
+  generated_at: string;
+  content: string;
+}
+
 // Alias for numeric compatibility
 type float = number;
+type str = string;

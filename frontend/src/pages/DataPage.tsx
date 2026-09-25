@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Database,
   Table as TableIcon,
-  ShieldCheck,
-  ChevronRight,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { getDataHealth, listTables, profileDataset, auditQuality } from '../services/data';
 import { DataHealthResponse, TableSummary, DatasetProfile, QualityReport } from '../types/api';
@@ -11,6 +11,7 @@ import { formatNumber } from '../utils/formatters';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { IntelligenceHeader } from '../components/intelligence/IntelligenceHeader';
 
 export const DataPage: React.FC = () => {
   const [health, setHealth] = useState<DataHealthResponse | null>(null);
@@ -66,167 +67,181 @@ export const DataPage: React.FC = () => {
     }
   }, [selectedTable, fetchTableDetails]);
 
+  // Determine posture status
+  const currentPosture: 'READY' | 'READY_WITH_WARNINGS' | 'INSUFFICIENT_DATA' | 'INVALID' =
+    health?.status === 'ready'
+      ? (quality?.failed_rules ?? 0) > 0
+        ? 'READY_WITH_WARNINGS'
+        : 'READY'
+      : 'INVALID';
+
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
-      {/* Header Banner */}
-      <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 sm:p-8 space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-800/80 text-cyan-400 text-xs font-mono font-medium">
-          <Database className="w-3.5 h-3.5" />
-          <span>Data Layer Architecture</span>
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-          Dataset Health, Schema & Quality Catalog
-        </h2>
-        <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-          Inspection of relational database tables, record cardinality, distribution profiles,
-          and automated business rule verification scorecards.
-        </p>
-      </section>
+      {/* Header */}
+      <IntelligenceHeader
+        eyebrow="DATA TELEMETRY & HEALTH"
+        title="Dataset Health, Schema & Quality Catalog"
+        subtitle="NEXUS knows what it knows. Verifies schema integrity, record cardinality, and automated data quality scorecards before any analytical query executes."
+        icon={Database}
+      />
 
       {loading && <LoadingState message="Loading database schema and quality metrics..." />}
       {error && <ErrorState message={error} onRetry={fetchInitialData} />}
 
-      {/* Dataset Health Overview Stats */}
-      {health && (
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
-            <span className="text-xs font-mono uppercase text-slate-400">Total Registered Records</span>
-            <p className="text-2xl font-bold font-mono text-cyan-400">
-              {formatNumber(health.total_records)}
-            </p>
-            <span className="text-[11px] text-slate-400 block">Across all domain models</span>
+      {/* 1. "NEXUS KNOWS WHAT IT KNOWS" STATUS MATRIX */}
+      <section className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        {/* Current Posture Card */}
+        <div className="rounded-2xl border border-surface-elevated bg-surface/60 p-5 space-y-2">
+          <span className="text-[10px] font-mono uppercase text-slate-400">DATA LAYER POSTURE</span>
+          <div className="pt-1">
+            <StatusBadge status={currentPosture} size="md" />
           </div>
+          <span className="text-[11px] text-slate-400 block pt-1">
+            {currentPosture === 'READY'
+              ? 'All integrity constraints and foreign keys verified.'
+              : 'Active warnings present in non-critical columns.'}
+          </span>
+        </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
-            <span className="text-xs font-mono uppercase text-slate-400">Database Tables</span>
-            <p className="text-2xl font-bold font-mono text-white">
-              {health.tables?.length ?? 0} Tables
-            </p>
-            <span className="text-[11px] text-slate-400 block">PostgreSQL 16 relational storage</span>
-          </div>
+        {/* Total Records */}
+        <div className="rounded-2xl border border-surface-elevated bg-surface/60 p-5 space-y-1">
+          <span className="text-[10px] font-mono uppercase text-slate-400">TOTAL DATA COVERAGE</span>
+          <p className="text-2xl font-bold font-mono text-brand-cyan">
+            {formatNumber(health?.total_records ?? 0)}
+          </p>
+          <span className="text-[11px] text-slate-400 block">Relational enterprise records</span>
+        </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-2">
-            <span className="text-xs font-mono uppercase text-slate-400">Data Layer Status</span>
-            <div className="pt-1">
-              <StatusBadge status={health.status === 'ready' ? 'READY' : 'DEGRADED'} />
-            </div>
-            <span className="text-[11px] text-slate-400 block pt-1">Automated profiling active</span>
-          </div>
-        </section>
-      )}
+        {/* Database Tables */}
+        <div className="rounded-2xl border border-surface-elevated bg-surface/60 p-5 space-y-1">
+          <span className="text-[10px] font-mono uppercase text-slate-400">ACTIVE SOURCE TABLES</span>
+          <p className="text-2xl font-bold font-mono text-white">
+            {health?.tables?.length ?? 0} Tables
+          </p>
+          <span className="text-[11px] text-slate-400 block">PostgreSQL 16 relational storage</span>
+        </div>
 
-      {/* Table Catalog & Selected Profile Detail */}
+        {/* Quality Rules */}
+        <div className="rounded-2xl border border-surface-elevated bg-surface/60 p-5 space-y-1">
+          <span className="text-[10px] font-mono uppercase text-slate-400">QUALITY SCORECARD</span>
+          <p className="text-2xl font-bold font-mono text-emerald-400">
+            {quality ? `${quality.passed_rules}/${quality.total_rules} Passed` : 'Auditing...'}
+          </p>
+          <span className="text-[11px] text-slate-400 block">Automated rule checks</span>
+        </div>
+      </section>
+
+      {/* 2. TABLE DIRECTORY & SCHEMA PROFILES */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Table Directory */}
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
-          <h3 className="text-sm font-semibold text-white px-2 flex items-center gap-2">
-            <TableIcon className="w-4 h-4 text-cyan-400" />
-            <span>Database Tables</span>
-          </h3>
+        {/* Table Directory */}
+        <div className="rounded-3xl border border-surface-elevated bg-surface/50 p-5 space-y-3">
+          <span className="text-xs font-mono uppercase text-slate-400 tracking-wider font-semibold block px-1">
+            Database Catalog ({tables.length})
+          </span>
 
           <div className="space-y-1.5">
-            {tables.map((t) => (
-              <button
-                key={t.table_name}
-                onClick={() => setSelectedTable(t.table_name)}
-                className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs transition-all text-left ${
-                  selectedTable === t.table_name
-                    ? 'bg-cyan-950/80 border border-cyan-800/80 text-cyan-300 font-semibold shadow-sm'
-                    : 'bg-slate-950/40 border border-slate-800/80 text-slate-300 hover:bg-slate-800'
-                }`}
-              >
-                <div>
-                  <span className="font-mono font-bold block">{t.table_name}</span>
-                  <span className="text-[11px] text-slate-400 font-mono">
-                    {formatNumber(t.row_count)} rows • {t.column_count} columns
+            {tables.map((t) => {
+              const isSelected = selectedTable === t.table_name;
+              return (
+                <button
+                  key={t.table_name}
+                  onClick={() => setSelectedTable(t.table_name)}
+                  className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between text-xs ${
+                    isSelected
+                      ? 'bg-cyan-950/70 border-brand-cyan/60 text-white font-semibold'
+                      : 'bg-surface/50 border-surface-elevated text-slate-300 hover:bg-surface'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <TableIcon className={`w-4 h-4 ${isSelected ? 'text-brand-cyan' : 'text-slate-500'}`} />
+                    <span className="truncate">{t.table_name}</span>
+                  </div>
+                  <span className="font-mono text-[11px] text-slate-400">
+                    {formatNumber(t.row_count)} rows
                   </span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
-        </section>
+        </div>
 
-        {/* Right: Table Detailed Profile & Quality Scorecard */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Selected Table Inspection & Profile */}
+        <div className="lg:col-span-2 rounded-3xl border border-surface-elevated bg-surface/50 p-6 space-y-5">
           {tableLoading ? (
             <LoadingState message={`Profiling table ${selectedTable}...`} />
           ) : (
             <>
-              {/* Quality Audit Scorecard */}
-              {quality && (
-                <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        <span>Quality Scorecard: {quality.dataset}</span>
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Deterministic referential and boundary rule verification.
-                      </p>
-                    </div>
+              <div className="flex items-center justify-between border-b border-surface-elevated pb-4">
+                <div>
+                  <span className="text-[10px] font-mono uppercase text-brand-cyan tracking-wider font-semibold">
+                    Table Profile
+                  </span>
+                  <h3 className="text-lg font-bold text-white font-mono mt-0.5">
+                    {selectedTable}
+                  </h3>
+                </div>
 
-                    <StatusBadge status={quality.overall_status.toUpperCase()} />
-                  </div>
+                <div className="text-xs font-mono text-slate-400">
+                  <span>{formatNumber(profile?.row_count ?? 0)} records • {profile?.column_count ?? (profile?.columns ? Object.keys(profile.columns).length : 0)} columns</span>
+                </div>
+              </div>
+
+              {/* Column Schema Grid */}
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-slate-300 font-sans block">
+                  Column Definitions & Nullability
+                </span>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-surface-elevated text-slate-400 font-mono">
+                        <th className="pb-2">Column Name</th>
+                        <th className="pb-2">Type</th>
+                        <th className="pb-2">Null Count</th>
+                        <th className="pb-2 text-right">Distinct Values</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-elevated font-mono">
+                      {profile?.columns && Object.values(profile.columns).map((col, idx) => (
+                        <tr key={idx} className="hover:bg-surface/60 transition-colors">
+                          <td className="py-2 text-slate-200 font-semibold">{col.column_name}</td>
+                          <td className="py-2 text-brand-cyan text-[11px]">{col.data_type}</td>
+                          <td className="py-2 text-slate-400">{col.null_count} ({col.null_percentage}%)</td>
+                          <td className="py-2 text-right text-slate-300">{col.distinct_count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Quality Audit Scorecard for Selected Table */}
+              {quality && (
+                <div className="space-y-3 pt-3 border-t border-surface-elevated">
+                  <span className="text-xs font-semibold text-slate-300 font-sans block">
+                    Automated Quality Rules Execution
+                  </span>
 
                   <div className="space-y-2">
-                    {quality.rule_results?.map((r) => (
+                    {quality.rule_results?.map((rule, idx) => (
                       <div
-                        key={r.rule_id}
-                        className="flex items-start justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs gap-3"
+                        key={idx}
+                        className="p-3 rounded-xl bg-void/60 border border-surface-elevated flex items-center justify-between text-xs"
                       >
-                        <div className="space-y-0.5">
-                          <span className="font-semibold text-slate-200">{r.rule_name}</span>
-                          <p className="text-slate-400 text-[11px]">{r.message}</p>
+                        <div className="flex items-center gap-2">
+                          {rule.status === 'passed' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                          )}
+                          <span className="font-semibold text-slate-200 font-sans">{rule.rule_name}</span>
                         </div>
-                        <span
-                          className={`font-mono px-2 py-0.5 rounded text-[10px] uppercase shrink-0 ${
-                            r.status === 'passed'
-                              ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/80'
-                              : 'bg-rose-950/80 text-rose-300 border border-rose-800/80'
-                          }`}
-                        >
-                          {r.status}
-                        </span>
+                        <span className="font-mono text-slate-400 text-[11px]">{rule.message}</span>
                       </div>
                     ))}
                   </div>
-                </section>
-              )}
-
-              {/* Column Profiling Breakdown */}
-              {profile?.columns && (
-                <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
-                  <h3 className="text-sm font-semibold text-white">
-                    Column Attribute Profile ({Object.keys(profile.columns).length} columns)
-                  </h3>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead>
-                        <tr className="border-b border-slate-800 text-slate-400 text-[11px]">
-                          <th className="py-2.5 px-3">Column Name</th>
-                          <th className="py-2.5 px-3">Data Type</th>
-                          <th className="py-2.5 px-3 text-right">Null Count</th>
-                          <th className="py-2.5 px-3 text-right">Null %</th>
-                          <th className="py-2.5 px-3 text-right">Distinct Count</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {Object.values(profile.columns).map((c) => (
-                          <tr key={c.column_name} className="hover:bg-slate-800/30 transition-colors">
-                            <td className="py-2.5 px-3 font-semibold text-slate-200">{c.column_name}</td>
-                            <td className="py-2.5 px-3 text-cyan-400">{c.data_type}</td>
-                            <td className="py-2.5 px-3 text-right text-slate-300">{formatNumber(c.null_count)}</td>
-                            <td className="py-2.5 px-3 text-right text-slate-400">{c.null_percentage.toFixed(1)}%</td>
-                            <td className="py-2.5 px-3 text-right text-emerald-400">{formatNumber(c.distinct_count)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
+                </div>
               )}
             </>
           )}

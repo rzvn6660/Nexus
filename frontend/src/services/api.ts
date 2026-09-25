@@ -50,6 +50,15 @@ export async function apiRequest<T>(
     ...(options.headers as Record<string, string>),
   };
 
+  const apiKey =
+    (typeof window !== 'undefined' ? localStorage.getItem('nexus_api_key') : null) ||
+    import.meta.env.VITE_API_KEY ||
+    'nexus-dev-key-change-in-production';
+
+  if (apiKey && !headers['X-API-Key'] && !headers['Authorization']) {
+    headers['X-API-Key'] = apiKey;
+  }
+
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }

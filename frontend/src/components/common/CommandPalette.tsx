@@ -54,6 +54,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { title: 'Ask NEXUS Intelligence', route: '/ask', icon: MessageSquare, category: 'Navigation' },
     { title: 'Data Health & Tables', route: '/data', icon: Database, category: 'Navigation' },
     { title: 'Business Knowledge & KPIs', route: '/knowledge', icon: BookOpen, category: 'Navigation' },
+    { title: 'Analyses & Decisions (Audit)', route: '/history', icon: SearchCode, category: 'Navigation' },
   ];
 
   const suggestedQuestions = [

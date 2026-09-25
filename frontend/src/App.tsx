@@ -7,6 +7,7 @@ import { ForecastsPage } from './pages/ForecastsPage';
 import { AskNexusPage } from './pages/AskNexusPage';
 import { DataPage } from './pages/DataPage';
 import { KnowledgePage } from './pages/KnowledgePage';
+import { HistoryPage } from './pages/HistoryPage';
 import { getHealthStatus } from './services/api';
 import { HealthResponse } from './types/api';
 
@@ -91,6 +92,8 @@ export const App: React.FC = () => {
         return <DataPage />;
       case '/knowledge':
         return <KnowledgePage />;
+      case '/history':
+        return <HistoryPage />;
       default:
         return (
           <OverviewPage

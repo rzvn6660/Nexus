@@ -24,8 +24,8 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans">
-      {/* Desktop Sidebar */}
+    <div className="min-h-screen bg-void text-slate-100 flex font-sans selection:bg-cyan-500/20 selection:text-cyan-200">
+      {/* Desktop Workspace Sidebar */}
       <div className="hidden md:block shrink-0">
         <Sidebar
           currentRoute={currentRoute}
@@ -38,8 +38,8 @@ export const AppShell: React.FC<AppShellProps> = ({
 
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-72 bg-slate-950 h-full shadow-2xl">
+        <div className="fixed inset-0 z-50 flex md:hidden bg-void/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-72 bg-void h-full shadow-2xl">
             <Sidebar
               currentRoute={currentRoute}
               onNavigate={onNavigate}
@@ -57,7 +57,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
       )}
 
-      {/* Main Content Area */}
+      {/* Main Intelligence Workspace Canvas */}
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar
           currentRoute={currentRoute}
@@ -71,20 +71,23 @@ export const AppShell: React.FC<AppShellProps> = ({
           {children}
         </main>
 
-        <footer className="border-t border-slate-800/80 bg-slate-950 py-5 text-xs text-slate-400 mt-auto">
+        {/* Quiet Workspace Footer */}
+        <footer className="border-t border-surface-elevated/70 bg-void py-5 text-xs text-slate-400 mt-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-200">NEXUS</span>
+              <span className="font-bold text-white tracking-wider font-mono">NEXUS</span>
               <span>—</span>
-              <span>Agentic Business Intelligence Platform</span>
+              <span className="text-slate-300">Where Business Data Becomes Intelligence</span>
             </div>
 
-            <div className="flex items-center gap-4 font-mono text-[11px] text-slate-400">
-              <span>Deterministic Precision</span>
+            <div className="flex items-center gap-3 font-mono text-[11px] text-slate-400 flex-wrap justify-center">
+              <span>Deterministic Analytics</span>
               <span>•</span>
-              <span>Stateful Reasoning</span>
+              <span>Agentic Reasoning</span>
               <span>•</span>
               <span>Verifiable Provenance</span>
+              <span>•</span>
+              <span>Human Authority</span>
             </div>
           </div>
         </footer>

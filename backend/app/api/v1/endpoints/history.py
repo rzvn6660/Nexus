@@ -32,6 +32,11 @@ router = APIRouter()
     summary="List historical agent analysis runs",
     description="Retrieve paginated list of past analytical runs with execution telemetry and status.",
 )
+@router.get(
+    "/analyses",
+    response_model=List[AnalysisRunSummary],
+    include_in_schema=False,
+)
 def list_analysis_runs(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -53,6 +58,11 @@ def list_analysis_runs(
     summary="Get detailed analysis run record",
     description="Retrieve full execution details, evidence proof packets, calculations, and decisions.",
 )
+@router.get(
+    "/analyses/{run_id}",
+    response_model=AnalysisRunDetail,
+    include_in_schema=False,
+)
 def get_analysis_run(
     run_id: int,
     db: Session = Depends(get_db_session),
@@ -71,6 +81,11 @@ def get_analysis_run(
     response_model=ReportExportResponse,
     summary="Export analysis dossier report",
     description="Generates an exportable, audit-ready Markdown or JSON dossier of an analysis run.",
+)
+@router.get(
+    "/analyses/{run_id}/report",
+    response_model=ReportExportResponse,
+    include_in_schema=False,
 )
 def export_analysis_report(
     run_id: int,
