@@ -3,9 +3,16 @@
 <img src="brand/showcase/nexus-hero-nxst3.png" alt="NEXUS — Where Business Data Becomes Intelligence" width="100%" />
 
 # NEXUS
-### Where Business Data Becomes Intelligence.
 
-**Production-engineered, single-tenant, evidence-backed agentic business intelligence platform.**
+## WHERE BUSINESS DATA BECOMES INTELLIGENCE.
+
+<p align="center">
+  <strong>Understand what happened.</strong> &nbsp;|&nbsp; <strong>Investigate why.</strong> &nbsp;|&nbsp; <strong>See what comes next.</strong> &nbsp;|&nbsp; <strong>Decide with evidence.</strong>
+</p>
+
+<p align="center">
+  Production-engineered, single-tenant, evidence-backed agentic business intelligence platform.
+</p>
 
 [![CI Pipeline](https://github.com/rzvn6660/Nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/rzvn6660/Nexus/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -13,12 +20,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16_pgvector-336791.svg?logo=postgresql)](https://www.postgresql.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg?logo=typescript)](https://www.typescriptlang.org/)
-[![Automated Tests](https://img.shields.io/badge/Pytest_Suite-206_Passed-10B981.svg)](backend/tests/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-6366F1.svg)](LICENSE)
-
-<p align="center">
-  <em>Understand what happened. Investigate why. See what comes next. Decide with evidence.</em>
-</p>
 
 </div>
 
