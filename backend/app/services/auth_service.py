@@ -35,12 +35,19 @@ class AuthService:
 
     SALT_BYTES = 16
     PBKDF2_ITERATIONS = 100_000
+    MAX_PASSWORD_LENGTH = 128
+    _revoked_tokens: set[str] = set()
+    _dummy_hash: str = "00" * 16 + "$" + "00" * 32
 
     @classmethod
     def hash_password(cls, password: str) -> str:
         """Hash a plaintext password using salted PBKDF2-HMAC-SHA256."""
         if not password or len(password) < 8:
             raise ValueError("Password must be at least 8 characters long.")
+        if len(password) > cls.MAX_PASSWORD_LENGTH:
+            raise ValueError(f"Password exceeds maximum allowable length of {cls.MAX_PASSWORD_LENGTH} characters.")
+        if not password.strip():
+            raise ValueError("Password cannot consist entirely of whitespace.")
         salt = os.urandom(cls.SALT_BYTES)
         derived = hashlib.pbkdf2_hmac(
             "sha256",
@@ -74,6 +81,27 @@ class AuthService:
         return hmac.compare_digest(actual_hash, expected_hash)
 
     @classmethod
+    def revoke_token(cls, token_or_jti: str) -> None:
+        """Revoke a token by its jti identifier or raw JWT string."""
+        if "." in token_or_jti:
+            try:
+                unverified = jwt.decode(token_or_jti, options={"verify_signature": False})
+                jti = unverified.get("jti")
+                if jti:
+                    cls._revoked_tokens.add(jti)
+            except Exception:
+                pass
+        else:
+            cls._revoked_tokens.add(token_or_jti)
+
+    @classmethod
+    def is_token_revoked(cls, jti: str | None) -> bool:
+        """Check if token jti has been marked revoked."""
+        if not jti:
+            return False
+        return jti in cls._revoked_tokens
+
+    @classmethod
     def create_access_token(
         cls,
         user_id: str,
@@ -95,6 +123,7 @@ class AuthService:
             "iat": now,
             "exp": now + delta,
             "iss": "nexus-saas",
+            "jti": str(uuid4()),
         }
         return jwt.encode(
             payload,
@@ -110,9 +139,18 @@ class AuthService:
                 token,
                 settings.AUTH_JWT_SECRET,
                 algorithms=[settings.AUTH_JWT_ALGORITHM],
-                options={"verify_exp": True, "require": ["sub", "exp"]},
+                options={"verify_exp": True, "require": ["sub", "exp", "iat"]},
+                issuer="nexus-saas",
             )
+            if cls.is_token_revoked(payload.get("jti")):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication token has been revoked. Please log in again.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
             return payload
+        except HTTPException:
+            raise
         except jwt.ExpiredSignatureError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -239,7 +277,12 @@ class AuthService:
             select(UserIdentity).where(UserIdentity.email == clean_email)
         ).scalar_one_or_none()
 
-        if not user or not cls.verify_password(password, user.password_hash):
+        if not user:
+            # Perform dummy PBKDF2 calculation to prevent timing-based account enumeration
+            cls.verify_password(password, cls._dummy_hash)
+            return None
+
+        if not cls.verify_password(password, user.password_hash):
             return None
 
         if not user.is_active:

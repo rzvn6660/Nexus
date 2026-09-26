@@ -9,7 +9,14 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
+from app.core.auth import (
+    get_optional_current_user,
+    verify_user_analysis_access,
+    verify_user_business_access,
+    verify_user_decision_access,
+)
 from app.models.history import AnalysisRun, DecisionRecord
+from app.models.tenant import Business, OrganizationMembership, UserIdentity
 from app.schemas.history import (
     AnalysisRunDetail,
     AnalysisRunSummary,
@@ -41,11 +48,29 @@ def list_analysis_runs(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ) -> List[AnalysisRunSummary]:
     stmt = select(AnalysisRun)
-    if x_business_id is not None:
+
+    if current_user:
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        user_biz_ids = db.execute(
+            select(Business.id).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().all()
+
+        if x_business_id is not None:
+            verify_user_business_access(db, current_user, x_business_id, action="view analysis runs of")
+            stmt = stmt.where(AnalysisRun.business_id == x_business_id)
+        else:
+            stmt = stmt.where(AnalysisRun.business_id.in_(user_biz_ids))
+    elif x_business_id is not None:
         stmt = stmt.where(AnalysisRun.business_id == x_business_id)
+
     stmt = (
         stmt
         .order_by(desc(AnalysisRun.created_at))
@@ -70,6 +95,7 @@ def list_analysis_runs(
 def get_analysis_run(
     run_id: int,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ) -> AnalysisRunDetail:
     run = db.get(AnalysisRun, run_id)
@@ -79,13 +105,8 @@ def get_analysis_run(
             detail=f"Analysis run #{run_id} not found.",
         )
 
-    # Multi-tenant IDOR defense: reject cross-tenant access to analysis history
-    if run.business_id is not None:
-        if x_business_id and x_business_id != run.business_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: Analysis run belongs to another business workspace.",
-            )
+    # Multi-tenant IDOR defense: verify user and business workspace ownership
+    verify_user_analysis_access(db, current_user, run.business_id, x_business_id)
 
     return AnalysisRunDetail.model_validate(run)
 
@@ -104,6 +125,8 @@ def get_analysis_run(
 def export_analysis_report(
     run_id: int,
     format: str = Query("markdown", pattern="^(markdown|json)$"),
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ) -> ReportExportResponse:
     run = db.get(AnalysisRun, run_id)
@@ -112,6 +135,9 @@ def export_analysis_report(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Analysis run #{run_id} not found.",
         )
+
+    # Multi-tenant IDOR defense: verify user and business workspace ownership
+    verify_user_analysis_access(db, current_user, run.business_id, x_business_id)
 
     report_id = f"RPT-{run.request_id[:8].upper()}"
     title = f"NEXUS Intelligence Dossier — Analysis #{run.id}"
@@ -250,11 +276,29 @@ def list_decisions(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ) -> List[DecisionRecordResponse]:
     stmt = select(DecisionRecord)
-    if x_business_id is not None:
+
+    if current_user:
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        user_biz_ids = db.execute(
+            select(Business.id).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().all()
+
+        if x_business_id is not None:
+            verify_user_business_access(db, current_user, x_business_id, action="view decision records of")
+            stmt = stmt.where(DecisionRecord.business_id == x_business_id)
+        else:
+            stmt = stmt.where(DecisionRecord.business_id.in_(user_biz_ids))
+    elif x_business_id is not None:
         stmt = stmt.where(DecisionRecord.business_id == x_business_id)
+
     if status_filter:
         stmt = stmt.where(DecisionRecord.status == status_filter.upper())
     stmt = stmt.order_by(desc(DecisionRecord.created_at)).limit(limit).offset(offset)
@@ -272,8 +316,12 @@ def list_decisions(
 def create_decision(
     payload: DecisionCreateRequest,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
+    if current_user and x_business_id:
+        verify_user_business_access(db, current_user, x_business_id, action="create decisions for")
+
     if payload.analysis_id:
         run = db.get(AnalysisRun, payload.analysis_id)
         if not run:
@@ -281,6 +329,8 @@ def create_decision(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Associated analysis run #{payload.analysis_id} does not exist.",
             )
+        # Verify access to the associated analysis run
+        verify_user_analysis_access(db, current_user, run.business_id, x_business_id)
 
     decision = DecisionRecord(
         business_id=x_business_id,
@@ -303,6 +353,7 @@ def create_decision(
 def get_decision(
     decision_id: int,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
     record = db.get(DecisionRecord, decision_id)
@@ -312,13 +363,8 @@ def get_decision(
             detail=f"Decision record #{decision_id} not found.",
         )
 
-    # Multi-tenant IDOR defense: reject cross-tenant access to decisions
-    if record.business_id is not None:
-        if x_business_id and x_business_id != record.business_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: Decision record belongs to another business workspace.",
-            )
+    # Multi-tenant IDOR defense: verify user and workspace ownership
+    verify_user_decision_access(db, current_user, record.business_id, x_business_id)
 
     return DecisionRecordResponse.model_validate(record)
 
@@ -332,6 +378,8 @@ def get_decision(
 def update_decision(
     decision_id: int,
     payload: DecisionUpdateRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
     record = db.get(DecisionRecord, decision_id)
@@ -340,6 +388,9 @@ def update_decision(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Decision record #{decision_id} not found.",
         )
+
+    # Multi-tenant IDOR defense: verify user and workspace ownership
+    verify_user_decision_access(db, current_user, record.business_id, x_business_id)
 
     valid_statuses = {"PENDING", "APPROVED", "REJECTED", "MODIFIED"}
     new_status = payload.status.upper().strip()
@@ -351,7 +402,8 @@ def update_decision(
 
     record.status = new_status
     record.reviewer_notes = payload.reviewer_notes or record.reviewer_notes
-    record.reviewed_by = payload.reviewed_by or record.reviewed_by or "analyst"
+    reviewer = payload.reviewed_by or (current_user.email if current_user else None) or record.reviewed_by or "analyst"
+    record.reviewed_by = reviewer
     record.reviewed_at = datetime.now(timezone.utc)
 
     db.commit()

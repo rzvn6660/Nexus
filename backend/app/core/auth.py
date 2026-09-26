@@ -183,3 +183,156 @@ def get_auth_context(
         business=primary_biz,
         role=membership.role,
     )
+
+
+def get_optional_current_user(
+    bearer_creds: HTTPAuthorizationCredentials | None = Security(bearer_security),
+    db: Session = Depends(get_db_session),
+) -> UserIdentity | None:
+    """
+    Resolve authenticated user if Bearer token is provided.
+    Raises HTTP 401 if a token IS provided but is expired, revoked, or invalid.
+    Returns None if no credentials were provided at all.
+    """
+    if not bearer_creds or not bearer_creds.credentials:
+        return None
+
+    payload = AuthService.decode_access_token(bearer_creds.credentials)
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Malformed token: missing user ID subject.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.execute(
+        select(UserIdentity).where(UserIdentity.id == user_id)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account associated with this token was not found.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is deactivated.",
+        )
+
+    return user
+
+
+def verify_user_business_access(
+    db: Session,
+    user: UserIdentity | None,
+    business_id: str,
+    action: str = "access",
+) -> Business:
+    """
+    Strictly verify that the user is authenticated and belongs to the organization
+    owning the requested business_id.
+    """
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Authentication credentials required to {action} this business workspace.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    biz = db.execute(select(Business).where(Business.id == business_id)).scalar_one_or_none()
+    if not biz:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Business workspace '{business_id}' does not exist.",
+        )
+
+    user_org_ids = db.execute(
+        select(OrganizationMembership.organization_id).where(
+            OrganizationMembership.user_id == user.id
+        )
+    ).scalars().all()
+
+    if biz.organization_id not in user_org_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You do not have permission to access this business workspace.",
+        )
+
+    return biz
+
+
+def verify_user_document_access(
+    db: Session,
+    user: UserIdentity | None,
+    doc_business_id: str | None,
+    is_global: bool,
+    requested_business_id: str | None = None,
+) -> None:
+    """Enforce multi-tenant boundary on KnowledgeDocument access."""
+    if is_global:
+        return
+
+    if doc_business_id is not None:
+        if requested_business_id and requested_business_id != doc_business_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Knowledge document belongs to another business workspace.",
+            )
+        if user:
+            verify_user_business_access(db, user, doc_business_id, action="access documents of")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access private tenant knowledge.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+
+def verify_user_analysis_access(
+    db: Session,
+    user: UserIdentity | None,
+    run_business_id: str | None,
+    requested_business_id: str | None = None,
+) -> None:
+    """Enforce multi-tenant boundary on AnalysisRun access."""
+    if run_business_id is not None:
+        if requested_business_id and requested_business_id != run_business_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Analysis run belongs to another business workspace.",
+            )
+        if user:
+            verify_user_business_access(db, user, run_business_id, action="access analysis run of")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access analysis runs.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+
+def verify_user_decision_access(
+    db: Session,
+    user: UserIdentity | None,
+    record_business_id: str | None,
+    requested_business_id: str | None = None,
+) -> None:
+    """Enforce multi-tenant boundary on DecisionRecord access."""
+    if record_business_id is not None:
+        if requested_business_id and requested_business_id != record_business_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Decision record belongs to another business workspace.",
+            )
+        if user:
+            verify_user_business_access(db, user, record_business_id, action="access decision record of")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access decision records.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )

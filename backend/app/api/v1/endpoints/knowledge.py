@@ -6,8 +6,14 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Uploa
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.auth import (
+    get_optional_current_user,
+    verify_user_business_access,
+    verify_user_document_access,
+)
 from app.core.database import get_db
 from app.models.knowledge import KnowledgeDocument
+from app.models.tenant import UserIdentity
 from app.rag.ingestion.models import DocumentMetadata
 from app.rag.ingestion.service import DocumentIngestionService
 from app.rag.retrieval.retriever import HybridRetriever
@@ -38,9 +44,12 @@ async def upload_document(
     version: str = Form("1.0", description="Document revision version"),
     tags: str | None = Form(None, description="Comma-separated or JSON list of tags"),
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentUploadResponse:
     """Upload and index a business context document file."""
+    if x_business_id:
+        verify_user_business_access(db, current_user, x_business_id, action="upload documents to")
     file_bytes = await file.read()
     from app.security import sanitize_filename
     filename = sanitize_filename(file.filename)
@@ -92,9 +101,13 @@ async def upload_document(
 def ingest_text_document(
     payload: DocumentTextIngestRequest,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentUploadResponse:
     """Directly ingest a markdown or text document payload."""
+    if x_business_id:
+        verify_user_business_access(db, current_user, x_business_id, action="ingest text into")
+
     metadata = DocumentMetadata(
         title=payload.title,
         business_domain=payload.business_domain,
@@ -130,9 +143,13 @@ def ingest_text_document(
 def list_documents(
     domain: str | None = None,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> list[DocumentSummaryResponse]:
     """Retrieve summaries of all active registered knowledge documents."""
+    if x_business_id:
+        verify_user_business_access(db, current_user, x_business_id, action="list documents of")
+
     stmt = select(KnowledgeDocument).where(KnowledgeDocument.status == "active")
     if x_business_id is not None:
         stmt = stmt.where(
@@ -170,9 +187,10 @@ def list_documents(
 def get_document(
     document_id: str,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentDetailResponse:
-    """Retrieve full document metadata and constituent semantic chunks."""
+    """Retrieve full document metadata and constituent semantic chunks with IDOR defense."""
     stmt = select(KnowledgeDocument).where(KnowledgeDocument.document_id == document_id)
     doc = db.execute(stmt).scalars().first()
     if not doc:
@@ -181,13 +199,14 @@ def get_document(
             detail=f"Document '{document_id}' not found.",
         )
 
-    # Multi-tenant IDOR defense: reject cross-tenant access to private documents
-    if doc.business_id is not None and not doc.is_global:
-        if x_business_id and x_business_id != doc.business_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: Knowledge document belongs to another business workspace.",
-            )
+    # Multi-tenant IDOR defense: reject unauthorized cross-tenant access to private documents
+    verify_user_document_access(
+        db=db,
+        user=current_user,
+        doc_business_id=doc.business_id,
+        is_global=doc.is_global,
+        requested_business_id=x_business_id,
+    )
 
     chunk_responses = [
         ChunkResponse(
@@ -224,9 +243,13 @@ def get_document(
 def search_knowledge(
     payload: KnowledgeSearchRequest,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeSearchResponse:
     """Search business context documents with provenance evidence."""
+    if x_business_id:
+        verify_user_business_access(db, current_user, x_business_id, action="search knowledge in")
+
     retriever = HybridRetriever(db)
     result = retriever.retrieve(
         query=payload.query,
@@ -236,4 +259,3 @@ def search_knowledge(
         business_id=x_business_id,
     )
     return KnowledgeSearchResponse.model_validate(result.model_dump())
-

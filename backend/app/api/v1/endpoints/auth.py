@@ -8,12 +8,14 @@ Supports:
 """
 
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
-from app.core.auth import get_current_user
+from app.core.auth import bearer_security, get_current_user
+from app.core.rate_limit import auth_rate_limiter, get_client_ip
 from app.models.tenant import UserIdentity
 from app.services.auth_service import AuthService
 
@@ -24,7 +26,7 @@ EMAIL_REGEX = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 class SignupRequest(BaseModel):
     email: str = Field(..., pattern=EMAIL_REGEX, description="Valid email address")
-    password: str = Field(..., min_length=8, description="Minimum 8 characters")
+    password: str = Field(..., min_length=8, max_length=128, description="Between 8 and 128 characters")
     full_name: str | None = None
     organization_name: str | None = None
     business_name: str | None = None
@@ -49,8 +51,10 @@ class UserProfileResponse(BaseModel):
 
 
 @router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def signup(req: SignupRequest, db: Session = Depends(get_db_session)) -> TokenResponse:
-    """Create a new user account, organization, and primary business workspace."""
+def signup(req: SignupRequest, request: Request, db: Session = Depends(get_db_session)) -> TokenResponse:
+    """Create a new user account, organization, and primary business workspace with abuse protection."""
+    client_ip = get_client_ip(request)
+    auth_rate_limiter.record_attempt(f"signup:{client_ip}", max_requests=10, window_seconds=3600)
     try:
         user, org, biz = AuthService.signup(
             db=db,
@@ -92,8 +96,12 @@ def signup(req: SignupRequest, db: Session = Depends(get_db_session)) -> TokenRe
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(req: LoginRequest, db: Session = Depends(get_db_session)) -> TokenResponse:
-    """Authenticate with email and password, returning a signed JWT access token."""
+def login(req: LoginRequest, request: Request, db: Session = Depends(get_db_session)) -> TokenResponse:
+    """Authenticate with email and password with sliding-window brute force protection."""
+    client_ip = get_client_ip(request)
+    rate_key = f"login:{client_ip}:{req.email.lower().strip()}"
+    auth_rate_limiter.record_attempt(rate_key, max_requests=5, window_seconds=60)
+
     user = AuthService.authenticate(db=db, email=req.email, password=req.password)
     if not user:
         raise HTTPException(
@@ -101,6 +109,9 @@ def login(req: LoginRequest, db: Session = Depends(get_db_session)) -> TokenResp
             detail="Incorrect email or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Successful login: reset failed counter for this IP/email pair
+    auth_rate_limiter.reset(rate_key)
 
     tenants = AuthService.get_user_tenants(db=db, user_id=user.id)
     primary_org = tenants[0]["organization"] if tenants else None
@@ -123,6 +134,16 @@ def login(req: LoginRequest, db: Session = Depends(get_db_session)) -> TokenResp
         organization=primary_org,
         business=primary_biz,
     )
+
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+def logout(
+    bearer_creds: HTTPAuthorizationCredentials | None = Security(bearer_security),
+) -> dict[str, str]:
+    """Revoke current access token server-side immediately."""
+    if bearer_creds and bearer_creds.credentials:
+        AuthService.revoke_token(bearer_creds.credentials)
+    return {"message": "Logged out successfully. Authentication token has been revoked."}
 
 
 @router.get("/me", response_model=UserProfileResponse)

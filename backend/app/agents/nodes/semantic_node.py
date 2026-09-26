@@ -105,7 +105,11 @@ def retrieve_context_node(state: AgentState, config: RunnableConfig | None = Non
     retrieved_context = None
     if session:
         retriever = HybridRetriever(session)
-        retrieved_context = retriever.retrieve(user_query, business_domain=resolved_domain)
+        retrieved_context = retriever.retrieve(
+            user_query,
+            business_domain=resolved_domain,
+            business_id=state.get("business_id"),
+        )
     else:
         # Fallback offline hybrid retriever using semantic ontology directly
         from app.rag.retrieval.models import RetrievedContext

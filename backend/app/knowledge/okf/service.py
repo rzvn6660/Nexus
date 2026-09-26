@@ -160,10 +160,13 @@ class OKFService:
         Allows HybridRetriever to query verified business context while marking
         content explicitly as a business definition.
         """
-        doc_id = f"okf_{bundle.id}"
+        doc_id = f"okf_{business_id}_{bundle.id}" if business_id else f"okf_{bundle.id}"
         # Remove existing document and chunks if present
         existing_doc = session.execute(
-            select(KnowledgeDocument).where(KnowledgeDocument.document_id == doc_id)
+            select(KnowledgeDocument).where(
+                KnowledgeDocument.document_id == doc_id,
+                KnowledgeDocument.business_id == business_id,
+            )
         ).scalar_one_or_none()
 
         if existing_doc:
@@ -171,7 +174,7 @@ class OKFService:
             session.flush()
 
         import hashlib
-        content_hash = hashlib.sha256(bundle.id.encode("utf-8")).hexdigest()
+        content_hash = hashlib.sha256(f"{business_id}_{bundle.id}".encode("utf-8")).hexdigest()
 
         doc = KnowledgeDocument(
             document_id=doc_id,
@@ -206,10 +209,11 @@ class OKFService:
 
             # Dummy embedding for test/offline environments if not available
             embedding_val = [0.0] * 1536
+            chunk_id = f"chk_okf_{business_id}_{bundle.id}_{it.id}" if business_id else f"chk_okf_{bundle.id}_{it.id}"
 
             chunk = KnowledgeChunk(
                 document_id=doc.id,
-                chunk_id=f"chk_okf_{bundle.id}_{it.id}",
+                chunk_id=chunk_id,
                 chunk_index=idx,
                 title=it.name,
                 content=content_text,
@@ -353,8 +357,10 @@ class OKFService:
             return False
 
         # Delete corresponding RAG doc
-        rag_doc_id = f"okf_{bundle_id}"
-        session.query(KnowledgeDocument).filter(KnowledgeDocument.document_id == rag_doc_id).delete()
+        rag_doc_id = f"okf_{bundle_model.business_id}_{bundle_id}" if bundle_model.business_id else f"okf_{bundle_id}"
+        session.query(KnowledgeDocument).filter(
+            KnowledgeDocument.document_id == rag_doc_id
+        ).delete()
 
         session.delete(bundle_model)
         session.commit()

@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.database import engine, check_database_connection
-from app.core.middleware import RequestCorrelationMiddleware
+from app.core.middleware import RequestCorrelationMiddleware, SecurityHeadersMiddleware
 from app.api.router import root_api_router
 
 # Initialize structured logging
@@ -66,6 +66,7 @@ def create_application() -> FastAPI:
 
     # Request correlation and logging middleware
     app.add_middleware(RequestCorrelationMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # Cross-Origin Resource Sharing (strictly sanitized for production)
     allowed_origins = settings.get_sanitized_cors_origins()
