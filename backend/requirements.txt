@@ -28,3 +28,6 @@ openai>=1.20.0,<3.0.0
 # RAG & Vector Storage
 pgvector>=0.2.5,<1.0.0
 pypdf>=4.0.0,<6.0.0
+
+# Decision Engines (Experimental / Optional)
+typesafe-sdk==0.7.1

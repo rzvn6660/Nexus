@@ -548,3 +548,75 @@ class TestJevDecisionProvider:
 
         assert res.status == DecisionStatus.SUCCESS
         assert res.decision == "HIGH"
+
+
+class TestPhase12CExemplarsAndPilot:
+    """Test suite for Phase 12C: Domain exemplars, zero leakage, and selective pilot evaluation."""
+
+    def test_exemplars_structure_and_validity(self):
+        from app.decisions.exemplars import get_intent_exemplars, format_exemplars_for_prompt
+
+        exemplars = get_intent_exemplars()
+        assert len(exemplars) >= 12
+        for ex in exemplars:
+            assert "exemplar_id" in ex
+            assert "query" in ex
+            assert "target_intent" in ex
+            assert "rationale" in ex
+            assert "pattern_type" in ex
+            assert len(ex["query"]) > 10
+
+        prompt_str = format_exemplars_for_prompt()
+        assert "NEXUS Intent Disambiguation Guidelines" in prompt_str
+        assert "EX-INT-001" not in prompt_str or "diagnostic_analysis" in prompt_str
+
+    def test_zero_leakage_verifier(self):
+        from app.decisions.exemplars import verify_zero_evaluation_leakage
+
+        clean_cases = [
+            {"id": "TEST-001", "question": "Totally distinct synthetic question about solar panel efficiency in 2040?"},
+            {"id": "TEST-002", "question": "Another completely unrelated query about maritime shipping container rates?"},
+        ]
+        result = verify_zero_evaluation_leakage(clean_cases)
+        assert result["verified_clean"] is True
+        assert len(result["violations"]) == 0
+
+        # Verify that an exact match is caught
+        leaked_cases = [
+            {"id": "LEAK-001", "question": "Explain the variance in regional cloud subscription revenue between Q1 and Q2"}
+        ]
+        result_leak = verify_zero_evaluation_leakage(leaked_cases)
+        assert result_leak["verified_clean"] is False
+        assert len(result_leak["violations"]) == 1
+        assert result_leak["violations"][0]["exemplar_id"] == "EX-INT-001"
+
+    def test_jev_provider_with_exemplars_in_context(self):
+        from app.decisions.exemplars import get_intent_exemplars
+
+        mock_client = MagicMock()
+        mock_answer = MagicMock()
+        mock_answer.choice = "diagnostic_analysis"
+        mock_answer.confidence = 0.96
+        mock_answer.probabilities = {"diagnostic_analysis": 0.96}
+
+        mock_response = MagicMock()
+        mock_response.answers = {"intent": mock_answer}
+        mock_response.usage = None
+        mock_client.system_one.return_value = mock_response
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(
+            task=DecisionTask.INTENT_ROUTING,
+            input_text="Why did Q3 revenue drop across West branch?",
+            candidate_options=["metric_lookup", "diagnostic_analysis", "forecasting"],
+            context={"exemplars": get_intent_exemplars()},
+        )
+        res = provider.execute_decision(req)
+
+        assert res.status == DecisionStatus.SUCCESS
+        assert res.decision == "diagnostic_analysis"
+        assert res.confidence == 0.96
+        # Verify state passed to system_one contained context
+        called_args = mock_client.system_one.call_args[1]
+        assert "context" in called_args["state"]
+        assert "exemplars" in called_args["state"]["context"]

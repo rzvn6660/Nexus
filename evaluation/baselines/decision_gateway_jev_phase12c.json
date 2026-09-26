@@ -1,0 +1,76 @@
+{
+  "benchmark_phase": "Phase 12C - Jev Domain-Tuning & Selective Pilots",
+  "generated_at": "2026-09-26T14:28:24.745255+00:00",
+  "total_cases_evaluated": 57,
+  "leakage_verification": {
+    "verified_clean": true,
+    "total_exemplars_checked": 15,
+    "total_test_cases_checked": 57,
+    "violations": []
+  },
+  "runs": {
+    "structured_llm_baseline": {
+      "intent_routing_accuracy_pct": 31.25,
+      "tool_selection_accuracy_pct": 26.67,
+      "evidence_sufficiency_accuracy_pct": 100.0,
+      "risk_gating_validity_pct": 100.0,
+      "p95_adapter_latency_ms": 0.02,
+      "live_network_latency": "NOT MEASURED (Phase 12A Baseline)",
+      "cost_usd": "NOT MEASURED"
+    },
+    "jev_zero_shot": {
+      "intent_routing_accuracy_pct": 27.08,
+      "tool_selection_accuracy_pct": 30.0,
+      "evidence_sufficiency_accuracy_pct": 100.0,
+      "risk_gating_validity_pct": 100.0,
+      "p95_adapter_latency_ms": 0.014,
+      "live_network_latency": "NOT MEASURED (Local Fixture)",
+      "cost_usd": "NOT MEASURED"
+    },
+    "jev_plus_exemplars": {
+      "intent_routing_accuracy_pct": 45.83,
+      "tool_selection_accuracy_pct": 40.0,
+      "evidence_sufficiency_accuracy_pct": 100.0,
+      "risk_gating_validity_pct": 100.0,
+      "p95_adapter_latency_ms": 0.02,
+      "live_network_latency": "NOT MEASURED (Local Fixture)",
+      "cost_usd": "NOT MEASURED"
+    }
+  },
+  "taxonomy_breakdown": {
+    "total_intent_questions": 48,
+    "intents_in_intent_category_enum": 22,
+    "intents_missing_from_intent_category_enum": 26,
+    "reachable_intent_accuracy_pct": {
+      "structured_llm_baseline": 68.18,
+      "jev_zero_shot": 59.09,
+      "jev_plus_exemplars": 100.0
+    }
+  },
+  "confidence_calibration_analysis": {
+    "confidence_available": true,
+    "high_confidence_incorrect_decisions_detected": true,
+    "calibration_status": "UNVALIDATED",
+    "findings": "Jev outputs calibrated confidence scores (e.g. 0.88-0.95), but on out-of-candidate questions or ambiguous compound queries, it produces high confidence (>0.90) on incorrect classifications. Confidence cannot be treated as statistically reliable without domain-specific calibration layers."
+  },
+  "tool_selection_analysis": {
+    "total_cases_with_tools": 30,
+    "cases_with_tools_in_registry": 10,
+    "cases_with_tools_missing_from_registry": 20,
+    "accuracy_overall_pct": 30.0,
+    "accuracy_on_registered_tools_pct": 90.0,
+    "candidate_boundary_violations": 0,
+    "invalid_selections": 0
+  },
+  "evidence_sufficiency_analysis": {
+    "deterministic_portion_pct": 100.0,
+    "external_model_portion_pct": 0.0,
+    "recommendation": "NOT JUSTIFIED for Jev. Evaluation node logic is 100% deterministic code."
+  },
+  "task_decision_gate": {
+    "intent_routing": "EXPERIMENTAL ONLY (exemplars improve reachable queries to >90%, but taxonomy alignment required)",
+    "tool_selection": "EXPERIMENTAL ONLY (30.0% overall, 90.0% on registered tools; candidate boundary enforced)",
+    "evidence_sufficiency": "NOT JUSTIFIED (100% deterministic logic already handles state with 0 cost and 0 latency)",
+    "risk_gating": "EXPERIMENTAL ONLY (100% bounded validity, but unvalidated confidence requires deterministic guardrails)"
+  }
+}
