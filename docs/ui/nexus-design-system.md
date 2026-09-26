@@ -12,7 +12,7 @@ The NEXUS Design System exists to support rigorous, evidence-grounded decision m
 
 1. **Substance over Spectacle**: Every visual element must convey real analytical information.
 2. **Deterministic Clarity**: Users must instantly distinguish between an empirical fact, a tested hypothesis, a predictive forecast, and a human recommendation.
-3. **Progressive Disclosure**: High-level executive briefings come first; cryptographic SQL lineage, row-level filters, and backtest errors are accessible in one click.
+3. **Progressive Disclosure**: High-level executive briefings come first; verifiable SQL lineage, row-level filters, and backtest errors are accessible in one click.
 4. **Human Authority**: The machine proposes, explains, and provides evidence; the human operator reviews, modifies, and decides.
 
 ---
@@ -109,7 +109,7 @@ Interactive human review surface for proposed recommendations:
 ### 3.10 `EvidenceDrawer` / `EvidencePanel`
 Dual-view provenance drawer:
 - **Executive View**: Business logic, plain-English justification, policy citations
-- **Analyst Audit View**: Full database tables, columns, SQL predicates, latency, and SHA-256 cryptographic hash
+- **Analyst Audit View**: Full database tables, columns, SQL predicates, latency, and SHA-256 query checksum
 
 ---
 

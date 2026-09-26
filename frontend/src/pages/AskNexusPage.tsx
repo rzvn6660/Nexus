@@ -59,7 +59,7 @@ export const AskNexusPage: React.FC<AskNexusPageProps> = ({
 
     const t2 = setTimeout(() => {
       setCurrentStage('validate');
-      setStageMessage('Cross-verifying row counts, cryptographic checksums, and business policies...');
+      setStageMessage('Cross-verifying row counts, evidence lineage, and business policies...');
     }, 1200);
 
     try {

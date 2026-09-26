@@ -18,8 +18,8 @@ Rather than presenting a generic SaaS marketing template or an ungrounded chat i
 ### 1. First Impression Goal & Tone
 
 When an executive, analyst, or technical recruiter opens NEXUS, the interface communicates three immediate truths:
-1. **Engineered by an AI/Data Systems Architect**: The platform is not a wrapper over an LLM or a collection of static KPI cards. It is an orchestrated pipeline of data ingestion, deterministic mathematical analytics, automated hypothesis testing, predictive time-series modeling, cryptographic evidence logging, and human governance.
-2. **Product-First, Zero Synthetic Fluff**: The initial screen does not use placeholder marketing claims ("Used by 500+ enterprises", "99.9% AI accuracy"). Every value, trend line, and exception is derived directly from live database tables via deterministic SQL queries.
+1. **Engineered by an AI/Data Systems Architect**: The platform is not a wrapper over an LLM or a collection of static KPI cards. It is an orchestrated pipeline of data ingestion, deterministic computation, hypothesis testing, predictive time-series modeling, evidence validation, and provenance tracking.
+2. **Synthetic Data Transparency**: No fabricated product or customer claims. Business metrics shown in the demo are generated from the project's seeded validation dataset.
 3. **Quiet, Authoritative Precision**: Deep Obsidian Void (`#040711`), architectural gridlines, and restrained cyan/electric sky junctions replace distracting neon glows, 3D floating models, and meaningless particle animations.
 
 ---

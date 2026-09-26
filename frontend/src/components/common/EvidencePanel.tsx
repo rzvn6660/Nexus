@@ -54,7 +54,7 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({
             <span>{title}</span>
           </h3>
           <p className="text-xs text-slate-400 mt-0.5 font-sans">
-            Cryptographically signed evidence trace guaranteeing deterministic computation.
+            Verified evidence trace guaranteeing deterministic computation, provenance, and traceability.
           </p>
         </div>
 

@@ -145,7 +145,7 @@ $$\text{Business Data} + \text{Business Context} + \text{Deterministic Analytics
 - **New Direction**:
   - **Continuous Workflow Anchor**:
     $$\text{QUESTION} \longrightarrow \text{DETERMINISTIC METRIC} \longrightarrow \text{RESULT} \longrightarrow \text{INVESTIGATE [Why did this change?]} \longrightarrow \text{FORECAST [What happens next?]}$$
-  - High-density precision data tables with direct link to cryptographic evidence.
+  - High-density precision data tables with direct link to verifiable evidence.
 
 ---
 
@@ -157,7 +157,7 @@ $$\text{Business Data} + \text{Business Context} + \text{Deterministic Analytics
 - **New Direction**:
   - **Dual-Perspective Presentation**:
     - **Executive / Business View**: Plain-language justification, formal business definition, data freshness, and policy references.
-    - **Analyst Audit View**: Full database lineage (tables, columns, date partitions), executed SQL, row-level filters, execution latency, and SHA-256 cryptographic fingerprint with 1-click verification.
+    - **Analyst Audit View**: Full database lineage (tables, columns, date partitions), executed SQL, row-level filters, execution latency, and SHA-256 evidence fingerprint with 1-click verification.
 
 ---
 

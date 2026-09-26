@@ -52,10 +52,10 @@ const STAGES: StageItem[] = [
     id: 'validate',
     stageNumber: '04',
     name: 'VALIDATE',
-    role: 'SQL Proof & Provenance',
+    role: 'Evidence Validation & Provenance',
     icon: ShieldCheck,
     route: '/analytics',
-    tag: 'Cryptographic',
+    tag: 'Verifiable Lineage',
   },
   {
     id: 'predict',

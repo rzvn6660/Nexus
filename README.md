@@ -39,7 +39,7 @@ NEXUS is **not** a generic "chat with CSV" prompt wrapper that asks a language m
 - **Diagnostic Causal Decomposition**: Uncovers the mathematical root cause of performance shifts across Price, Volume, Mix, and Segment dimensions.
 - **Business Context RAG**: Embeds corporate policies, accounting standards, and domain definitions using `pgvector` to resolve acronyms and apply contextual rules.
 - **Calibrated Predictive Intelligence**: Generates multi-horizon time-series forecasts with empirical confidence intervals (P10/P50/P90) rather than deterministic illusion.
-- **Immutable Evidence Packets**: Generates cryptographic proof packets for every finding, citing executed SQL, elapsed time, and confidence bounds.
+- **Verifiable Evidence Packets**: Generates reproducible evidence packets for every finding, citing executed SQL, elapsed time, and confidence bounds.
 - **High-Density Product UI**: Fully responsive dark/light studio interface featuring real-time conversational intelligence, diagnostic waterfalls, forecast visualization, data health telemetry, and semantic catalog management.
 
 ---
