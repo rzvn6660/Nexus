@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class IntentCategory(str, Enum):
-    """Supported analytical intent categories for Phase 4."""
+    """Authoritative analytical intent categories for NEXUS (Phase 13 Taxonomy)."""
     METRIC_LOOKUP = "metric_lookup"
     COMPARISON = "comparison"
     TREND = "trend"
@@ -19,6 +19,7 @@ class IntentCategory(str, Enum):
     DIAGNOSTIC_ANALYSIS = "diagnostic_analysis"
     STATISTICAL_ANALYSIS = "statistical_analysis"
     FORECASTING = "forecasting"
+    SEMANTIC_RESOLUTION = "semantic_resolution"
     UNSUPPORTED = "unsupported"
 
 
@@ -40,7 +41,8 @@ class EvidenceSufficiencyStatus(str, Enum):
 
 class IntentResult(BaseModel):
     """Structured intent classification payload."""
-    category: IntentCategory = Field(description="Classified analytical intent")
+    category: IntentCategory = Field(description="Classified canonical analytical intent")
+    subtype: str | None = Field(default=None, description="Optional fine-grained intent subtype")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Classification confidence")
     reasoning: str = Field(default="", description="Reasoning behind intent classification")
 

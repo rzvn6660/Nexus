@@ -1,6 +1,6 @@
 # NEXUS Phase 12C: Jev Domain-Tuning & Selective Pilot Evaluation Report
 
-**Generated:** 2026-09-26T14:28:24.745255+00:00  
+**Generated:** 2026-09-26T14:58:15.389671+00:00  
 **Evaluated Systems:**
 1. Baseline Structured LLM (Phase 12A)
 2. Jev Zero-Shot (Phase 12B)

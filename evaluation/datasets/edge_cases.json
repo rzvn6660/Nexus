@@ -8,7 +8,10 @@
     "expected_behavior": "empty_result_graceful",
     "expected_status": "completed",
     "expected_empty_indicator": true,
-    "expected_safeguards": ["no transactional records in specified temporal range"]
+    "expected_safeguards": [
+      "no transactional records in specified temporal range"
+    ],
+    "expected_subtype": "single_metric"
   },
   {
     "id": "EDGE-002",
@@ -18,17 +21,24 @@
     "expected_intent": "metric_lookup",
     "expected_behavior": "zero_safe_calculation",
     "expected_status": "completed",
-    "expected_safeguards": ["safe division by zero returns zero rather than NaN or 500 exception"]
+    "expected_safeguards": [
+      "safe division by zero returns zero rather than NaN or 500 exception"
+    ],
+    "expected_subtype": "single_metric"
   },
   {
     "id": "EDGE-003",
     "name": "Unknown Product SKU Lookup",
     "question": "How did SKU-UNKNOWN-9999 perform last quarter?",
     "category": "edge_case",
-    "expected_intent": "product_lookup",
+    "expected_intent": "product_analysis",
     "expected_behavior": "missing_entity_notice",
     "expected_status": "completed",
-    "expected_drivers": ["product not found", "SKU-UNKNOWN-9999"]
+    "expected_drivers": [
+      "product not found",
+      "SKU-UNKNOWN-9999"
+    ],
+    "expected_subtype": "product_lookup"
   },
   {
     "id": "EDGE-004",
@@ -37,7 +47,8 @@
     "category": "edge_case",
     "expected_intent": "unsupported",
     "expected_behavior": "safe_rejection",
-    "expected_status": "unsupported"
+    "expected_status": "unsupported",
+    "expected_subtype": "unsupported"
   },
   {
     "id": "EDGE-005",
@@ -46,34 +57,45 @@
     "category": "edge_case",
     "expected_intent": "semantic_resolution",
     "expected_behavior": "ambiguity_clarification",
-    "expected_candidates": ["net_revenue", "inventory_turnover"]
+    "expected_candidates": [
+      "net_revenue",
+      "inventory_turnover"
+    ],
+    "expected_subtype": "semantic_resolution"
   },
   {
     "id": "EDGE-006",
     "name": "Insufficient Forecast History",
     "question": "Forecast revenue for 12 months using only 2 months of history",
     "category": "edge_case",
-    "expected_intent": "forecast_lookup",
+    "expected_intent": "forecasting",
     "expected_behavior": "insufficient_data_error",
     "expected_warning_code": "INSUFFICIENT_DATA",
-    "expected_safeguards": ["requires minimum consecutive historical observations"]
+    "expected_safeguards": [
+      "requires minimum consecutive historical observations"
+    ],
+    "expected_subtype": "forecast_lookup"
   },
   {
     "id": "EDGE-007",
     "name": "Negative Inventory Anomaly",
     "question": "Are there any inventory records with negative stock counts?",
     "category": "edge_case",
-    "expected_intent": "inventory_lookup",
+    "expected_intent": "inventory_analysis",
     "expected_behavior": "data_quality_audit",
-    "expected_tables": ["inventory"]
+    "expected_tables": [
+      "inventory"
+    ],
+    "expected_subtype": "inventory_lookup"
   },
   {
     "id": "EDGE-008",
     "name": "Missing Customer Segment",
     "question": "What were sales for the NonExistentSegment customer group?",
     "category": "edge_case",
-    "expected_intent": "customer_lookup",
-    "expected_behavior": "empty_result_graceful"
+    "expected_intent": "customer_analysis",
+    "expected_behavior": "empty_result_graceful",
+    "expected_subtype": "customer_lookup"
   },
   {
     "id": "EDGE-009",
@@ -81,7 +103,8 @@
     "question": "What was our revenue in December 2099?",
     "category": "edge_case",
     "expected_intent": "metric_lookup",
-    "expected_behavior": "empty_result_graceful"
+    "expected_behavior": "empty_result_graceful",
+    "expected_subtype": "single_metric"
   },
   {
     "id": "EDGE-010",
@@ -95,7 +118,8 @@
       "field": "net_sales",
       "value": 340.0,
       "tolerance_abs": 0.01
-    }
+    },
+    "expected_subtype": "single_metric"
   },
   {
     "id": "EDGE-011",
@@ -103,7 +127,8 @@
     "question": "What was revenue on 2023-05-10?",
     "category": "edge_case",
     "expected_intent": "metric_lookup",
-    "expected_behavior": "answer_with_evidence"
+    "expected_behavior": "answer_with_evidence",
+    "expected_subtype": "single_metric"
   },
   {
     "id": "EDGE-012",
@@ -111,6 +136,7 @@
     "question": "What was our revenue yesterday last year in August 2024?",
     "category": "edge_case",
     "expected_intent": "metric_lookup",
-    "expected_behavior": "temporal_normalization"
+    "expected_behavior": "temporal_normalization",
+    "expected_subtype": "single_metric"
   }
 ]

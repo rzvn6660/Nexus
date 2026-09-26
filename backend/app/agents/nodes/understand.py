@@ -57,22 +57,26 @@ def understand_request_node(state: AgentState) -> dict[str, Any]:
             }
 
     # Intent classification via Decision Gateway
+    from app.decisions.taxonomy import get_canonical_intent_ids, resolve_intent
+
     gateway = get_decision_gateway()
-    supported_intents = [e.value for e in IntentCategory]
+    supported_intents = get_canonical_intent_ids()
     decision = gateway.route_intent(
         user_query,
         supported_intents,
         metadata={"request_id": state.get("request_id")},
     )
 
-    intent_category_str = decision.decision or IntentCategory.METRIC_LOOKUP.value
+    raw_decision_str = decision.decision or IntentCategory.METRIC_LOOKUP.value
+    canonical_id, subtype = resolve_intent(raw_decision_str)
     try:
-        intent_cat = IntentCategory(intent_category_str)
+        intent_cat = IntentCategory(canonical_id)
     except ValueError:
         intent_cat = IntentCategory.METRIC_LOOKUP
 
     intent_result = IntentResult(
         category=intent_cat,
+        subtype=subtype,
         confidence=decision.confidence if decision.confidence is not None else 1.0,
         reasoning=decision.rationale or "Classified by Decision Gateway",
     )

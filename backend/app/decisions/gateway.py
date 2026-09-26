@@ -87,10 +87,14 @@ class DecisionGateway:
     def route_intent(
         self,
         query: str,
-        candidate_intents: list[str],
+        candidate_intents: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> DecisionResult:
         """Route user natural language query to an analytical intent category."""
+        if not candidate_intents:
+            from app.decisions.taxonomy import get_canonical_intent_ids
+            candidate_intents = get_canonical_intent_ids()
+
         req = DecisionRequest(
             task=DecisionTask.INTENT_ROUTING,
             input_text=query,

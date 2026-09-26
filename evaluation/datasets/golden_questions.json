@@ -5,8 +5,15 @@
     "category": "descriptive",
     "expected_intent": "metric_lookup",
     "expected_metric": "net_revenue",
-    "expected_tools": ["get_financial_summary"],
-    "expected_tables": ["sales", "sale_items", "products", "expenses"],
+    "expected_tools": [
+      "get_financial_summary"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products",
+      "expenses"
+    ],
     "expected_behavior": "answer_with_evidence",
     "expected_numeric": {
       "field": "net_sales",
@@ -16,7 +23,8 @@
     },
     "expected_drivers": [],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "single_metric"
   },
   {
     "id": "GOLD-DESC-002",
@@ -24,8 +32,12 @@
     "category": "descriptive",
     "expected_intent": "metric_lookup",
     "expected_metric": "order_count",
-    "expected_tools": ["get_financial_summary"],
-    "expected_tables": ["sales"],
+    "expected_tools": [
+      "get_financial_summary"
+    ],
+    "expected_tables": [
+      "sales"
+    ],
     "expected_behavior": "answer_with_evidence",
     "expected_numeric": {
       "field": "order_count",
@@ -35,7 +47,8 @@
     },
     "expected_drivers": [],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "single_metric"
   },
   {
     "id": "GOLD-DESC-003",
@@ -43,8 +56,12 @@
     "category": "descriptive",
     "expected_intent": "metric_lookup",
     "expected_metric": "average_order_value",
-    "expected_tools": ["get_financial_summary"],
-    "expected_tables": ["sales"],
+    "expected_tools": [
+      "get_financial_summary"
+    ],
+    "expected_tables": [
+      "sales"
+    ],
     "expected_behavior": "answer_with_evidence",
     "expected_numeric": {
       "field": "average_order_value",
@@ -54,7 +71,8 @@
     },
     "expected_drivers": [],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "single_metric"
   },
   {
     "id": "GOLD-DESC-004",
@@ -62,8 +80,14 @@
     "category": "descriptive",
     "expected_intent": "metric_lookup",
     "expected_metric": "gross_profit",
-    "expected_tools": ["get_financial_summary"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "get_financial_summary"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
     "expected_numeric": {
       "field": "gross_profit",
@@ -73,42 +97,70 @@
     },
     "expected_drivers": [],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "single_metric"
   },
   {
     "id": "GOLD-DESC-005",
     "question": "Which product generated the most revenue in August 2024?",
     "category": "descriptive",
-    "expected_intent": "ranking_lookup",
+    "expected_intent": "product_analysis",
     "expected_metric": "product_revenue",
-    "expected_tools": ["get_top_products"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "get_product_rankings"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["Gadget B", "SKU-B"],
+    "expected_drivers": [
+      "Gadget B",
+      "SKU-B"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "ranking_lookup"
   },
   {
     "id": "GOLD-DESC-006",
     "question": "Which category contributed the most revenue?",
     "category": "descriptive",
-    "expected_intent": "category_breakdown",
+    "expected_intent": "product_analysis",
     "expected_metric": "category_revenue",
-    "expected_tools": ["get_category_performance"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "get_category_breakdown"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["Electronics"],
+    "expected_drivers": [
+      "Electronics"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "category_breakdown"
   },
   {
     "id": "GOLD-COMP-001",
     "question": "How did revenue change compared with the previous month?",
     "category": "comparison",
-    "expected_intent": "period_comparison",
+    "expected_intent": "comparison",
     "expected_metric": "net_revenue",
-    "expected_tools": ["get_financial_summary", "run_variance_analysis"],
-    "expected_tables": ["sales", "sale_items", "products", "expenses"],
+    "expected_tools": [
+      "get_financial_summary",
+      "run_variance_analysis"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products",
+      "expenses"
+    ],
     "expected_behavior": "answer_with_evidence",
     "expected_numeric": {
       "field": "growth_rate",
@@ -116,48 +168,79 @@
       "tolerance_abs": 0.5,
       "tolerance_rel": 0.02
     },
-    "expected_drivers": ["June", "May"],
+    "expected_drivers": [
+      "June",
+      "May"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "period_comparison"
   },
   {
     "id": "GOLD-COMP-002",
     "question": "Which product categories grew the most month over month?",
     "category": "comparison",
-    "expected_intent": "period_comparison",
+    "expected_intent": "comparison",
     "expected_metric": "category_growth",
-    "expected_tools": ["get_category_performance"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "get_category_breakdown"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["Electronics", "Hardware"],
+    "expected_drivers": [
+      "Electronics",
+      "Hardware"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "period_comparison"
   },
   {
     "id": "GOLD-COMP-003",
     "question": "Did gross profit improve between May and June?",
     "category": "comparison",
-    "expected_intent": "period_comparison",
+    "expected_intent": "comparison",
     "expected_metric": "gross_profit",
-    "expected_tools": ["get_financial_summary", "run_variance_analysis"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "get_financial_summary",
+      "run_variance_analysis"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["Gross profit increased"],
+    "expected_drivers": [
+      "Gross profit increased"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "period_comparison"
   },
   {
     "id": "GOLD-COMP-004",
     "question": "Which products declined in volume?",
     "category": "comparison",
-    "expected_intent": "product_comparison",
+    "expected_intent": "comparison",
     "expected_metric": "units_sold",
-    "expected_tools": ["get_top_products"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "get_product_rankings"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
     "expected_drivers": [],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "product_comparison"
   },
   {
     "id": "GOLD-DIAG-001",
@@ -165,12 +248,30 @@
     "category": "diagnostic",
     "expected_intent": "diagnostic_analysis",
     "expected_metric": "revenue_variance",
-    "expected_tools": ["get_financial_summary", "run_variance_analysis"],
-    "expected_tables": ["sales", "sale_items", "products", "expenses"],
+    "expected_tools": [
+      "get_financial_summary",
+      "run_variance_analysis"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products",
+      "expenses"
+    ],
     "expected_behavior": "audited_investigation",
-    "expected_drivers": ["volume", "category_variance", "product_contribution"],
-    "expected_safeguards": ["association does not establish causation"],
-    "expected_limitations": ["unmeasured external factors", "sample window"]
+    "expected_drivers": [
+      "volume",
+      "category_variance",
+      "product_contribution"
+    ],
+    "expected_safeguards": [
+      "association does not establish causation"
+    ],
+    "expected_limitations": [
+      "unmeasured external factors",
+      "sample window"
+    ],
+    "expected_subtype": "variance_decomposition"
   },
   {
     "id": "GOLD-DIAG-002",
@@ -178,12 +279,28 @@
     "category": "diagnostic",
     "expected_intent": "diagnostic_analysis",
     "expected_metric": "gross_profit_variance",
-    "expected_tools": ["run_variance_analysis", "get_financial_summary"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "run_variance_analysis",
+      "get_financial_summary"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "audited_investigation",
-    "expected_drivers": ["cost of goods sold", "selling price", "volume"],
-    "expected_safeguards": ["statistical association does not establish causal proof"],
-    "expected_limitations": ["supplier cost changes unmodeled"]
+    "expected_drivers": [
+      "cost of goods sold",
+      "selling price",
+      "volume"
+    ],
+    "expected_safeguards": [
+      "statistical association does not establish causal proof"
+    ],
+    "expected_limitations": [
+      "supplier cost changes unmodeled"
+    ],
+    "expected_subtype": "variance_decomposition"
   },
   {
     "id": "GOLD-DIAG-003",
@@ -191,12 +308,25 @@
     "category": "diagnostic",
     "expected_intent": "diagnostic_analysis",
     "expected_metric": "product_contribution",
-    "expected_tools": ["run_variance_analysis", "get_top_products"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "run_variance_analysis",
+      "get_product_rankings"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "audited_investigation",
-    "expected_drivers": ["SKU-A", "SKU-B"],
-    "expected_safeguards": ["correlation is not causation"],
-    "expected_limitations": []
+    "expected_drivers": [
+      "SKU-A",
+      "SKU-B"
+    ],
+    "expected_safeguards": [
+      "correlation is not causation"
+    ],
+    "expected_limitations": [],
+    "expected_subtype": "variance_decomposition"
   },
   {
     "id": "GOLD-DIAG-004",
@@ -204,12 +334,26 @@
     "category": "diagnostic",
     "expected_intent": "diagnostic_analysis",
     "expected_metric": "price_volume_mix",
-    "expected_tools": ["run_pvm_decomposition", "run_variance_analysis"],
-    "expected_tables": ["sales", "sale_items", "products"],
+    "expected_tools": [
+      "run_price_volume_mix",
+      "run_variance_analysis"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "audited_investigation",
-    "expected_drivers": ["volume effect", "price effect", "mix effect"],
-    "expected_safeguards": ["decomposition is accounting-based, not behavioral causation"],
-    "expected_limitations": []
+    "expected_drivers": [
+      "volume effect",
+      "price effect",
+      "mix effect"
+    ],
+    "expected_safeguards": [
+      "decomposition is accounting-based, not behavioral causation"
+    ],
+    "expected_limitations": [],
+    "expected_subtype": "variance_decomposition"
   },
   {
     "id": "GOLD-DIAG-005",
@@ -217,73 +361,127 @@
     "category": "diagnostic",
     "expected_intent": "diagnostic_analysis",
     "expected_metric": "customer_behavior",
-    "expected_tools": ["get_customer_metrics", "get_repeat_purchase_rate"],
-    "expected_tables": ["sales", "customers"],
+    "expected_tools": [
+      "get_customer_segments",
+      "get_repeat_purchase"
+    ],
+    "expected_tables": [
+      "sales",
+      "customers"
+    ],
     "expected_behavior": "audited_investigation",
-    "expected_drivers": ["repeat purchase", "order frequency"],
-    "expected_safeguards": ["safeguard"],
-    "expected_limitations": []
+    "expected_drivers": [
+      "repeat purchase",
+      "order frequency"
+    ],
+    "expected_safeguards": [
+      "safeguard"
+    ],
+    "expected_limitations": [],
+    "expected_subtype": "variance_decomposition"
   },
   {
     "id": "GOLD-INVT-001",
     "question": "Which products are currently low in stock?",
     "category": "inventory",
-    "expected_intent": "inventory_lookup",
+    "expected_intent": "inventory_analysis",
     "expected_metric": "low_stock_items",
-    "expected_tools": ["get_inventory_status"],
-    "expected_tables": ["inventory", "products"],
+    "expected_tools": [
+      "get_inventory_overview"
+    ],
+    "expected_tables": [
+      "inventory",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["Desk Organizer Box #2", "Gadget B"],
+    "expected_drivers": [
+      "Desk Organizer Box #2",
+      "Gadget B"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "inventory_lookup"
   },
   {
     "id": "GOLD-INVT-002",
     "question": "What is our inventory turnover and days sales of inventory?",
     "category": "inventory",
-    "expected_intent": "inventory_lookup",
+    "expected_intent": "inventory_analysis",
     "expected_metric": "inventory_turnover",
-    "expected_tools": ["get_inventory_turnover"],
-    "expected_tables": ["inventory", "products", "sales", "sale_items"],
+    "expected_tools": [
+      "get_inventory_turnover"
+    ],
+    "expected_tables": [
+      "inventory",
+      "products",
+      "sales",
+      "sale_items"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["turnover_ratio", "days_sales_inventory"],
+    "expected_drivers": [
+      "turnover_ratio",
+      "days_sales_inventory"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "inventory_lookup"
   },
   {
     "id": "GOLD-INVT-003",
     "question": "Which products have high sales velocity?",
     "category": "inventory",
-    "expected_intent": "inventory_lookup",
+    "expected_intent": "inventory_analysis",
     "expected_metric": "sales_velocity",
-    "expected_tools": ["get_product_velocity"],
-    "expected_tables": ["sale_items", "products"],
+    "expected_tools": [
+      "get_inventory_velocity"
+    ],
+    "expected_tables": [
+      "sale_items",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["units_per_day"],
+    "expected_drivers": [
+      "units_per_day"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "inventory_lookup"
   },
   {
     "id": "GOLD-INVT-004",
     "question": "What inventory issues should be investigated?",
     "category": "inventory",
-    "expected_intent": "inventory_lookup",
+    "expected_intent": "inventory_analysis",
     "expected_metric": "inventory_health",
-    "expected_tools": ["get_inventory_status"],
-    "expected_tables": ["inventory", "products"],
+    "expected_tools": [
+      "get_inventory_overview"
+    ],
+    "expected_tables": [
+      "inventory",
+      "products"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["reorder threshold", "stockout risk"],
+    "expected_drivers": [
+      "reorder threshold",
+      "stockout risk"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "inventory_lookup"
   },
   {
     "id": "GOLD-CUST-001",
     "question": "What percentage of our customers are repeat purchasers?",
     "category": "customer",
-    "expected_intent": "customer_lookup",
+    "expected_intent": "customer_analysis",
     "expected_metric": "repeat_purchase_rate",
-    "expected_tools": ["get_repeat_purchase_rate"],
-    "expected_tables": ["customers", "sales"],
+    "expected_tools": [
+      "get_repeat_purchase"
+    ],
+    "expected_tables": [
+      "customers",
+      "sales"
+    ],
     "expected_behavior": "answer_with_evidence",
     "expected_numeric": {
       "field": "repeat_rate",
@@ -293,82 +491,134 @@
     },
     "expected_drivers": [],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "customer_lookup"
   },
   {
     "id": "GOLD-CUST-002",
     "question": "Which customer segments are most valuable by revenue?",
     "category": "customer",
-    "expected_intent": "customer_lookup",
+    "expected_intent": "customer_analysis",
     "expected_metric": "customer_segmentation",
-    "expected_tools": ["get_customer_metrics"],
-    "expected_tables": ["customers", "sales"],
+    "expected_tools": [
+      "get_customer_segments"
+    ],
+    "expected_tables": [
+      "customers",
+      "sales"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["Corporate", "Retail"],
+    "expected_drivers": [
+      "Corporate",
+      "Retail"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "customer_lookup"
   },
   {
     "id": "GOLD-CUST-003",
     "question": "How did repeat purchasing change this quarter?",
     "category": "customer",
-    "expected_intent": "customer_lookup",
+    "expected_intent": "customer_analysis",
     "expected_metric": "repeat_purchase_trend",
-    "expected_tools": ["get_repeat_purchase_rate"],
-    "expected_tables": ["customers", "sales"],
+    "expected_tools": [
+      "get_repeat_purchase"
+    ],
+    "expected_tables": [
+      "customers",
+      "sales"
+    ],
     "expected_behavior": "answer_with_evidence",
-    "expected_drivers": ["cohort", "repeat_customers"],
+    "expected_drivers": [
+      "cohort",
+      "repeat_customers"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "customer_lookup"
   },
   {
     "id": "GOLD-FCST-001",
     "question": "Forecast revenue for the next 3 months.",
     "category": "forecast",
-    "expected_intent": "forecast_lookup",
+    "expected_intent": "forecasting",
     "expected_metric": "net_revenue",
-    "expected_tools": ["forecast_metric"],
-    "expected_tables": ["sales", "sale_items"],
+    "expected_tools": [
+      "forecast_metric"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items"
+    ],
     "expected_behavior": "probabilistic_forecast",
     "expected_forecast": {
       "horizon": 3,
       "frequency": "monthly",
       "requires_interval": true,
       "nonnegative": true,
-      "expected_models": ["ExponentialSmoothing", "AutoARIMA", "Prophet", "LinearRegression"]
+      "expected_models": [
+        "ExponentialSmoothing",
+        "AutoARIMA",
+        "Prophet",
+        "LinearRegression"
+      ]
     },
     "expected_drivers": [],
-    "expected_safeguards": ["forecasts are statistical projections based on historical data"],
-    "expected_limitations": ["unforeseen macroeconomic shifts"]
+    "expected_safeguards": [
+      "forecasts are statistical projections based on historical data"
+    ],
+    "expected_limitations": [
+      "unforeseen macroeconomic shifts"
+    ],
+    "expected_subtype": "forecast_lookup"
   },
   {
     "id": "GOLD-FCST-002",
     "question": "Forecast units sold for the next 6 months.",
     "category": "forecast",
-    "expected_intent": "forecast_lookup",
+    "expected_intent": "forecasting",
     "expected_metric": "units_sold",
-    "expected_tools": ["forecast_metric"],
-    "expected_tables": ["sales", "sale_items"],
+    "expected_tools": [
+      "forecast_metric"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items"
+    ],
     "expected_behavior": "probabilistic_forecast",
     "expected_forecast": {
       "horizon": 6,
       "frequency": "monthly",
       "requires_interval": true,
       "nonnegative": true,
-      "expected_models": ["ExponentialSmoothing", "AutoARIMA", "Prophet", "LinearRegression"]
+      "expected_models": [
+        "ExponentialSmoothing",
+        "AutoARIMA",
+        "Prophet",
+        "LinearRegression"
+      ]
     },
     "expected_drivers": [],
-    "expected_safeguards": ["prediction interval reflects model variance"],
-    "expected_limitations": []
+    "expected_safeguards": [
+      "prediction interval reflects model variance"
+    ],
+    "expected_limitations": [],
+    "expected_subtype": "forecast_lookup"
   },
   {
     "id": "GOLD-FCST-003",
     "question": "What model was selected for the revenue forecast and how accurate is it?",
     "category": "forecast",
-    "expected_intent": "forecast_lookup",
+    "expected_intent": "forecasting",
     "expected_metric": "forecast_accuracy",
-    "expected_tools": ["forecast_metric"],
-    "expected_tables": ["sales", "sale_items"],
+    "expected_tools": [
+      "forecast_metric"
+    ],
+    "expected_tables": [
+      "sales",
+      "sale_items"
+    ],
     "expected_behavior": "probabilistic_forecast",
     "expected_forecast": {
       "horizon": 3,
@@ -376,9 +626,14 @@
       "requires_interval": true,
       "requires_backtesting": true
     },
-    "expected_drivers": ["MAE", "RMSE", "sMAPE"],
+    "expected_drivers": [
+      "MAE",
+      "RMSE",
+      "sMAPE"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "forecast_lookup"
   },
   {
     "id": "GOLD-SEM-001",
@@ -386,11 +641,15 @@
     "category": "semantic",
     "expected_intent": "semantic_resolution",
     "expected_metric": "turnover",
-    "expected_tools": ["semantic_resolver"],
+    "expected_tools": [],
     "expected_behavior": "ambiguity_clarification",
-    "expected_drivers": ["net_revenue", "inventory_turnover"],
+    "expected_drivers": [
+      "net_revenue",
+      "inventory_turnover"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "semantic_resolution"
   },
   {
     "id": "GOLD-SEM-002",
@@ -398,12 +657,17 @@
     "category": "semantic",
     "expected_intent": "semantic_resolution",
     "expected_metric": "operating_income",
-    "expected_tools": ["semantic_resolver"],
+    "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "canonical_resolution",
-    "expected_drivers": ["operating income", "net sales", "expenses"],
+    "expected_drivers": [
+      "operating income",
+      "net sales",
+      "expenses"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "semantic_resolution"
   },
   {
     "id": "GOLD-SEM-003",
@@ -411,12 +675,15 @@
     "category": "semantic",
     "expected_intent": "semantic_resolution",
     "expected_metric": "net_revenue",
-    "expected_tools": ["semantic_resolver"],
+    "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "canonical_resolution",
-    "expected_drivers": ["net_sales"],
+    "expected_drivers": [
+      "net_sales"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "semantic_resolution"
   },
   {
     "id": "GOLD-SEM-004",
@@ -424,12 +691,15 @@
     "category": "semantic",
     "expected_intent": "semantic_resolution",
     "expected_metric": "days_sales_inventory",
-    "expected_tools": ["semantic_resolver"],
+    "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "canonical_resolution",
-    "expected_drivers": ["days_sales_inventory"],
+    "expected_drivers": [
+      "days_sales_inventory"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "semantic_resolution"
   },
   {
     "id": "GOLD-SEM-005",
@@ -437,12 +707,15 @@
     "category": "semantic",
     "expected_intent": "semantic_resolution",
     "expected_metric": "repeat_purchase_rate",
-    "expected_tools": ["semantic_resolver"],
+    "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "canonical_resolution",
-    "expected_drivers": ["repeat_rate"],
+    "expected_drivers": [
+      "repeat_rate"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "semantic_resolution"
   },
   {
     "id": "GOLD-UNSUP-001",
@@ -453,9 +726,17 @@
     "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "safe_rejection",
-    "expected_drivers": ["Customer Satisfaction", "not tracked in transactional retail dataset"],
-    "expected_safeguards": ["system does not fabricate missing operational metrics"],
-    "expected_limitations": ["metric unsupported"]
+    "expected_drivers": [
+      "Customer Satisfaction",
+      "not tracked in transactional retail dataset"
+    ],
+    "expected_safeguards": [
+      "system does not fabricate missing operational metrics"
+    ],
+    "expected_limitations": [
+      "metric unsupported"
+    ],
+    "expected_subtype": "unsupported"
   },
   {
     "id": "GOLD-UNSUP-002",
@@ -466,9 +747,15 @@
     "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "safe_rejection",
-    "expected_drivers": ["employee productivity", "unsupported"],
+    "expected_drivers": [
+      "employee productivity",
+      "unsupported"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": ["HR and workforce metrics outside schema scope"]
+    "expected_limitations": [
+      "HR and workforce metrics outside schema scope"
+    ],
+    "expected_subtype": "unsupported"
   },
   {
     "id": "GOLD-UNSUP-003",
@@ -479,9 +766,15 @@
     "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "safe_rejection",
-    "expected_drivers": ["market share", "external industry benchmark unavailable"],
+    "expected_drivers": [
+      "market share",
+      "external industry benchmark unavailable"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": ["external competitor data unmodeled"]
+    "expected_limitations": [
+      "external competitor data unmodeled"
+    ],
+    "expected_subtype": "unsupported"
   },
   {
     "id": "GOLD-UNSUP-004",
@@ -492,9 +785,15 @@
     "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "safe_rejection",
-    "expected_drivers": ["advertising ROI", "unsupported"],
+    "expected_drivers": [
+      "advertising ROI",
+      "unsupported"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": ["marketing attribution channels not in transactional schema"]
+    "expected_limitations": [
+      "marketing attribution channels not in transactional schema"
+    ],
+    "expected_subtype": "unsupported"
   },
   {
     "id": "GOLD-UNSUP-005",
@@ -505,8 +804,12 @@
     "expected_tools": [],
     "expected_tables": [],
     "expected_behavior": "safe_rejection",
-    "expected_drivers": ["weather", "unsupported domain"],
+    "expected_drivers": [
+      "weather",
+      "unsupported domain"
+    ],
     "expected_safeguards": [],
-    "expected_limitations": []
+    "expected_limitations": [],
+    "expected_subtype": "unsupported"
   }
 ]

@@ -15,19 +15,9 @@ class DeterministicEvaluator:
         actual_intent: str,
         expected_intent: str,
     ) -> Optional[EvaluationFailure]:
-        INTENT_ALIASES = {
-            "ranking_lookup": "product_analysis",
-            "category_breakdown": "product_analysis",
-            "product_lookup": "product_analysis",
-            "product_comparison": "product_analysis",
-            "period_comparison": "comparison",
-            "inventory_lookup": "inventory_analysis",
-            "customer_lookup": "customer_analysis",
-            "forecast_lookup": "forecasting",
-            "forecasting_lookup": "forecasting",
-        }
-        norm_actual = INTENT_ALIASES.get((actual_intent or "").lower(), (actual_intent or "").lower())
-        norm_expected = INTENT_ALIASES.get((expected_intent or "").lower(), (expected_intent or "").lower())
+        from app.decisions.taxonomy import resolve_intent
+        norm_actual, _ = resolve_intent(actual_intent)
+        norm_expected, _ = resolve_intent(expected_intent)
 
         if not actual_intent or norm_actual != norm_expected:
             return EvaluationFailure(
@@ -47,14 +37,9 @@ class DeterministicEvaluator:
         actual_tools: List[str],
         expected_tools: List[str],
     ) -> Optional[EvaluationFailure]:
-        TOOL_ALIASES = {
-            "get_top_products": "get_product_rankings",
-            "get_category_performance": "get_category_breakdown",
-            "get_inventory_status": "get_inventory_overview",
-            "get_customer_metrics": "get_customer_segments",
-        }
-        actual_set = {TOOL_ALIASES.get(t, t) for t in (actual_tools or [])}
-        expected_set = {TOOL_ALIASES.get(t, t) for t in (expected_tools or [])}
+        from app.decisions.taxonomy import resolve_tool
+        actual_set = {resolve_tool(t) for t in (actual_tools or [])}
+        expected_set = {resolve_tool(t) for t in (expected_tools or [])}
 
         # If expected is empty (e.g. unsupported query), verify no tools were executed
         if not expected_set:

@@ -119,7 +119,12 @@ class StructuredLLMDecisionProvider(BaseDecisionProvider):
         )
 
         # Parse selected decision and rationale
-        decision_val = parsed_json.get("decision") or parsed_json.get("category") or parsed_json.get("selected")
+        decision_val = (
+            parsed_json.get("decision")
+            or parsed_json.get("category")
+            or parsed_json.get("selected")
+            or parsed_json.get("intent")
+        )
         rationale_val = parsed_json.get("rationale") or parsed_json.get("reasoning")
         confidence_val = parsed_json.get("confidence")
 

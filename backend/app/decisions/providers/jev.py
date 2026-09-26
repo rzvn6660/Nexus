@@ -116,8 +116,8 @@ class JevDecisionProvider(BaseDecisionProvider):
         if task_str == DecisionTask.INTENT_ROUTING.value:
             candidates = request.candidate_options
             if not candidates:
-                from app.agents.state.models import IntentCategory
-                candidates = [e.value for e in IntentCategory]
+                from app.decisions.taxonomy import get_canonical_intent_ids
+                candidates = get_canonical_intent_ids()
             state = {"query": request.input_text, "context": request.context}
             question_key = "intent"
             question = Choice(
