@@ -9,6 +9,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { HealthResponse } from '../../types/api';
+import { NexusSymbol } from '../brand/NexusSymbol';
 
 interface TopBarProps {
   currentRoute: string;
@@ -108,12 +109,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
 
         <div className="md:hidden shrink-0 flex items-center">
-          <img
-            src="/brand/nexus-logo-bg.png"
-            alt="NEXUS"
-            className="w-7 h-7 object-contain select-none"
-            draggable={false}
-          />
+          <NexusSymbol size={28} />
         </div>
 
         <div className="min-w-0">

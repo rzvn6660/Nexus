@@ -1,8 +1,9 @@
 import React from 'react';
 import { NexusSymbol } from './NexusSymbol';
 
-interface NexusLogoProps {
+export interface NexusLogoProps {
   className?: string;
+  size?: number;
   imageSize?: number;
   symbolSize?: number;
   showTagline?: boolean;
@@ -10,41 +11,46 @@ interface NexusLogoProps {
   collapsed?: boolean;
 }
 
+/**
+ * Official NEXUS Brand Lockup: Canonical Symbol + Professional Wordmark.
+ *
+ * Implements architectural typography:
+ * - Geometric sans-serif (Inter) with precision letter-spacing
+ * - Deliberate symbol-to-wordmark proximity
+ * - High-contrast, clean enterprise styling (no neon/gaming effects)
+ * - Seamless collapsed state rendering the official mark
+ */
 export const NexusLogo: React.FC<NexusLogoProps> = ({
   className = '',
-  imageSize = 42,
+  size,
+  imageSize = 34,
   symbolSize,
-  showTagline = true,
-  tagline = 'Intelligence Workspace',
+  showTagline = false,
+  tagline,
   collapsed = false,
 }) => {
-  const size = symbolSize ?? imageSize;
+  const markSize = size ?? symbolSize ?? imageSize;
 
   if (collapsed) {
     return (
       <div className={`flex items-center justify-center select-none ${className}`}>
-        <NexusSymbol size={34} />
+        <NexusSymbol size={markSize} />
       </div>
     );
   }
 
   return (
-    <div className={`flex items-center gap-3 select-none ${className}`}>
-      <div className="relative shrink-0 flex items-center justify-center">
-        <img
-          src="/brand/nexus-logo-bg.png"
-          alt="NEXUS"
-          style={{ width: `${size}px`, height: `${size}px` }}
-          className="object-contain shrink-0 select-none"
-          draggable={false}
-        />
-      </div>
-      <div className="flex flex-col min-w-0 justify-center">
-        <span className="font-extrabold text-base tracking-[0.14em] text-white font-sans leading-none">
+    <div className={`flex items-center gap-2.5 select-none ${className}`}>
+      <NexusSymbol size={markSize} />
+      <div className="flex flex-col justify-center min-w-0">
+        <span
+          className="font-bold text-[15px] tracking-[0.24em] text-slate-100 font-sans uppercase leading-none select-none"
+          style={{ letterSpacing: '0.24em' }}
+        >
           NEXUS
         </span>
-        {showTagline && (
-          <span className="text-[9.5px] font-mono text-cyan-400 uppercase tracking-[0.2em] leading-normal mt-1 truncate">
+        {showTagline && tagline && (
+          <span className="text-[9px] font-mono tracking-[0.16em] text-slate-400 uppercase leading-none mt-1 font-medium select-none truncate">
             {tagline}
           </span>
         )}

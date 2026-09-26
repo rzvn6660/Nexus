@@ -85,7 +85,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         <footer className="border-t border-surface-elevated/70 bg-void py-5 text-xs text-slate-400 mt-auto">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-white tracking-wider font-mono">NEXUS</span>
+              <span className="font-bold text-slate-100 tracking-[0.2em] font-sans uppercase">NEXUS</span>
               <span>—</span>
               <span className="text-slate-300">Where Business Data Becomes Intelligence</span>
             </div>

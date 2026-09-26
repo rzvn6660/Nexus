@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, Building, CheckCircle2, Lock, Mail, ShieldAlert, User } from 'lucide-react';
 import { AuthService } from '../services/auth';
+import { NexusSymbol } from '../components/brand/NexusSymbol';
 
 interface SignupPageProps {
   onNavigate: (route: string) => void;
@@ -48,16 +49,11 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSignupSucc
       <div className="w-full max-w-lg space-y-8">
         {/* Brand Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-cyan-950/40 border border-brand-cyan/30 shadow-lg shadow-cyan-950/50 mb-2">
-            <img
-              src="/brand/nexus-logo-bg.png"
-              alt="NEXUS"
-              className="w-10 h-10 object-contain select-none"
-              draggable={false}
-            />
+          <div className="flex justify-center mb-1">
+            <NexusSymbol size={48} className="mx-auto" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-sans">
-            Start Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-300">NEXUS</span> Intelligence Trial
+          <h1 className="text-2xl font-bold tracking-tight text-white font-sans">
+            Start Your <span className="tracking-[0.16em]">NEXUS</span> Intelligence Trial
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
             Isolated tenant workspace, deterministic analytics, and verifiable provenance

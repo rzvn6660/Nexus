@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { DatabaseHealth } from '../../types/api';
 import { NexusLogo } from '../brand/NexusLogo';
-import { NexusSymbol } from '../brand/NexusSymbol';
 
 interface SidebarProps {
   currentRoute: string;
@@ -139,16 +138,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       {/* Top Branding Section */}
       <div className="overflow-y-auto overflow-x-hidden">
-        <div className="h-16 px-4 flex items-center justify-between border-b border-surface-elevated">
+        <div className="h-16 px-3.5 flex items-center justify-between border-b border-surface-elevated">
           <div
             onClick={() => handleItemClick('/')}
-            className="cursor-pointer group flex items-center"
+            className="cursor-pointer group flex items-center min-w-0"
+            title="NEXUS Workspace"
           >
-            {collapsed ? (
-              <NexusSymbol size={34} />
-            ) : (
-              <NexusLogo imageSize={42} />
-            )}
+            <NexusLogo collapsed={collapsed} size={34} />
           </div>
 
           <button
