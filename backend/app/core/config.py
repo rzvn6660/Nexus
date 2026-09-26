@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     MAX_AGENT_ITERATIONS: int = 5
     DEFAULT_EXPLANATION_LEVEL: str = "manager"
 
+    # Phase 12 Decision Gateway Configuration
+    DECISION_PROVIDER: str = "structured_llm"
+    DECISION_TIMEOUT_SECONDS: float = 10.0
+
     # RAG / Semantic Layer Configuration
     EMBEDDING_PROVIDER: str = "mock"
     EMBEDDING_MODEL: str = "text-embedding-3-small"

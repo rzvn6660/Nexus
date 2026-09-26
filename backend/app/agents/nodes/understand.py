@@ -4,8 +4,9 @@ from datetime import date
 from typing import Any
 
 from app.agents.providers.factory import get_llm_provider
-from app.agents.state.models import AgentState, IntentCategory
+from app.agents.state.models import AgentState, IntentCategory, IntentResult
 from app.agents.tools.date_interpreter import DateInterpreter
+from app.decisions.gateway import get_decision_gateway
 
 
 def understand_request_node(state: AgentState) -> dict[str, Any]:
@@ -55,10 +56,26 @@ def understand_request_node(state: AgentState) -> dict[str, Any]:
                 "is_unsupported": False,
             }
 
-    # Intent classification via LLM provider
-    provider = get_llm_provider()
+    # Intent classification via Decision Gateway
+    gateway = get_decision_gateway()
     supported_intents = [e.value for e in IntentCategory]
-    intent_result = provider.classify_intent(user_query, supported_intents)
+    decision = gateway.route_intent(
+        user_query,
+        supported_intents,
+        metadata={"request_id": state.get("request_id")},
+    )
+
+    intent_category_str = decision.decision or IntentCategory.METRIC_LOOKUP.value
+    try:
+        intent_cat = IntentCategory(intent_category_str)
+    except ValueError:
+        intent_cat = IntentCategory.METRIC_LOOKUP
+
+    intent_result = IntentResult(
+        category=intent_cat,
+        confidence=decision.confidence if decision.confidence is not None else 1.0,
+        reasoning=decision.rationale or "Classified by Decision Gateway",
+    )
 
     # Check for unsupported request
     if intent_result.category == IntentCategory.UNSUPPORTED:
