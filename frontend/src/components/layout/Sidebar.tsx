@@ -135,7 +135,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {collapsed ? (
               <NexusSymbol size={34} />
             ) : (
-              <NexusLogo symbolSize={32} />
+              <NexusLogo imageSize={42} />
             )}
           </div>
 
