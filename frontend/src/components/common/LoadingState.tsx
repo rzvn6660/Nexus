@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { NexusSymbol } from '../brand/NexusSymbol';
 
 interface LoadingStateProps {
   message?: string;
@@ -21,8 +21,8 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
       className={`flex flex-col items-center justify-center p-8 text-center space-y-4 ${className}`}
     >
       <div className="relative">
-        <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center animate-pulse">
-          <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+        <div className="w-14 h-14 rounded-2xl bg-cyan-950/40 border border-brand-cyan/20 flex items-center justify-center">
+          <NexusSymbol size={28} showBackdrop={false} className="animate-pulse" />
         </div>
       </div>
 

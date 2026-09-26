@@ -195,6 +195,11 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
       <section className="relative rounded-3xl p-6 sm:p-10 overflow-hidden bg-void-sub border border-surface-elevated shadow-2xl">
         <div className="absolute top-0 right-0 -mr-24 -mt-24 w-96 h-96 rounded-full bg-cyan-500/5 blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/3 -mb-24 w-64 h-64 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
+        <div
+          className="absolute top-0 right-0 w-2/5 h-full opacity-10 bg-no-repeat bg-right-top bg-contain pointer-events-none hidden lg:block"
+          style={{ backgroundImage: "url('/brand/nexus-hero-nxst3.png')" }}
+          aria-hidden="true"
+        />
 
         <div className="relative z-10 space-y-8">
           {/* Top Brand & Mission Lockup */}
