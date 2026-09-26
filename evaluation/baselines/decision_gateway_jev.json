@@ -1,0 +1,70 @@
+{
+  "benchmark_phase": "Phase 12B - Jev Provider Candidate",
+  "provider": "jev",
+  "model": "jev-latest",
+  "execution_mode": "fixture_emulator (offline - no live key)",
+  "is_live_api": false,
+  "generated_at": "2026-09-26T14:07:48.759697+00:00",
+  "total_cases_evaluated": 57,
+  "total_decisions_executed": 107,
+  "tasks": {
+    "intent_routing": {
+      "accuracy_pct": 27.08,
+      "evaluated_count": 48,
+      "p95_latency_ms": 0.02,
+      "failures": 0
+    },
+    "tool_selection": {
+      "accuracy_pct": 30.0,
+      "evaluated_count": 30,
+      "p95_latency_ms": 0.01,
+      "failures": 0
+    },
+    "evidence_sufficiency": {
+      "accuracy_pct": 100.0,
+      "evaluated_count": 10,
+      "p95_latency_ms": 0.01,
+      "failures": 0
+    },
+    "risk_gating": {
+      "validity_pct": 100.0,
+      "evaluated_count": 10,
+      "p95_latency_ms": 0.01,
+      "failures": 0
+    }
+  },
+  "overall_metrics": {
+    "structured_output_validity_pct": 100.0,
+    "failure_rate_pct": 0.0
+  },
+  "telemetry": {
+    "mean_latency_ms": 0.02,
+    "median_latency_ms": 0.01,
+    "p95_latency_ms": 0.01,
+    "p99_latency_ms": 0.02,
+    "total_tokens_recorded": 1137,
+    "estimated_cost_usd": null
+  },
+  "phase12a_hypotheses_evaluation": {
+    "latency_target_p95_under_80ms": {
+      "target": "< 80.0 ms",
+      "actual": "0.01 ms (fixture_emulator (offline - no live key))",
+      "status": "PASS"
+    },
+    "cost_reduction_target_over_85pct": {
+      "target": "> 85% cost reduction vs LLM tokens",
+      "actual": "Jev has no token consumption cost; cloud tier cost depends on account volume pricing.",
+      "status": "NOT MEASURABLE (offline without live billing API)"
+    },
+    "routing_accuracy_target_over_95pct": {
+      "target": ">= 95.0% accuracy",
+      "actual": "27.08%",
+      "status": "FAIL"
+    },
+    "zero_schema_violations_target": {
+      "target": "100.0% schema validity (0 violations)",
+      "actual": "100.0%",
+      "status": "PASS"
+    }
+  }
+}

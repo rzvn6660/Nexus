@@ -33,6 +33,7 @@ class DecisionTelemetry(BaseModel):
     prompt_tokens: int | None = Field(default=None, description="Prompt tokens consumed if applicable")
     completion_tokens: int | None = Field(default=None, description="Completion tokens consumed if applicable")
     estimated_cost_usd: float | None = Field(default=None, description="Estimated API compute cost in USD")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Provider-specific telemetry and ranking metadata")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="UTC timestamp of the decision evaluation"

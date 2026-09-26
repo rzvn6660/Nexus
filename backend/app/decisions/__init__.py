@@ -22,6 +22,7 @@ from app.decisions.models import (
     DecisionTask,
     DecisionTelemetry,
 )
+from app.decisions.providers.jev import JevDecisionProvider
 from app.decisions.providers.mock import MockDecisionProvider
 from app.decisions.providers.structured_llm import StructuredLLMDecisionProvider
 
@@ -38,6 +39,7 @@ __all__ = [
     "DecisionTimeoutError",
     "DecisionValidationError",
     "InvalidDecisionProviderError",
+    "JevDecisionProvider",
     "MalformedDecisionResponseError",
     "MockDecisionProvider",
     "StructuredLLMDecisionProvider",

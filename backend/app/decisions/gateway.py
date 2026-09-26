@@ -204,14 +204,11 @@ class DecisionGateway:
             return StructuredLLMDecisionProvider()
 
         if name == "jev":
-            # Jev is intentionally deferred to Phase 12B
-            raise InvalidDecisionProviderError(
-                "JevDecisionProvider is not yet implemented. Phase 12A establishes the abstraction baseline. "
-                "Jev provider integration is planned for Phase 12B."
-            )
+            from app.decisions.providers.jev import JevDecisionProvider
+            return JevDecisionProvider()
 
         raise InvalidDecisionProviderError(
-            f"Unknown decision provider '{name}'. Configured provider must be one of: ['structured_llm', 'mock']."
+            f"Unknown decision provider '{name}'. Configured provider must be one of: ['structured_llm', 'mock', 'jev']."
         )
 
 

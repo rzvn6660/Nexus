@@ -20,9 +20,11 @@ from app.decisions import (
     DecisionTimeoutError,
     DecisionValidationError,
     InvalidDecisionProviderError,
+    JevDecisionProvider,
     MalformedDecisionResponseError,
     MockDecisionProvider,
     StructuredLLMDecisionProvider,
+    UnsupportedDecisionTaskError,
     get_decision_gateway,
 )
 
@@ -271,11 +273,11 @@ class TestDecisionGatewayOrchestration:
             DecisionGateway(provider_name="unsupported_quantum_ai")
         assert "Unknown decision provider" in str(exc_info.value)
 
-    def test_gateway_rejects_jev_in_phase_12a(self):
-        """Confirm Jev is explicitly deferred to Phase 12B."""
-        with pytest.raises(InvalidDecisionProviderError) as exc_info:
-            DecisionGateway(provider_name="jev")
-        assert "Phase 12B" in str(exc_info.value)
+    def test_gateway_resolves_jev_provider(self):
+        """Confirm DecisionGateway successfully resolves JevDecisionProvider in Phase 12B."""
+        gateway = DecisionGateway(provider_name="jev")
+        assert gateway.provider_name == "jev"
+        assert isinstance(gateway.active_provider, JevDecisionProvider)
 
     def test_gateway_validates_empty_request(self):
         gateway = DecisionGateway(provider=MockDecisionProvider())
@@ -333,3 +335,216 @@ class TestDecisionGatewayOrchestration:
         g1 = get_decision_gateway()
         g2 = get_decision_gateway()
         assert g1 is g2
+
+
+class TestJevDecisionProvider:
+    """Test suite: Jev System-1 decision provider adapter and safety invariants."""
+
+    def test_jev_missing_credentials_raises_error(self):
+        """CRITICAL: Missing credentials in live Jev mode must RAISE, never silently fallback."""
+        provider = JevDecisionProvider(api_key=None, client=None)
+        req = DecisionRequest(task=DecisionTask.INTENT_ROUTING, input_text="revenue query")
+
+        with pytest.raises(DecisionProviderUnavailableError) as exc_info:
+            provider.execute_decision(req)
+        assert "unavailable" in str(exc_info.value)
+
+    def test_jev_health_check(self):
+        provider_no_key = JevDecisionProvider(api_key=None, client=None)
+        assert provider_no_key.health_check() is False
+
+        mock_client = MagicMock()
+        provider_with_client = JevDecisionProvider(client=mock_client)
+        assert provider_with_client.health_check() is True
+
+    def test_jev_valid_intent_routing(self):
+        mock_client = MagicMock()
+        mock_answer = MagicMock()
+        mock_answer.choice = "metric_lookup"
+        mock_answer.confidence = 0.96
+        mock_answer.probabilities = {"metric_lookup": 0.96, "trend": 0.04}
+
+        mock_response = MagicMock()
+        mock_response.model = "jev-latest"
+        mock_response.answers = {"intent": mock_answer}
+        mock_response.usage.input_tokens = 45
+        mock_response.usage.output_tokens = 5
+        mock_client.system_one.return_value = mock_response
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(
+            task=DecisionTask.INTENT_ROUTING,
+            input_text="What was our total revenue last month?",
+            candidate_options=["metric_lookup", "trend", "forecasting"],
+        )
+        res = provider.execute_decision(req)
+
+        assert res.status == DecisionStatus.SUCCESS
+        assert res.decision == "metric_lookup"
+        assert res.confidence == 0.96
+        assert res.telemetry.provider == "jev"
+        assert res.telemetry.model == "jev-latest"
+        assert res.telemetry.tokens_used == 50
+        assert res.telemetry.prompt_tokens == 45
+        assert res.telemetry.completion_tokens == 5
+        assert res.telemetry.estimated_cost_usd is None  # Cost is not fabricated
+        assert res.telemetry.metadata["probabilities"] == {"metric_lookup": 0.96, "trend": 0.04}
+
+    def test_jev_candidate_boundary_enforcement(self):
+        """Rule: If Jev produces an invalid candidate, mark DEGRADED and never silently substitute."""
+        mock_client = MagicMock()
+        mock_answer = MagicMock()
+        mock_answer.choice = "hallucinated_unknown_intent"
+        mock_answer.confidence = 0.88
+        mock_answer.probabilities = None
+
+        mock_response = MagicMock()
+        mock_response.answers = {"intent": mock_answer}
+        mock_response.usage = None
+        mock_client.system_one.return_value = mock_response
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(
+            task=DecisionTask.INTENT_ROUTING,
+            input_text="What was our revenue?",
+            candidate_options=["metric_lookup", "trend"],
+        )
+        res = provider.execute_decision(req)
+
+        assert res.status == DecisionStatus.DEGRADED
+        assert res.decision == "hallucinated_unknown_intent"
+        assert "not in candidate_options" in str(res.error_message)
+
+    def test_jev_missing_confidence_is_none(self):
+        """Rule: Never invent confidence. When unavailable, it must be None."""
+        mock_client = MagicMock()
+        mock_answer = MagicMock()
+        mock_answer.choice = "metric_lookup"
+        mock_answer.confidence = None
+        mock_answer.probabilities = None
+
+        mock_response = MagicMock()
+        mock_response.answers = {"intent": mock_answer}
+        mock_response.usage = None
+        mock_client.system_one.return_value = mock_response
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(task=DecisionTask.INTENT_ROUTING, input_text="What was our revenue?")
+        res = provider.execute_decision(req)
+
+        assert res.status == DecisionStatus.SUCCESS
+        assert res.confidence is None
+
+    def test_jev_malformed_response_missing_answer_raises(self):
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.answers = {}  # Empty answers dict
+        mock_client.system_one.return_value = mock_response
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(task=DecisionTask.INTENT_ROUTING, input_text="test query")
+
+        with pytest.raises(MalformedDecisionResponseError) as exc_info:
+            provider.execute_decision(req)
+        assert "missing answer key" in str(exc_info.value)
+
+    def test_jev_timeout_raises_decision_timeout_error(self):
+        mock_client = MagicMock()
+        mock_client.system_one.side_effect = Exception("SystemOne execution timed out after 10.0 seconds")
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(task=DecisionTask.INTENT_ROUTING, input_text="test query")
+
+        with pytest.raises(DecisionTimeoutError) as exc_info:
+            provider.execute_decision(req)
+        assert "timed out" in str(exc_info.value)
+
+    def test_live_jev_failure_does_not_silently_fallback(self):
+        """CRITICAL: Live Jev failure must raise, never pretend mock is real."""
+        mock_client = MagicMock()
+        mock_client.system_one.side_effect = Exception("Connection refused by TypeSafe API gateway")
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(task=DecisionTask.INTENT_ROUTING, input_text="test query")
+
+        with pytest.raises(DecisionProviderUnavailableError) as exc_info:
+            provider.execute_decision(req)
+        assert "Connection refused" in str(exc_info.value)
+
+    def test_jev_unsupported_task_raises_error(self):
+        mock_client = MagicMock()
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(task="unknown_unsupported_task", input_text="test query")
+
+        with pytest.raises(UnsupportedDecisionTaskError):
+            provider.execute_decision(req)
+
+    def test_jev_tool_selection(self):
+        mock_client = MagicMock()
+        mock_answer = MagicMock()
+        mock_answer.choice = "get_financial_summary"
+        mock_answer.confidence = 0.92
+        mock_answer.probabilities = None
+
+        mock_response = MagicMock()
+        mock_response.answers = {"tool": mock_answer}
+        mock_response.usage = None
+        mock_client.system_one.return_value = mock_response
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(
+            task=DecisionTask.TOOL_SELECTION,
+            input_text="Give me total sales",
+            candidate_options=["get_financial_summary", "run_variance_analysis"],
+        )
+        res = provider.execute_decision(req)
+
+        assert res.status == DecisionStatus.SUCCESS
+        assert res.decision == "get_financial_summary"
+        assert res.structured_output["selected_tools"] == ["get_financial_summary"]
+
+    def test_jev_evidence_sufficiency(self):
+        mock_client = MagicMock()
+        mock_answer = MagicMock()
+        mock_answer.choice = "SUFFICIENT"
+        mock_answer.confidence = 0.98
+        mock_answer.probabilities = None
+
+        mock_response = MagicMock()
+        mock_response.answers = {"sufficiency": mock_answer}
+        mock_response.usage = None
+        mock_client.system_one.return_value = mock_response
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(
+            task=DecisionTask.EVIDENCE_SUFFICIENCY,
+            input_text="Did we find the revenue numbers?",
+            context={"tool_results": [{"revenue": 500000}]},
+        )
+        res = provider.execute_decision(req)
+
+        assert res.status == DecisionStatus.SUCCESS
+        assert res.decision == "SUFFICIENT"
+
+    def test_jev_risk_gating(self):
+        mock_client = MagicMock()
+        mock_answer = MagicMock()
+        mock_answer.choice = "HIGH"
+        mock_answer.confidence = 0.85
+        mock_answer.probabilities = None
+
+        mock_response = MagicMock()
+        mock_response.answers = {"risk": mock_answer}
+        mock_response.usage = None
+        mock_client.system_one.return_value = mock_response
+
+        provider = JevDecisionProvider(client=mock_client)
+        req = DecisionRequest(
+            task=DecisionTask.RISK_GATING,
+            input_text="Liquidate entire inventory immediately",
+            candidate_options=["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+        )
+        res = provider.execute_decision(req)
+
+        assert res.status == DecisionStatus.SUCCESS
+        assert res.decision == "HIGH"

@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     # Phase 12 Decision Gateway Configuration
     DECISION_PROVIDER: str = "structured_llm"
     DECISION_TIMEOUT_SECONDS: float = 10.0
+    JEV_API_KEY: str | None = None
+    JEV_MODEL: str = "jev-latest"
 
     # RAG / Semantic Layer Configuration
     EMBEDDING_PROVIDER: str = "mock"
