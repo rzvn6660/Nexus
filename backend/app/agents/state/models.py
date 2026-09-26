@@ -118,6 +118,8 @@ class AgentState(TypedDict, total=False):
     rag_evidence: list[dict[str, Any]]
     business_context_text: str | None
     is_definitional_only: bool
+    has_business_context_conflict: bool
+    business_context_conflict_description: str | None
     iteration_count: int
     max_iterations: int
 

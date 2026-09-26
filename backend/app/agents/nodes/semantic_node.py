@@ -151,9 +151,13 @@ def retrieve_context_node(state: AgentState, config: RunnableConfig | None = Non
 
     rag_evidence_dicts = []
     context_text = ""
+    has_conflict = False
+    conflict_desc = None
     if retrieved_context:
         rag_evidence_dicts = [e.model_dump() for e in retrieved_context.evidence]
         context_text = retrieved_context.context_text
+        has_conflict = retrieved_context.has_conflict
+        conflict_desc = retrieved_context.conflict_description
 
     # Check if query is purely definitional (no tool execution required)
     is_definitional_only = _is_definitional_only_query(user_query)
@@ -162,4 +166,6 @@ def retrieve_context_node(state: AgentState, config: RunnableConfig | None = Non
         "rag_evidence": rag_evidence_dicts,
         "business_context_text": context_text,
         "is_definitional_only": is_definitional_only,
+        "has_business_context_conflict": has_conflict,
+        "business_context_conflict_description": conflict_desc,
     }

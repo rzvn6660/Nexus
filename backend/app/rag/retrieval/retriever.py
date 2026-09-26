@@ -228,4 +228,24 @@ class HybridRetriever:
                     "(one source specifies 2 orders, another specifies 3 orders)."
                 )
 
+        # Check return policy window contradiction
+        if any("return" in c for c in lower_contents):
+            has_14 = any("14 days" in c or "14-day" in c for c in lower_contents)
+            has_30 = any("30 days" in c or "30-day" in c for c in lower_contents)
+            if has_14 and has_30:
+                return True, (
+                    "Conflict detected: Retrieved business documents define return policy window differently "
+                    "(one source specifies 14 days, another specifies 30 days)."
+                )
+
+        # Check revenue calculation contradiction (shipping inclusion)
+        if any("revenue" in c for c in lower_contents):
+            has_inc_ship = any("includes shipping" in c or "including shipping" in c for c in lower_contents)
+            has_exc_ship = any("excludes shipping" in c or "excluding shipping" in c for c in lower_contents)
+            if has_inc_ship and has_exc_ship:
+                return True, (
+                    "Conflict detected: Retrieved business documents define revenue differently "
+                    "(one source includes shipping, another excludes shipping)."
+                )
+
         return False, None

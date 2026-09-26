@@ -53,6 +53,13 @@ def generate_explanation_node(state: AgentState) -> dict[str, Any]:
         business_context=business_context,
     )
 
+    # Disclose business context ambiguity / definition conflicts if detected
+    if state.get("has_business_context_conflict"):
+        conflict_msg = state.get("business_context_conflict_description") or (
+            "Conflicting business definitions were detected across retrieved context sources."
+        )
+        explanation = f"⚠️ **Context Conflict / Ambiguity Alert**: {conflict_msg}\n\n{explanation}"
+
     # Attach RAG provenance citations if available
     rag_evidence = state.get("rag_evidence", [])
     if rag_evidence and "Business Context Sources" not in explanation:
