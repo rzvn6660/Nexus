@@ -30,6 +30,7 @@ class OKFBundleModel(Base, TimestampMixin):
     __tablename__ = "okf_bundles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     bundle_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -55,6 +56,7 @@ class OKFItemModel(Base, TimestampMixin):
     __tablename__ = "okf_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     bundle_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("okf_bundles.id", ondelete="CASCADE"), nullable=False, index=True
     )

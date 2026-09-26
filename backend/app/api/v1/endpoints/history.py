@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -40,10 +40,14 @@ router = APIRouter()
 def list_analysis_runs(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db_session),
 ) -> List[AnalysisRunSummary]:
+    stmt = select(AnalysisRun)
+    if x_business_id is not None:
+        stmt = stmt.where(AnalysisRun.business_id == x_business_id)
     stmt = (
-        select(AnalysisRun)
+        stmt
         .order_by(desc(AnalysisRun.created_at))
         .limit(limit)
         .offset(offset)
@@ -65,6 +69,7 @@ def list_analysis_runs(
 )
 def get_analysis_run(
     run_id: int,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db_session),
 ) -> AnalysisRunDetail:
     run = db.get(AnalysisRun, run_id)
@@ -73,6 +78,15 @@ def get_analysis_run(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Analysis run #{run_id} not found.",
         )
+
+    # Multi-tenant IDOR defense: reject cross-tenant access to analysis history
+    if run.business_id is not None:
+        if x_business_id and x_business_id != run.business_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Analysis run belongs to another business workspace.",
+            )
+
     return AnalysisRunDetail.model_validate(run)
 
 
@@ -235,9 +249,12 @@ def list_decisions(
     status_filter: Optional[str] = Query(None, alias="status", pattern="^(PENDING|APPROVED|REJECTED|MODIFIED)$"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db_session),
 ) -> List[DecisionRecordResponse]:
     stmt = select(DecisionRecord)
+    if x_business_id is not None:
+        stmt = stmt.where(DecisionRecord.business_id == x_business_id)
     if status_filter:
         stmt = stmt.where(DecisionRecord.status == status_filter.upper())
     stmt = stmt.order_by(desc(DecisionRecord.created_at)).limit(limit).offset(offset)
@@ -254,6 +271,7 @@ def list_decisions(
 )
 def create_decision(
     payload: DecisionCreateRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
     if payload.analysis_id:
@@ -265,6 +283,7 @@ def create_decision(
             )
 
     decision = DecisionRecord(
+        business_id=x_business_id,
         analysis_id=payload.analysis_id,
         recommendation_text=payload.recommendation_text,
         status="PENDING",
@@ -283,6 +302,7 @@ def create_decision(
 )
 def get_decision(
     decision_id: int,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
     record = db.get(DecisionRecord, decision_id)
@@ -291,6 +311,15 @@ def get_decision(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Decision record #{decision_id} not found.",
         )
+
+    # Multi-tenant IDOR defense: reject cross-tenant access to decisions
+    if record.business_id is not None:
+        if x_business_id and x_business_id != record.business_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Decision record belongs to another business workspace.",
+            )
+
     return DecisionRecordResponse.model_validate(record)
 
 

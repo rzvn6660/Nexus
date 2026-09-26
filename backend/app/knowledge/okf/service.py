@@ -51,6 +51,7 @@ class OKFService:
         bundle_text: str,
         session: Session,
         sync_rag: bool = True,
+        business_id: str | None = None,
     ) -> tuple[OKFBundleModel, OKFValidationReport]:
         """
         Validate, normalize, persist, and optionally index an OKF bundle.
@@ -60,6 +61,7 @@ class OKFService:
         - Validation is deterministic: malformed bundles fail safely without touching DB
         - Transactional persistence
         - RAG chunks tagged clearly as business definitions, NOT empirical analytics evidence
+        - Tenant boundary isolated via business_id
         """
         # 1. Security scan
         OKFSecurityFilter.validate_raw_bundle_text(bundle_text)
@@ -75,9 +77,10 @@ class OKFService:
 
         # 4. Persistence into OKF database models
         # Check if bundle already exists (upsert behavior)
-        bundle_model = session.execute(
-            select(OKFBundleModel).where(OKFBundleModel.bundle_id == bundle_dto.id)
-        ).scalar_one_or_none()
+        stmt = select(OKFBundleModel).where(OKFBundleModel.bundle_id == bundle_dto.id)
+        if business_id is not None:
+            stmt = stmt.where(OKFBundleModel.business_id == business_id)
+        bundle_model = session.execute(stmt).scalar_one_or_none()
 
         if bundle_model:
             bundle_model.name = bundle_dto.name
@@ -86,11 +89,14 @@ class OKFService:
             bundle_model.author = bundle_dto.author
             bundle_model.description = bundle_dto.description
             bundle_model.metadata_json = bundle_dto.metadata
+            if business_id is not None:
+                bundle_model.business_id = business_id
             # Remove old items to ensure clean state
             session.query(OKFItemModel).filter(OKFItemModel.bundle_id == bundle_model.id).delete()
         else:
             bundle_model = OKFBundleModel(
                 bundle_id=bundle_dto.id,
+                business_id=business_id,
                 name=bundle_dto.name,
                 version=bundle_dto.version,
                 status=bundle_dto.status.value,
@@ -108,6 +114,7 @@ class OKFService:
 
             item_model = OKFItemModel(
                 bundle_id=bundle_model.id,
+                business_id=business_id,
                 item_id=it.id,
                 name=it.name,
                 item_type=it.type.value,
@@ -142,12 +149,12 @@ class OKFService:
 
         # 5. Sync to RAG if requested
         if sync_rag:
-            cls._sync_bundle_to_rag(bundle_dto, session)
+            cls._sync_bundle_to_rag(bundle_dto, session, business_id=business_id)
 
         return bundle_model, report
 
     @classmethod
-    def _sync_bundle_to_rag(cls, bundle: OKFBundle, session: Session) -> None:
+    def _sync_bundle_to_rag(cls, bundle: OKFBundle, session: Session, business_id: str | None = None) -> None:
         """
         Synchronize OKF items into KnowledgeDocument and KnowledgeChunks.
         Allows HybridRetriever to query verified business context while marking
@@ -168,6 +175,7 @@ class OKFService:
 
         doc = KnowledgeDocument(
             document_id=doc_id,
+            business_id=business_id,
             title=bundle.name,
             source=f"okf:{bundle.author}",
             document_type="markdown",
@@ -222,7 +230,7 @@ class OKFService:
         session.commit()
 
     @classmethod
-    def export_bundle(cls, bundle_id: str, session: Session) -> str:
+    def export_bundle(cls, bundle_id: str, session: Session, business_id: str | None = None) -> str:
         """
         Retrieve persisted bundle and serialize it back to deterministic Markdown + YAML frontmatter.
         """
@@ -232,6 +240,9 @@ class OKFService:
 
         if not bundle_model:
             raise OKFServiceError(f"Bundle '{bundle_id}' not found in database.")
+
+        if business_id is not None and bundle_model.business_id is not None and bundle_model.business_id != business_id:
+            raise OKFServiceError(f"Access denied: Bundle '{bundle_id}' belongs to another business.")
 
         # Reconstruct DTO
         items: list[OKFItem] = []

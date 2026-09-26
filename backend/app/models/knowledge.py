@@ -6,6 +6,7 @@ from typing import Any
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     ForeignKey,
     Index,
@@ -21,11 +22,14 @@ from app.models.base import Base, TimestampMixin
 class KnowledgeDocument(Base, TimestampMixin):
     """
     Business-context document metadata registry.
-    Stores governance, versioning, source provenance, and domain categorization.
+    Stores governance, versioning, source provenance, domain categorization,
+    and tenant business ownership.
     """
     __tablename__ = "knowledge_documents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    is_global: Mapped[bool] = mapped_column(Boolean, default=False, index=True, nullable=False)
     document_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(String(255), nullable=False)

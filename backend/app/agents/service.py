@@ -38,6 +38,9 @@ class NexusAgentService:
         max_iterations: int | None = None,
         is_investigation: bool = False,
         is_forecast: bool = False,
+        organization_id: str | None = None,
+        business_id: str | None = None,
+        user_id: str | None = None,
     ) -> AgentResponse:
         """
         Execute deterministic analytical reasoning for a user query.
@@ -47,6 +50,9 @@ class NexusAgentService:
             explanation_level: 'simple', 'manager', 'analyst', or 'technical'
             reference_date: Optional anchor date for relative temporal parsing
             max_iterations: Optional override for graph loop limit
+            organization_id: Tenant organization boundary
+            business_id: Tenant business workspace boundary
+            user_id: Authenticated requesting user identity
             
         Returns:
             Fully populated and grounded AgentResponse
@@ -57,11 +63,15 @@ class NexusAgentService:
 
         logger.info(
             f"Starting agent analysis run. Request ID: {request_id}, "
+            f"Org: {organization_id}, Biz: {business_id}, "
             f"Query: '{query}', Explanation Level: '{explanation_level}'"
         )
 
         initial_state: AgentState = {
             "request_id": request_id,
+            "organization_id": organization_id,
+            "business_id": business_id,
+            "user_id": user_id,
             "user_query": query,
             "explanation_level": explanation_level,
             "reference_date": reference_date.isoformat() if reference_date else None,
@@ -175,6 +185,8 @@ class NexusAgentService:
         try:
             run_record = AnalysisRun(
                 request_id=request_id,
+                organization_id=organization_id,
+                business_id=business_id,
                 query=query,
                 intent=intent_label,
                 status=status,
@@ -196,6 +208,8 @@ class NexusAgentService:
             for rec in recommendations:
                 rec_text = rec if isinstance(rec, str) else str(rec.get("action", rec))
                 decision = DecisionRecord(
+                    organization_id=organization_id,
+                    business_id=business_id,
                     analysis_id=run_record.id,
                     recommendation_text=rec_text,
                     status="PENDING",

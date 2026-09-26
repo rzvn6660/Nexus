@@ -18,6 +18,9 @@ class Expense(Base, TimestampMixin):
     __tablename__ = "expenses"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True, doc="Tenant business ownership"
+    )
     expense_date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
     category: Mapped[str] = mapped_column(
         String(128), index=True, nullable=False, doc="Category: Rent, Utilities, Payroll, Marketing, Logistics, Supplies"

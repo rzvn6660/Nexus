@@ -26,6 +26,8 @@ class AnalysisRun(Base, TimestampMixin):
     __tablename__ = "analysis_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    organization_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     request_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True)
     query: Mapped[str] = mapped_column(Text, nullable=False)
     intent: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
@@ -57,6 +59,8 @@ class DecisionRecord(Base, TimestampMixin):
     __tablename__ = "decision_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    organization_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     analysis_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True, index=True
     )

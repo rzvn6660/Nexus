@@ -22,6 +22,9 @@ class Product(Base, TimestampMixin):
     __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True, doc="Tenant business ownership"
+    )
     sku: Mapped[str] = mapped_column(
         String(64), unique=True, index=True, nullable=False, doc="Stock Keeping Unit code"
     )

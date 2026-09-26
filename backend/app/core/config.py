@@ -111,6 +111,14 @@ class Settings(BaseSettings):
     API_KEY_ENABLED: bool = False
     API_KEY: str | None = None
 
+    # SaaS & Multi-Tenancy Identity (Phase 15)
+    AUTH_JWT_SECRET: str = "nexus-saas-jwt-secret-key-change-in-production-min-32-chars"
+    AUTH_JWT_ALGORITHM: str = "HS256"
+    AUTH_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
+    SUPABASE_URL: str | None = None
+    SUPABASE_ANON_KEY: str | None = None
+    MULTI_TENANCY_ENABLED: bool = True
+
     # Operational Boundaries & Timeouts (Phase 10)
     REQUEST_TIMEOUT_SECONDS: int = 60
     METRICS_ENABLED: bool = True

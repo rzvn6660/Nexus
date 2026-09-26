@@ -10,6 +10,9 @@ interface AppShellProps {
   health?: HealthResponse | null;
   children: React.ReactNode;
   onAskQuery?: (query: string) => void;
+  activeBusinessName?: string;
+  userRole?: string;
+  onLogout?: () => void;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({
@@ -18,6 +21,9 @@ export const AppShell: React.FC<AppShellProps> = ({
   health,
   children,
   onAskQuery,
+  activeBusinessName,
+  userRole,
+  onLogout,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -65,6 +71,10 @@ export const AppShell: React.FC<AppShellProps> = ({
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onOpenAsk={() => onNavigate('/ask')}
           health={health}
+          onNavigate={onNavigate}
+          onLogout={onLogout}
+          activeBusinessName={activeBusinessName}
+          userRole={userRole}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-8">

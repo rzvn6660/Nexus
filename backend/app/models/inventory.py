@@ -17,6 +17,9 @@ class Inventory(Base, TimestampMixin):
     __tablename__ = "inventory"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True, doc="Tenant business ownership"
+    )
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
     )

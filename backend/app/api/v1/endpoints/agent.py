@@ -1,6 +1,6 @@
 """API router exposing deterministic agent analytics workflows."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.orm import Session
 
 from app.agents.service import NexusAgentService
@@ -23,6 +23,7 @@ router = APIRouter()
 )
 def analyze_business_query(
     payload: AgentAnalyzeRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db),
 ) -> AgentResponse:
     """Entrypoint for agentic analytical requests."""
@@ -33,4 +34,5 @@ def analyze_business_query(
         reference_date=payload.reference_date,
         is_investigation=payload.is_investigation,
         is_forecast=payload.is_forecast,
+        business_id=x_business_id,
     )

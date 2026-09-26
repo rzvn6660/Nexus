@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,6 +37,7 @@ async def upload_document(
     business_domain: str = Form("general", description="Functional domain (finance, sales, inventory, customer)"),
     version: str = Form("1.0", description="Document revision version"),
     tags: str | None = Form(None, description="Comma-separated or JSON list of tags"),
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db),
 ) -> DocumentUploadResponse:
     """Upload and index a business context document file."""
@@ -66,7 +67,12 @@ async def upload_document(
 
     service = DocumentIngestionService(db)
     try:
-        result = service.ingest_file(file_bytes=file_bytes, filename=filename, metadata=metadata)
+        result = service.ingest_file(
+            file_bytes=file_bytes,
+            filename=filename,
+            metadata=metadata,
+            business_id=x_business_id,
+        )
         return DocumentUploadResponse.model_validate(result.model_dump())
     except ValueError as ve:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
@@ -85,6 +91,7 @@ async def upload_document(
 )
 def ingest_text_document(
     payload: DocumentTextIngestRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db),
 ) -> DocumentUploadResponse:
     """Directly ingest a markdown or text document payload."""
@@ -102,6 +109,7 @@ def ingest_text_document(
             text=payload.content,
             doc_type=payload.document_type,
             metadata=metadata,
+            business_id=x_business_id,
         )
         return DocumentUploadResponse.model_validate(result.model_dump())
     except ValueError as ve:
@@ -121,10 +129,15 @@ def ingest_text_document(
 )
 def list_documents(
     domain: str | None = None,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db),
 ) -> list[DocumentSummaryResponse]:
     """Retrieve summaries of all active registered knowledge documents."""
     stmt = select(KnowledgeDocument).where(KnowledgeDocument.status == "active")
+    if x_business_id is not None:
+        stmt = stmt.where(
+            (KnowledgeDocument.business_id == x_business_id) | (KnowledgeDocument.is_global.is_(True))
+        )
     if domain:
         stmt = stmt.where(KnowledgeDocument.business_domain == domain)
     stmt = stmt.order_by(KnowledgeDocument.created_at.desc())
@@ -156,6 +169,7 @@ def list_documents(
 )
 def get_document(
     document_id: str,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db),
 ) -> DocumentDetailResponse:
     """Retrieve full document metadata and constituent semantic chunks."""
@@ -166,6 +180,14 @@ def get_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Document '{document_id}' not found.",
         )
+
+    # Multi-tenant IDOR defense: reject cross-tenant access to private documents
+    if doc.business_id is not None and not doc.is_global:
+        if x_business_id and x_business_id != doc.business_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Knowledge document belongs to another business workspace.",
+            )
 
     chunk_responses = [
         ChunkResponse(
@@ -201,6 +223,7 @@ def get_document(
 )
 def search_knowledge(
     payload: KnowledgeSearchRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
     db: Session = Depends(get_db),
 ) -> KnowledgeSearchResponse:
     """Search business context documents with provenance evidence."""
@@ -210,5 +233,7 @@ def search_knowledge(
         business_domain=payload.business_domain,
         top_k=payload.top_k,
         similarity_threshold=payload.similarity_threshold,
+        business_id=x_business_id,
     )
     return KnowledgeSearchResponse.model_validate(result.model_dump())
+

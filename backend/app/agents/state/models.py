@@ -92,6 +92,9 @@ class AgentState(TypedDict, total=False):
     across all nodes in the state graph.
     """
     request_id: str
+    organization_id: str | None
+    business_id: str | None
+    user_id: str | None
     user_query: str
     explanation_level: str
     reference_date: str | None

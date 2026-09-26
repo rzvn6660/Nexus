@@ -98,6 +98,7 @@ desktop.ini
 *.sqlite3
 *.db
 data/local/
+data/tenants/
 postgres_data/
 
 # Logs

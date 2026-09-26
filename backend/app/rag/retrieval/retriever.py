@@ -55,6 +55,7 @@ class HybridRetriever:
         business_domain: str | None = None,
         top_k: int | None = None,
         similarity_threshold: float | None = None,
+        business_id: str | None = None,
     ) -> RetrievedContext:
         """
         Execute hybrid context retrieval for a user query.
@@ -83,6 +84,7 @@ class HybridRetriever:
             domain=resolved_domain,
             top_k=k,
             threshold=threshold,
+            business_id=business_id,
         )
 
         if not vector_chunks and resolution.resolved_kpi:
@@ -154,6 +156,7 @@ class HybridRetriever:
         domain: str | None,
         top_k: int,
         threshold: float,
+        business_id: str | None = None,
     ) -> tuple[list[RetrievedChunk], str]:
         """Query database chunks with optional domain filter and vector similarity."""
         query_embedding = self.embedding_provider.get_embedding(query)
@@ -164,6 +167,10 @@ class HybridRetriever:
             .join(KnowledgeDocument, KnowledgeChunk.document_id == KnowledgeDocument.id)
             .where(KnowledgeDocument.status == "active")
         )
+        if business_id is not None:
+            stmt = stmt.where(
+                (KnowledgeDocument.business_id == business_id) | (KnowledgeDocument.is_global.is_(True))
+            )
         if domain:
             stmt = stmt.where(KnowledgeChunk.business_domain == domain)
 

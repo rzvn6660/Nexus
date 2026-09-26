@@ -6,6 +6,7 @@ import {
   Building2,
   Sparkles,
   Key,
+  LogOut,
 } from 'lucide-react';
 import { HealthResponse } from '../../types/api';
 
@@ -15,6 +16,10 @@ interface TopBarProps {
   onOpenMobileMenu: () => void;
   onOpenAsk: () => void;
   health?: HealthResponse | null;
+  onNavigate?: (route: string) => void;
+  onLogout?: () => void;
+  activeBusinessName?: string;
+  userRole?: string;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -23,6 +28,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenMobileMenu,
   onOpenAsk,
   health,
+  onNavigate,
+  onLogout,
+  activeBusinessName,
+  userRole,
 }) => {
   const getRouteInfo = (route: string) => {
     switch (route) {
@@ -158,6 +167,38 @@ export const TopBar: React.FC<TopBarProps> = ({
             <ShieldCheck className={`w-3.5 h-3.5 ${isHealthy ? 'text-emerald-400' : 'text-amber-400'}`} />
             <span>{isHealthy ? 'Healthy' : 'Checking'}</span>
           </div>
+        </div>
+
+        {/* Active Workspace / Business Badge & Logout */}
+        <div className="flex items-center gap-1.5 pl-1 border-l border-surface-elevated">
+          {activeBusinessName && (
+            <button
+              onClick={() => onNavigate?.('/business')}
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface hover:bg-surface-elevated border border-surface-elevated text-xs transition-all"
+              title="Workspace Business Settings"
+            >
+              <Building2 className="w-3 h-3 text-brand-cyan shrink-0" />
+              <span className="font-semibold text-slate-200 max-w-[120px] truncate">
+                {activeBusinessName}
+              </span>
+              {userRole && (
+                <span className="px-1.5 py-0.2 rounded bg-cyan-950/70 border border-brand-cyan/30 text-[9px] font-mono text-brand-cyan uppercase">
+                  {userRole}
+                </span>
+              )}
+            </button>
+          )}
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-surface-elevated transition-colors"
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </header>

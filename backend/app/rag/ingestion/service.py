@@ -32,6 +32,8 @@ class DocumentIngestionService:
         file_bytes: bytes,
         filename: str,
         metadata: DocumentMetadata,
+        business_id: str | None = None,
+        is_global: bool = False,
     ) -> IngestionResult:
         """Extract text from file upload, validate constraints, and ingest."""
         clean_name = sanitize_filename(filename)
@@ -41,6 +43,8 @@ class DocumentIngestionService:
             doc_type=doc_type,
             source=metadata.source or clean_name,
             metadata=metadata,
+            business_id=business_id,
+            is_global=is_global,
         )
 
     def ingest_text(
@@ -48,6 +52,8 @@ class DocumentIngestionService:
         text: str,
         doc_type: str,
         metadata: DocumentMetadata,
+        business_id: str | None = None,
+        is_global: bool = False,
     ) -> IngestionResult:
         """Ingest plain text or raw markdown string directly."""
         clean_text = text.strip()
@@ -58,6 +64,8 @@ class DocumentIngestionService:
             doc_type=doc_type.lower(),
             source=metadata.source or "api_upload",
             metadata=metadata,
+            business_id=business_id,
+            is_global=is_global,
         )
 
     def _process_and_store(
@@ -66,15 +74,19 @@ class DocumentIngestionService:
         doc_type: str,
         source: str,
         metadata: DocumentMetadata,
+        business_id: str | None = None,
+        is_global: bool = False,
     ) -> IngestionResult:
         """Internal worker executing hashing, deduplication, chunking, and embedding."""
         content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-        # Check for existing document with identical content hash
+        # Check for existing document with identical content hash within the same tenant scope
         stmt = select(KnowledgeDocument).where(
             KnowledgeDocument.content_hash == content_hash,
             KnowledgeDocument.status == "active",
         )
+        if business_id is not None:
+            stmt = stmt.where(KnowledgeDocument.business_id == business_id)
         existing = self.session.execute(stmt).scalars().first()
         if existing:
             logger.info(
@@ -121,6 +133,8 @@ class DocumentIngestionService:
         doc_id = f"doc_{uuid.uuid4().hex[:12]}"
         doc_record = KnowledgeDocument(
             document_id=doc_id,
+            business_id=business_id,
+            is_global=is_global,
             title=metadata.title,
             source=source,
             document_type=doc_type,

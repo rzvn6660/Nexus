@@ -21,6 +21,9 @@ class Customer(Base, TimestampMixin):
     __tablename__ = "customers"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    business_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True, doc="Tenant business ownership"
+    )
     customer_code: Mapped[str] = mapped_column(
         String(32), unique=True, index=True, nullable=False, doc="Unique external business identifier"
     )

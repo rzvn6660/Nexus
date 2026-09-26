@@ -8,6 +8,7 @@ import {
   Database,
   BookOpen,
   History,
+  Building2,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -105,6 +106,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           route: '/history',
           icon: History,
           badge: 'Audit',
+        },
+      ],
+    },
+    {
+      label: 'WORKSPACE',
+      items: [
+        {
+          title: 'Business Profile',
+          route: '/business',
+          icon: Building2,
+          badge: 'Tenant',
         },
       ],
     },

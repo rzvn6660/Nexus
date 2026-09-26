@@ -8,7 +8,12 @@ import { AskNexusPage } from './pages/AskNexusPage';
 import { DataPage } from './pages/DataPage';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { HistoryPage } from './pages/HistoryPage';
+import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
+import { OnboardingPage } from './pages/OnboardingPage';
+import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { getHealthStatus } from './services/api';
+import { AuthService, UserProfileResponse } from './services/auth';
 import { HealthResponse } from './types/api';
 
 export const App: React.FC = () => {
@@ -19,6 +24,8 @@ export const App: React.FC = () => {
 
   const [activeAskQuery, setActiveAskQuery] = useState<string>('');
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => AuthService.isAuthenticated());
+  const [userProfile, setUserProfile] = useState<UserProfileResponse | null>(null);
 
   // Synchronize browser popstate (back/forward)
   useEffect(() => {
@@ -37,10 +44,33 @@ export const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const handleTriggerAsk = useCallback((query: string) => {
-    setActiveAskQuery(query);
-    handleNavigate('/ask');
-  }, [handleNavigate]);
+  const handleTriggerAsk = useCallback(
+    (query: string) => {
+      setActiveAskQuery(query);
+      handleNavigate('/ask');
+    },
+    [handleNavigate]
+  );
+
+  // Load user profile when authenticated
+  const loadProfile = useCallback(async () => {
+    if (!AuthService.isAuthenticated()) {
+      setUserProfile(null);
+      return;
+    }
+    try {
+      const p = await AuthService.getMe();
+      setUserProfile(p);
+    } catch (err) {
+      console.warn('Profile load notice:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadProfile();
+    }
+  }, [isAuthenticated, loadProfile]);
 
   // Initial health check
   useEffect(() => {
@@ -50,6 +80,54 @@ export const App: React.FC = () => {
         console.warn('Initial health check notice:', err);
       });
   }, []);
+
+  const handleAuthSuccess = () => {
+    setIsAuthenticated(true);
+    loadProfile();
+  };
+
+  const handleLogout = () => {
+    AuthService.logout();
+    setIsAuthenticated(false);
+    setUserProfile(null);
+    handleNavigate('/login');
+  };
+
+  // Auth Perimeter: Unauthenticated users are gated from workspace routes
+  if (!isAuthenticated) {
+    if (currentRoute === '/signup') {
+      return (
+        <SignupPage
+          onNavigate={handleNavigate}
+          onSignupSuccess={handleAuthSuccess}
+        />
+      );
+    }
+    return (
+      <LoginPage
+        onNavigate={handleNavigate}
+        onLoginSuccess={handleAuthSuccess}
+      />
+    );
+  }
+
+  // Full-screen focused onboarding flow
+  if (currentRoute === '/onboarding') {
+    return (
+      <OnboardingPage
+        onNavigate={handleNavigate}
+        onComplete={() => handleNavigate('/')}
+      />
+    );
+  }
+
+  // Active Business & Role resolution
+  const currentOrg = userProfile?.tenants?.[0];
+  const activeBiz = currentOrg?.businesses?.find(
+    (b) => b.id === AuthService.getActiveBusinessId()
+  ) || currentOrg?.businesses?.[0];
+  const activeBusinessName = activeBiz?.name || 'Workspace';
+  const userRole = currentOrg?.role || 'owner';
 
   const renderActivePage = () => {
     switch (currentRoute) {
@@ -94,6 +172,8 @@ export const App: React.FC = () => {
         return <KnowledgePage />;
       case '/history':
         return <HistoryPage />;
+      case '/business':
+        return <BusinessSettingsPage onNavigate={handleNavigate} />;
       default:
         return (
           <OverviewPage
@@ -110,6 +190,9 @@ export const App: React.FC = () => {
       onNavigate={handleNavigate}
       health={health}
       onAskQuery={handleTriggerAsk}
+      activeBusinessName={activeBusinessName}
+      userRole={userRole}
+      onLogout={handleLogout}
     >
       {renderActivePage()}
     </AppShell>
