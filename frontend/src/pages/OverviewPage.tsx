@@ -3,7 +3,6 @@ import {
   TrendingUp,
   SearchCode,
   ShieldCheck,
-  Sparkles,
   ArrowRight,
   BarChart3,
   Layers,
@@ -44,6 +43,8 @@ import { ErrorState } from '../components/common/ErrorState';
 import { EvidencePanel } from '../components/common/EvidencePanel';
 import { MetricStatement, MetricItem } from '../components/intelligence/MetricStatement';
 import { SignalRow, SignalData } from '../components/intelligence/SignalRow';
+import { NexusSymbol } from '../components/brand/NexusSymbol';
+import { WorkflowPath } from '../components/intelligence/WorkflowPath';
 
 interface OverviewPageProps {
   onNavigate: (route: string) => void;
@@ -190,33 +191,55 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
-      {/* 1. NEXUS INTELLIGENCE EXECUTIVE ANCHOR */}
+      {/* 1. NEXUS INTELLIGENCE EXECUTIVE ANCHOR & EPISTEMIC HERO */}
       <section className="relative rounded-3xl p-6 sm:p-10 overflow-hidden bg-void-sub border border-surface-elevated shadow-2xl">
         <div className="absolute top-0 right-0 -mr-24 -mt-24 w-96 h-96 rounded-full bg-cyan-500/5 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 -mb-24 w-64 h-64 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 space-y-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-brand-cyan/40 text-brand-cyan text-xs font-mono font-medium">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>NEXUS INTELLIGENCE • COMMERCIAL TELEMETRY</span>
+        <div className="relative z-10 space-y-8">
+          {/* Top Brand & Mission Lockup */}
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2.5 px-3 py-1 rounded-full bg-cyan-950/80 border border-brand-cyan/40 text-brand-cyan text-xs font-mono font-medium">
+                <NexusSymbol size={16} showBackdrop={false} />
+                <span>NEXUS • AGENTIC BUSINESS INTELLIGENCE PLATFORM</span>
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Deterministic Analytics Engine v1.0 • Online</span>
+              </div>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-sans leading-tight">
-              Understand what is happening.<br />
-              <span className="text-slate-400">Know why. See what comes next.</span>
-            </h1>
+            <div className="space-y-2">
+              <div className="text-xs sm:text-sm font-mono tracking-widest text-slate-400 uppercase font-semibold">
+                NEXUS
+              </div>
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight font-sans leading-tight">
+                WHERE BUSINESS DATA<br className="hidden sm:inline" /> BECOMES INTELLIGENCE.
+              </h1>
+              <p className="text-base sm:text-lg font-medium text-slate-300 font-sans pt-1">
+                Understand what happened. Investigate why. See what comes next. Decide with evidence.
+              </p>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-3xl font-sans leading-relaxed">
+                NEXUS synthesizes transactional business data, deterministic analytics, agentic investigation, 
+                predictive forecasting, business context, and verifiable evidence into auditable decision support for analysts and executives.
+              </p>
+            </div>
+          </div>
 
-            <p className="text-xs sm:text-sm text-slate-400 max-w-2xl font-sans pt-1">
-              Deterministic calculations derived from enterprise transactional logs.
-              Every metric carries cryptographic SQL lineage and reproducible provenance.
-            </p>
+          {/* Epistemic Progression: DATA -> UNDERSTAND -> INVESTIGATE -> VALIDATE -> PREDICT -> EXPLAIN -> DECIDE */}
+          <div className="pt-2 border-t border-surface-elevated/80">
+            <WorkflowPath onNavigate={onNavigate} />
           </div>
 
           {/* Current Business State Information Field */}
-          <MetricStatement
-            title="CURRENT BUSINESS STATE"
-            metrics={businessMetrics}
-          />
+          <div className="pt-2 border-t border-surface-elevated/80">
+            <MetricStatement
+              title="CURRENT BUSINESS STATE"
+              metrics={businessMetrics}
+            />
+          </div>
         </div>
       </section>
 

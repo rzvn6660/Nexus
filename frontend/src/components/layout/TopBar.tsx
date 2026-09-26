@@ -8,6 +8,7 @@ import {
   Key,
 } from 'lucide-react';
 import { HealthResponse } from '../../types/api';
+import { NexusSymbol } from '../brand/NexusSymbol';
 
 interface TopBarProps {
   currentRoute: string;
@@ -97,6 +98,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         >
           <Menu className="w-5 h-5" />
         </button>
+
+        <div className="md:hidden shrink-0">
+          <NexusSymbol size={22} showBackdrop={false} />
+        </div>
 
         <div className="min-w-0">
           <div className="flex items-center gap-2">
