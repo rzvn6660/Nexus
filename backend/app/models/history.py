@@ -22,12 +22,19 @@ class AnalysisRun(Base, TimestampMixin):
     Persistent audit ledger of agentic analytical executions.
     Stores the user query, resolved intent, computational output, tool telemetry,
     and associated proof packet for historical accountability.
+
+    Phase 19 additions:
+    - semantic_revision_id / semantic_version: immutable snapshot of the TenantSemanticModel
+      used at execution time. These never change even if a newer ACTIVE version is published.
+    - dataset_id / dataset_content_hash / ingestion_job_id / dataset_date_coverage:
+      dataset state snapshot at run creation time. Enables historical reproducibility.
     """
     __tablename__ = "analysis_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     business_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     organization_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
     request_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True)
     query: Mapped[str] = mapped_column(Text, nullable=False)
     intent: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
@@ -42,11 +49,45 @@ class AnalysisRun(Base, TimestampMixin):
     evidence_records: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     rag_citations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
 
+    # --- Phase 19: Semantic Snapshot ---
+    # Captured once at run creation. Immutable. Survives semantic model upgrades.
+    semantic_revision_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True,
+        doc="TenantSemanticModel.id that was ACTIVE when this run was created."
+    )
+    semantic_version: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+        doc="Snapshot of TenantSemanticModel.version used at execution time."
+    )
+
+    # --- Phase 19: Dataset Snapshot ---
+    # Captured once at run creation. References what data was available to the agent.
+    dataset_id: Mapped[str | None] = mapped_column(
+        String(36), index=True, nullable=True,
+        doc="UploadedDataset.id that was active for this business at run time."
+    )
+    dataset_content_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True,
+        doc="SHA-256 fingerprint of the dataset at run creation time."
+    )
+    ingestion_job_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True,
+        doc="Latest completed IngestionJob.id at run creation time."
+    )
+    dataset_date_coverage: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True,
+        doc="Date coverage metadata (start, end, days) captured from dataset at run time."
+    )
+
     # Relationships
     decisions: Mapped[list["DecisionRecord"]] = relationship(
         "DecisionRecord",
         back_populates="analysis",
         cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_analysis_runs_business_status", "business_id", "status"),
     )
 
 

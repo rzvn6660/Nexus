@@ -250,6 +250,27 @@ export const HistoryPage: React.FC = () => {
                       <span>{run.explanation_level}</span>
                       <span>{formatDuration(run.execution_time_ms)}</span>
                     </div>
+
+                    {/* Phase 19: Semantic + Dataset snapshot badges */}
+                    {(run.semantic_version != null || run.dataset_id) && (
+                      <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                        {run.semantic_version != null && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-950/60 border border-violet-700/40 text-[9px] font-mono text-violet-300">
+                            SEM v{run.semantic_version}
+                          </span>
+                        )}
+                        {run.dataset_id && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-teal-950/60 border border-teal-700/40 text-[9px] font-mono text-teal-300">
+                            DS:{run.dataset_id.slice(0, 8)}
+                          </span>
+                        )}
+                        {run.dataset_date_coverage?.start && (
+                          <span className="text-[9px] font-mono text-slate-500">
+                            {run.dataset_date_coverage.start} &rarr; {run.dataset_date_coverage.end}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -312,6 +333,42 @@ export const HistoryPage: React.FC = () => {
                     <span className="text-emerald-400 font-semibold">{runDetail.evidence_records?.length ?? 0} Records</span>
                   </div>
                 </div>
+
+                {/* Phase 19: Semantic + Dataset Provenance Block */}
+                {(runDetail.semantic_version != null || runDetail.dataset_id) && (
+                  <div className="rounded-2xl bg-void/60 border border-surface-elevated p-4 space-y-3">
+                    <span className="text-[10px] font-mono uppercase text-slate-400 tracking-wider block">Run Provenance</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                      {runDetail.semantic_version != null && (
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] text-slate-500 block">SEMANTIC MODEL</span>
+                          <span className="text-violet-300 font-semibold">Version {runDetail.semantic_version}</span>
+                          {runDetail.semantic_revision_id && (
+                            <span className="text-[9px] text-slate-500 block truncate">{runDetail.semantic_revision_id}</span>
+                          )}
+                        </div>
+                      )}
+                      {runDetail.dataset_id && (
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] text-slate-500 block">DATASET AT RUN TIME</span>
+                          <span className="text-teal-300 font-semibold truncate block">{runDetail.dataset_id.slice(0, 16)}&hellip;</span>
+                          {runDetail.dataset_date_coverage?.start && (
+                            <span className="text-[9px] text-slate-500 block">
+                              {runDetail.dataset_date_coverage.start} &rarr; {runDetail.dataset_date_coverage.end}
+                              {runDetail.dataset_date_coverage.days ? ` (${runDetail.dataset_date_coverage.days}d)` : ''}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {runDetail.dataset_content_hash && (
+                        <div className="col-span-full space-y-0.5">
+                          <span className="text-[10px] text-slate-500 block">DATASET FINGERPRINT (SHA-256)</span>
+                          <span className="text-[9px] text-slate-400 font-mono truncate block">{runDetail.dataset_content_hash}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Attached Decisions */}
                 {runDetail.decisions && runDetail.decisions.length > 0 && (

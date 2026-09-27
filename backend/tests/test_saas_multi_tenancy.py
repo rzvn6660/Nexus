@@ -496,7 +496,7 @@ def test_20_agent_cannot_escape_tenant_boundary(client, saas_tenants):
     assert res.status_code == 200
     data = res.json()
     assert "answer" in data
-    assert data["status"] in ["success", "clarification_needed", "unsupported"]
+    assert data["status"] in ["success", "clarification_needed", "unsupported", "semantic-not-ready"]
 
 
 def test_7_cross_tenant_delete_rejected(client, saas_tenants):

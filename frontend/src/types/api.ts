@@ -711,6 +711,12 @@ export interface DecisionReviewRequest {
   reviewed_by?: string;
 }
 
+export interface DatasetDateCoverage {
+  start?: string | null;
+  end?: string | null;
+  days?: number | null;
+}
+
 export interface AnalysisRunItem {
   id: number;
   request_id: string;
@@ -720,6 +726,14 @@ export interface AnalysisRunItem {
   explanation_level: string;
   execution_time_ms?: number | null;
   created_at: string;
+  // Phase 19: Semantic snapshot (immutable — captured at run creation)
+  semantic_version?: number | null;
+  semantic_revision_id?: string | null;
+  // Phase 19: Dataset snapshot (immutable — captured at run creation)
+  dataset_id?: string | null;
+  dataset_content_hash?: string | null;
+  ingestion_job_id?: string | null;
+  dataset_date_coverage?: DatasetDateCoverage | null;
 }
 
 export interface AnalysisRunDetail extends AnalysisRunItem {

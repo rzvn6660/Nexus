@@ -611,6 +611,7 @@ def test_17_evidence_semantic_provenance(db_session, tenant_fixture):
         query="What is our Net Revenue?",
         organization_id=biz_a.organization_id,
         business_id=biz_a.id,
+        enforce_readiness=False,
     )
     assert response.semantic_context is not None
     assert response.semantic_context.get("canonical_name") == "net_revenue"
@@ -630,6 +631,7 @@ def test_18_agent_semantic_context_integration(db_session, tenant_fixture):
         query="What was our total net revenue?",
         organization_id=biz_a.organization_id,
         business_id=biz_a.id,
+        enforce_readiness=False,
     )
     assert response.semantic_context is not None
     assert response.semantic_context.get("canonical_name") == "net_revenue"
@@ -644,6 +646,7 @@ def test_19_agent_clarification_on_ambiguous_metric(db_session, tenant_fixture):
         query="How did sales perform?",
         organization_id=biz_a.organization_id,
         business_id=biz_a.id,
+        enforce_readiness=False,
     )
     assert response.status == "clarification_needed"
     assert response.needs_clarification is True

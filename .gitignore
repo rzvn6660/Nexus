@@ -99,6 +99,7 @@ desktop.ini
 *.db
 data/local/
 data/tenants/
+backend/data/
 postgres_data/
 
 # Logs
