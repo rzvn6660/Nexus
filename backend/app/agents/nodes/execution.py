@@ -79,7 +79,15 @@ def execute_tool_node(state: AgentState, config: RunnableConfig | None = None) -
             if tool_name not in tools_used:
                 tools_used.append(tool_name)
             if exec_result.evidence:
-                evidence_list.append(exec_result.evidence)
+                ev = dict(exec_result.evidence)
+                sem_ctx = state.get("semantic_context") or {}
+                prov = sem_ctx.get("evidence_provenance")
+                if prov:
+                    ev["semantic_definition"] = prov.get("semantic_definition")
+                    ev["source_data"] = prov.get("source_data")
+                    ev["calculation_definition"] = prov.get("calculation")
+                    ev["semantic_availability"] = prov.get("availability")
+                evidence_list.append(ev)
             for a in exec_result.assumptions:
                 if a not in assumptions_list:
                     assumptions_list.append(a)

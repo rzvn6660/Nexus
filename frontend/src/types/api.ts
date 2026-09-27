@@ -481,18 +481,109 @@ export interface KPIResponse {
   status: string;
 }
 
+export interface MetricAvailability {
+  canonical_name: string;
+  display_name: string;
+  description: string;
+  status: string; // AVAILABLE, REQUIRES_COST_DATA, INSUFFICIENT_HISTORY, UNAVAILABLE
+  source_table: string;
+  source_field: string;
+  calculation_formula: string;
+  unit: string;
+  business_domain: string;
+  missing_prerequisites: string[];
+}
+
+export interface EntityUnderstanding {
+  entity_name: string;
+  record_count: number;
+  mapped_fields: Record<string, string>;
+  sample_identifiers: string[];
+  date_range_start?: string | null;
+  date_range_end?: string | null;
+}
+
+export interface DimensionUnderstanding {
+  dimension_name: string;
+  source_table: string;
+  source_column: string;
+  cardinality: number;
+  sample_values: string[];
+}
+
+export interface BusinessDataSummary {
+  sales_count: number;
+  sales_date_start?: string | null;
+  sales_date_end?: string | null;
+  customers_count: number;
+  products_count: number;
+  inventory_count: number;
+  expenses_count: number;
+  supported_analytics: string[];
+  unsupported_analytics: string[];
+  warnings: string[];
+}
+
+export interface BusinessUnderstandingResponse {
+  business_id: string;
+  version: number;
+  status: string; // NOT_ACTIVATED, ACTIVATING, ACTIVE, REQUIRES_REVIEW, FAILED
+  source_dataset_id?: string | null;
+  summary: BusinessDataSummary;
+  entities: Record<string, EntityUnderstanding>;
+  metrics: Record<string, MetricAvailability>;
+  dimensions: Record<string, DimensionUnderstanding>;
+  synonyms: Record<string, string>;
+  ambiguous_terms: Record<string, any>;
+  has_conflicts: boolean;
+  conflicts: Array<Record<string, any>>;
+  activated_at?: string | null;
+}
+
+export interface SemanticRevisionSummary {
+  id: string;
+  version: number;
+  status: string;
+  source_dataset_id?: string | null;
+  created_at: string;
+  entities_count: number;
+  metrics_available_count: number;
+}
+
+export interface SemanticActivationRequest {
+  force_refresh?: boolean;
+  custom_synonyms?: Record<string, string>;
+}
+
+export interface SemanticActivationResponse {
+  business_id: string;
+  version: number;
+  status: string;
+  message: string;
+  understanding: BusinessUnderstandingResponse;
+}
+
 export interface SemanticResolveResponse {
   query: string;
   resolved_kpi?: KPIResponse | null;
   canonical_name?: string | null;
+  canonical_kpi?: string | null;
+  display_name?: string | null;
   analytics_tool?: string | null;
   metric_field?: string | null;
+  availability_status?: string;
+  source_table?: string | null;
+  source_field?: string | null;
+  calculation_formula?: string | null;
+  unit?: string | null;
   is_ambiguous: boolean;
   candidate_kpis: KPIResponse[];
   is_supported: boolean;
   unsupported_message?: string | null;
   clarification_prompt?: string | null;
+  ambiguity_candidates?: string[];
   matched_synonym?: string | null;
+  evidence_provenance?: Record<string, any>;
 }
 
 // ==========================================

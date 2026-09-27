@@ -175,6 +175,9 @@ class Business(Base, TimestampMixin):
     data_readiness_status: Mapped[str] = mapped_column(
         String(32), default="not_ready", nullable=False
     )
+    semantic_status: Mapped[str] = mapped_column(
+        String(32), default="NOT_ACTIVATED", nullable=False
+    )
 
     # Relationships
     organization: Mapped["Organization"] = relationship(
@@ -182,6 +185,11 @@ class Business(Base, TimestampMixin):
     )
     datasets: Mapped[list["UploadedDataset"]] = relationship(
         "UploadedDataset",
+        back_populates="business",
+        cascade="all, delete-orphan",
+    )
+    semantic_models: Mapped[list["TenantSemanticModel"]] = relationship(
+        "TenantSemanticModel",
         back_populates="business",
         cascade="all, delete-orphan",
     )
@@ -279,4 +287,67 @@ class IngestionJob(Base, TimestampMixin):
     # Relationships
     dataset: Mapped["UploadedDataset"] = relationship(
         "UploadedDataset", back_populates="ingestion_jobs"
+    )
+
+
+class TenantSemanticModel(Base, TimestampMixin):
+    """
+    Persistent, tenant-specific Business Understanding and Semantic Model (Phase 17).
+
+    Binds raw customer data and mapped domain entities to:
+    - Entity and field inventories
+    - Tenant-specific metric availability (AVAILABLE, REQUIRES_COST_DATA, INSUFFICIENT_HISTORY)
+    - Custom business synonyms and terminology mappings
+    - Detected ambiguities requiring user clarification
+    - Deterministic business data summaries
+    - Versioned configuration history for reproducible analytical explanations
+    """
+    __tablename__ = "tenant_semantic_models"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    organization_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    business_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("businesses.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(
+        String(32), default="ACTIVE", nullable=False, index=True
+    )  # NOT_ACTIVATED, ACTIVATING, ACTIVE, REQUIRES_REVIEW, FAILED
+    source_dataset_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("uploaded_datasets.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    entities_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    dimensions_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    synonyms_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    ambiguous_terms_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    business_summary_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    conflicts_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+    # Relationships
+    business: Mapped["Business"] = relationship(
+        "Business", back_populates="semantic_models"
+    )
+    source_dataset: Mapped["UploadedDataset | None"] = relationship(
+        "UploadedDataset"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "business_id", "version", name="uq_business_semantic_version"
+        ),
+        Index("ix_tenant_semantic_business_status", "business_id", "status"),
     )

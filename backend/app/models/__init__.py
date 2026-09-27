@@ -15,6 +15,7 @@ from app.models.tenant import (
     IngestionJob,
     Organization,
     OrganizationMembership,
+    TenantSemanticModel,
     UploadedDataset,
     UserIdentity,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "Product",
     "Sale",
     "SaleItem",
+    "TenantSemanticModel",
     "TimestampMixin",
     "UploadedDataset",
     "UserIdentity",

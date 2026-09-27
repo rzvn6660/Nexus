@@ -324,3 +324,144 @@ def test_runner_execution_deterministic():
     assert result["failures"] == []
     assert result["evidence_completeness_pct"] == 100.0
     assert result["actual_intent"] == "metric_lookup"
+
+
+# =========================================================================
+# Phase 17 Evaluation & Groundedness Cases
+# =========================================================================
+
+def test_evaluation_tenant_kpi_and_synonym_resolution():
+    """Evaluate tenant-specific synonym and KPI resolution accuracy separately from execution."""
+    from app.services.tenant_semantic_service import TenantSemanticService
+    from unittest.mock import MagicMock
+
+    mock_db = MagicMock()
+    mock_model = MagicMock()
+    mock_model.metrics_json = {
+        "net_revenue": {
+            "canonical_name": "net_revenue",
+            "display_name": "Net Revenue",
+            "status": "AVAILABLE",
+            "source_table": "sales",
+            "source_field": "total_amount",
+            "calculation_formula": "SUM(sales.total_amount)",
+        }
+    }
+    mock_model.synonyms_json = {"client intake": "net_revenue"}
+    mock_model.ambiguous_terms_json = TenantSemanticService.DEFAULT_AMBIGUOUS_TERMS
+
+    # Mock get_active_semantic_model
+    original_get = TenantSemanticService.get_active_semantic_model
+    TenantSemanticService.get_active_semantic_model = classmethod(lambda cls, business_id, db: mock_model)
+    try:
+        res = TenantSemanticService.resolve_query_with_tenant_context(
+            query="show me client intake for last month",
+            business_id="biz_eval_1",
+            db=mock_db,
+        )
+        assert res.canonical_name == "net_revenue"
+        assert res.availability_status == "AVAILABLE"
+        assert res.source_table == "sales"
+        assert res.calculation_formula == "SUM(sales.total_amount)"
+    finally:
+        TenantSemanticService.get_active_semantic_model = original_get
+
+
+def test_evaluation_ambiguity_clarification():
+    """Evaluate that ambiguous business terms trigger clarification rather than guessing."""
+    from app.services.tenant_semantic_service import TenantSemanticService
+    from unittest.mock import MagicMock
+
+    mock_db = MagicMock()
+    mock_model = MagicMock()
+    mock_model.metrics_json = {}
+    mock_model.synonyms_json = {}
+    mock_model.ambiguous_terms_json = TenantSemanticService.DEFAULT_AMBIGUOUS_TERMS
+
+    original_get = TenantSemanticService.get_active_semantic_model
+    TenantSemanticService.get_active_semantic_model = classmethod(lambda cls, business_id, db: mock_model)
+    try:
+        res = TenantSemanticService.resolve_query_with_tenant_context(
+            query="how did our margin look last quarter?",
+            business_id="biz_eval_1",
+            db=mock_db,
+        )
+        assert res.is_ambiguous is True
+        assert res.clarification_prompt is not None
+        assert "margin" in res.clarification_prompt.lower()
+        assert "gross_margin" in res.ambiguity_candidates
+    finally:
+        TenantSemanticService.get_active_semantic_model = original_get
+
+
+def test_evaluation_missing_metric_availability_state():
+    """Evaluate that unavailable or prerequisite-missing metrics are never hallucinated."""
+    from app.services.tenant_semantic_service import TenantSemanticService
+    from unittest.mock import MagicMock
+
+    mock_db = MagicMock()
+    mock_model = MagicMock()
+    mock_model.metrics_json = {
+        "gross_margin": {
+            "canonical_name": "gross_margin",
+            "display_name": "Gross Margin",
+            "status": "REQUIRES_COST_DATA",
+            "source_table": "products",
+            "source_field": "unit_cost",
+            "calculation_formula": "ROUND((revenue - cogs) / NULLIF(revenue, 0) * 100, 2)",
+        }
+    }
+    mock_model.synonyms_json = {"gross profit margin": "gross_margin"}
+    mock_model.ambiguous_terms_json = TenantSemanticService.DEFAULT_AMBIGUOUS_TERMS
+
+    original_get = TenantSemanticService.get_active_semantic_model
+    TenantSemanticService.get_active_semantic_model = classmethod(lambda cls, business_id, db: mock_model)
+    try:
+        res = TenantSemanticService.resolve_query_with_tenant_context(
+            query="what is our gross profit margin?",
+            business_id="biz_eval_1",
+            db=mock_db,
+        )
+        assert res.canonical_name == "gross_margin"
+        assert res.availability_status == "REQUIRES_COST_DATA"
+        assert "cost data" in res.unsupported_message.lower()
+    finally:
+        TenantSemanticService.get_active_semantic_model = original_get
+
+
+def test_evaluation_evidence_provenance_structure():
+    """Evaluate that evidence provenance accurately separates source data, definition, and calculation."""
+    from app.services.tenant_semantic_service import TenantSemanticService
+    from unittest.mock import MagicMock
+
+    mock_db = MagicMock()
+    mock_model = MagicMock()
+    mock_model.metrics_json = {
+        "net_revenue": {
+            "canonical_name": "net_revenue",
+            "display_name": "Net Revenue",
+            "status": "AVAILABLE",
+            "source_table": "sales",
+            "source_field": "total_amount",
+            "calculation_formula": "SUM(sales.total_amount)",
+        }
+    }
+    mock_model.synonyms_json = {"revenue": "net_revenue"}
+    mock_model.ambiguous_terms_json = TenantSemanticService.DEFAULT_AMBIGUOUS_TERMS
+
+    original_get = TenantSemanticService.get_active_semantic_model
+    TenantSemanticService.get_active_semantic_model = classmethod(lambda cls, business_id, db: mock_model)
+    try:
+        res = TenantSemanticService.resolve_query_with_tenant_context(
+            query="show revenue",
+            business_id="biz_eval_1",
+            db=mock_db,
+        )
+        prov = res.evidence_provenance
+        assert prov["source_data"] == "sales"
+        assert prov["semantic_definition"] == "sales.total_amount"
+        assert prov["calculation"] == "SUM(sales.total_amount)"
+        assert prov["availability"] == "AVAILABLE"
+        assert prov["tenant_scoped"] is True
+    finally:
+        TenantSemanticService.get_active_semantic_model = original_get

@@ -14,6 +14,7 @@ import { formatDate } from '../utils/formatters';
 import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
 import { IntelligenceHeader } from '../components/intelligence/IntelligenceHeader';
+import { BusinessUnderstandingCard } from '../components/semantic/BusinessUnderstandingCard';
 
 export const KnowledgePage: React.FC = () => {
   const [documents, setDocuments] = useState<DocumentSummaryResponse[]>([]);
@@ -85,6 +86,9 @@ export const KnowledgePage: React.FC = () => {
       {loading && <LoadingState message="Loading enterprise ontology and policy catalog..." />}
       {error && <ErrorState message={error} onRetry={fetchData} />}
 
+      {/* 0. TENANT BUSINESS UNDERSTANDING & SEMANTIC LAYER */}
+      <BusinessUnderstandingCard onActivated={fetchData} />
+
       {/* 1. INTERACTIVE SEMANTIC RESOLVER SANDBOX */}
       <section className="p-6 rounded-3xl border border-surface-elevated bg-surface/50 space-y-4">
         <div className="flex items-center justify-between border-b border-surface-elevated pb-3">
@@ -94,7 +98,7 @@ export const KnowledgePage: React.FC = () => {
               <span>Semantic Terminology Resolver Sandbox</span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Demonstrates how colloquial language resolves deterministically into canonical mathematical metrics.
+              Demonstrates how colloquial language resolves deterministically into canonical mathematical metrics and tenant data models.
             </p>
           </div>
         </div>
@@ -102,7 +106,7 @@ export const KnowledgePage: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
-            placeholder="Type a business term (e.g. 'topline', 'gross revenue', 'basket size', 'margin')..."
+            placeholder="Type a business term (e.g. 'sales', 'turnover', 'margin', 'revenue', 'spending')..."
             value={testTerm}
             onChange={(e) => setTestTerm(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleResolveTest()}
@@ -118,34 +122,80 @@ export const KnowledgePage: React.FC = () => {
         </div>
 
         {resolvedResult && (
-          <div className="p-4 rounded-2xl bg-void/80 border border-surface-elevated space-y-2 text-xs animate-in fade-in duration-150">
+          <div className="p-4 rounded-2xl bg-void/80 border border-surface-elevated space-y-2.5 text-xs animate-in fade-in duration-150">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                {resolvedResult.is_ambiguous ? (
+                  <span className="p-1 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold">
+                    AMBIGUOUS
+                  </span>
+                ) : resolvedResult.availability_status === 'AVAILABLE' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <span className="p-1 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold">
+                    {resolvedResult.availability_status}
+                  </span>
+                )}
                 <span className="font-semibold text-slate-200 font-sans">
-                  Resolved Term: <code className="text-brand-cyan">"{resolvedResult.query}"</code>
+                  Query: <code className="text-brand-cyan">"{resolvedResult.query}"</code>
                 </span>
               </div>
               <span className="font-mono text-[11px] text-slate-400">
-                Tool: {resolvedResult.analytics_tool || 'deterministic_query'}
+                Tool: {resolvedResult.analytics_tool || 'deterministic_analytics'}
               </span>
             </div>
 
-            {resolvedResult.resolved_kpi ? (
-              <div className="space-y-1 font-mono text-[11px] text-slate-300 pt-1">
-                <p>
-                  <span className="text-slate-500">Canonical KPI: </span>
-                  <span className="text-white font-bold">{resolvedResult.resolved_kpi.display_name}</span> (
-                  {resolvedResult.resolved_kpi.canonical_name})
-                </p>
-                <p>
-                  <span className="text-slate-500">Formula Reference: </span>
-                  <span className="text-emerald-400">{resolvedResult.resolved_kpi.calculation_reference}</span>
-                </p>
+            {resolvedResult.is_ambiguous ? (
+              <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-800/40 text-amber-200 space-y-1.5">
+                <p className="font-semibold text-amber-100">{resolvedResult.clarification_prompt}</p>
+                {resolvedResult.ambiguity_candidates && resolvedResult.ambiguity_candidates.length > 0 && (
+                  <div className="flex gap-1.5 flex-wrap pt-1">
+                    {resolvedResult.ambiguity_candidates.map((cand) => (
+                      <span
+                        key={cand}
+                        className="px-2 py-0.5 rounded-md bg-amber-900/50 text-amber-200 font-mono text-[10px]"
+                      >
+                        {cand}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : resolvedResult.canonical_name || resolvedResult.canonical_kpi ? (
+              <div className="space-y-1.5 font-mono text-[11px] text-slate-300 pt-1">
+                <div className="flex justify-between">
+                  <div>
+                    <span className="text-slate-500">Canonical Metric: </span>
+                    <span className="text-white font-bold">
+                      {resolvedResult.display_name || resolvedResult.canonical_name}
+                    </span>{' '}
+                    ({resolvedResult.canonical_name || resolvedResult.canonical_kpi})
+                  </div>
+                  {resolvedResult.availability_status && (
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded border font-semibold ${
+                        resolvedResult.availability_status === 'AVAILABLE'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      }`}
+                    >
+                      {resolvedResult.availability_status}
+                    </span>
+                  )}
+                </div>
+                {resolvedResult.calculation_formula && (
+                  <p>
+                    <span className="text-slate-500">Formula Definition: </span>
+                    <span className="text-emerald-400">{resolvedResult.calculation_formula}</span>
+                  </p>
+                )}
+                {resolvedResult.unsupported_message && (
+                  <p className="text-amber-300 font-sans">{resolvedResult.unsupported_message}</p>
+                )}
               </div>
             ) : (
               <p className="text-amber-300 text-xs font-sans">
-                {resolvedResult.unsupported_message || 'Could not resolve term to an approved canonical KPI.'}
+                {resolvedResult.unsupported_message || 'Could not resolve term to an approved metric.'}
               </p>
             )}
           </div>

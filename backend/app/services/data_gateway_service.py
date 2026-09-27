@@ -1072,6 +1072,22 @@ class DataGatewayService:
             db.commit()
             db.refresh(dataset)
 
+            # Phase 17: Automatic Business Understanding and Semantic Activation upon DATASET READY
+            try:
+                from app.services.tenant_semantic_service import TenantSemanticService
+                TenantSemanticService.generate_business_understanding(
+                    business_id=business_id,
+                    organization_id=dataset.organization_id,
+                    db=db,
+                    source_dataset_id=dataset.id,
+                )
+            except Exception as sem_exc:
+                logger.warning(
+                    "Automatic semantic activation encountered an issue for business %s: %s",
+                    business_id,
+                    sem_exc,
+                )
+
             return {
                 "dataset_id": dataset.id,
                 "job_id": job.id,

@@ -8,7 +8,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.agents.state.models import AgentState
 from app.rag.retrieval.retriever import HybridRetriever
-from app.rag.semantic.ontology import semantic_resolver
+from app.rag.semantic.ontology import kpi_ontology, semantic_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +47,92 @@ def _is_definitional_only_query(query: str) -> bool:
     return False
 
 
-def semantic_resolution_node(state: AgentState) -> dict[str, Any]:
+def semantic_resolution_node(state: AgentState, config: RunnableConfig | None = None) -> dict[str, Any]:
     """
-    Resolve natural language terms against the NEXUS KPI ontology.
-    Detects ambiguous business terms and explicitly unsupported metrics before planning.
+    Resolve natural language terms against the tenant semantic model or canonical KPI ontology.
+    Detects tenant metric availability states, ambiguous business terms, and unsupported metrics.
     """
     user_query = state.get("user_query", "").strip()
+    business_id = state.get("business_id")
+    session = None
+    if config:
+        configurable = config.get("configurable", {})
+        session = configurable.get("session")
+
+    # If tenant business and session are present, perform tenant-aware semantic resolution
+    if business_id and session:
+        from app.services.tenant_semantic_service import TenantSemanticService
+        tenant_res = TenantSemanticService.resolve_query_with_tenant_context(
+            query=user_query,
+            business_id=business_id,
+            db=session,
+        )
+
+        res_dict = tenant_res.model_dump()
+        # Enrich with canonical KPI object if available
+        if tenant_res.canonical_name:
+            kpi_obj = kpi_ontology.get_kpi(tenant_res.canonical_name)
+            if kpi_obj:
+                res_dict["resolved_kpi"] = kpi_obj.model_dump()
+
+        # 1. Explicit unsupported metric
+        if not tenant_res.is_supported:
+            return {
+                "semantic_context": res_dict,
+                "is_unsupported": True,
+                "unsupported_reason": tenant_res.unsupported_message or (
+                    "The requested metric is not currently supported by the NEXUS metric catalog."
+                ),
+                "evidence_status": "INSUFFICIENT",
+            }
+
+        # 2. Ambiguous business term requiring clarification
+        if tenant_res.is_ambiguous:
+            return {
+                "semantic_context": res_dict,
+                "needs_clarification": True,
+                "clarification_question": tenant_res.clarification_prompt or (
+                    "The specified term is ambiguous. Please clarify which metric you would like to analyze."
+                ),
+                "evidence_status": "INSUFFICIENT",
+            }
+
+        # 3. Metric availability state from tenant database grounding
+        if tenant_res.availability_status == "REQUIRES_COST_DATA":
+            return {
+                "semantic_context": res_dict,
+                "is_unsupported": True,
+                "unsupported_reason": tenant_res.unsupported_message or (
+                    "Gross Margin calculation requires cost data (unit cost or purchase price) which is not present in your catalog."
+                ),
+                "evidence_status": "INSUFFICIENT",
+            }
+        elif tenant_res.availability_status == "INSUFFICIENT_HISTORY":
+            return {
+                "semantic_context": res_dict,
+                "is_unsupported": True,
+                "unsupported_reason": tenant_res.unsupported_message or (
+                    "This metric requires more transaction history than currently available in your dataset."
+                ),
+                "evidence_status": "INSUFFICIENT",
+            }
+        elif tenant_res.availability_status == "UNAVAILABLE" and tenant_res.canonical_kpi:
+            return {
+                "semantic_context": res_dict,
+                "is_unsupported": True,
+                "unsupported_reason": tenant_res.unsupported_message or (
+                    "This metric is unavailable based on your currently uploaded records."
+                ),
+                "evidence_status": "INSUFFICIENT",
+            }
+
+        return {
+            "semantic_context": res_dict,
+            "is_unsupported": False,
+            "needs_clarification": False,
+        }
+
+    # Canonical resolution fallback
     resolution = semantic_resolver.resolve(user_query)
 
     # 1. Check for explicit unsupported metric
