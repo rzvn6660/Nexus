@@ -1,7 +1,7 @@
 """Pydantic schemas for Tenant Business Understanding and Semantic Activation (Phase 17)."""
 
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class KPIResponse(BaseModel):
@@ -135,3 +135,107 @@ class SemanticResolveResponse(BaseModel):
     unsupported_message: Optional[str] = None
     matched_synonym: Optional[str] = None
     evidence_provenance: Dict[str, Any] = Field(default_factory=dict)
+    semantic_version: Optional[int] = None
+    semantic_revision_id: Optional[str] = None
+
+
+class MetricDiffItem(BaseModel):
+    """Deterministic comparison item for a governed business metric."""
+    metric_name: str
+    change_type: str  # ADDED, REMOVED, CHANGED, UNCHANGED
+    previous_definition: Optional[str] = None
+    proposed_definition: Optional[str] = None
+    previous_formula: Optional[str] = None
+    proposed_formula: Optional[str] = None
+    previous_availability: Optional[str] = None
+    proposed_availability: Optional[str] = None
+    source_data: Optional[str] = None
+    has_conflict: bool = False
+    conflict_reason: Optional[str] = None
+
+
+class EntityDiffItem(BaseModel):
+    """Deterministic comparison item for a discovered business entity."""
+    entity_name: str
+    change_type: str  # ADDED, REMOVED, CHANGED, UNCHANGED
+    previous_count: int = 0
+    proposed_count: int = 0
+    previous_fields: Dict[str, str] = Field(default_factory=dict)
+    proposed_fields: Dict[str, str] = Field(default_factory=dict)
+
+
+class SynonymDiffItem(BaseModel):
+    """Deterministic comparison item for business terminology synonyms."""
+    term: str
+    change_type: str  # ADDED, REMOVED, CHANGED, UNCHANGED
+    previous_target: Optional[str] = None
+    proposed_target: Optional[str] = None
+
+
+class AmbiguousTermDiffItem(BaseModel):
+    """Deterministic comparison item for ambiguous business terms."""
+    term: str
+    change_type: str  # ADDED, REMOVED, CHANGED, UNCHANGED
+    previous_candidates: List[str] = Field(default_factory=list)
+    proposed_candidates: List[str] = Field(default_factory=list)
+
+
+class SemanticDiffResponse(BaseModel):
+    """Deterministic comparison between two semantic model revisions."""
+    base_revision_id: Optional[str] = None
+    base_version: Optional[int] = None
+    target_revision_id: str
+    target_version: int
+    has_conflicts: bool = False
+    conflicts_count: int = 0
+    summary_diff: Dict[str, Any] = Field(default_factory=dict)
+    metric_diffs: List[MetricDiffItem] = Field(default_factory=list)
+    entity_diffs: List[EntityDiffItem] = Field(default_factory=list)
+    synonym_diffs: List[SynonymDiffItem] = Field(default_factory=list)
+    ambiguous_term_diffs: List[AmbiguousTermDiffItem] = Field(default_factory=list)
+
+
+class SemanticReviewActionRequest(BaseModel):
+    """Payload for approving or rejecting a proposed semantic revision."""
+    comment: Optional[str] = None
+
+
+class SemanticModifyRequest(BaseModel):
+    """Payload for modifying a proposed semantic revision before approval."""
+    metrics_override: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Dictionary mapping metric names to overridden formula/source attributes",
+    )
+    custom_synonyms: Optional[Dict[str, str]] = None
+    comment: Optional[str] = None
+
+    @field_validator("metrics_override")
+    @classmethod
+    def validate_metrics_override_formulas(
+        cls, v: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        from app.services.tenant_semantic_service import TenantSemanticService
+        for m_name, m_override in v.items():
+            if isinstance(m_override, dict):
+                formula = m_override.get("calculation_formula")
+                if formula is not None:
+                    try:
+                        TenantSemanticService.validate_semantic_formula(str(formula))
+                    except Exception as exc:
+                        detail = getattr(exc, "detail", str(exc))
+                        raise ValueError(detail)
+        return v
+
+
+class SemanticReviewActionResponse(BaseModel):
+    """Audit outcome of a human-in-the-loop semantic review action."""
+    revision_id: str
+    version: int
+    previous_status: str
+    new_status: str
+    action: str  # APPROVED, REJECTED, MODIFIED
+    message: str
+    reviewed_by: Optional[str] = None
+    reviewed_at: str
+    decision_record_id: Optional[int] = None
+    active_version: Optional[int] = None

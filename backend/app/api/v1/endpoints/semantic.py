@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user, get_optional_current_user, verify_user_business_access
@@ -16,6 +16,10 @@ from app.schemas.semantic import (
     KPIResponse,
     SemanticActivationRequest,
     SemanticActivationResponse,
+    SemanticDiffResponse,
+    SemanticModifyRequest,
+    SemanticReviewActionRequest,
+    SemanticReviewActionResponse,
     SemanticRevisionSummary,
     SemanticResolveRequest,
     SemanticResolveResponse,
@@ -23,6 +27,35 @@ from app.schemas.semantic import (
 from app.services.tenant_semantic_service import TenantSemanticService
 
 router = APIRouter()
+
+
+def _verify_reviewer_role(
+    db: Session,
+    user: UserIdentity,
+    biz: Business,
+    action: str = "review",
+) -> OrganizationMembership:
+    """Verify that user has OWNER or ADMIN role for the organization owning the business."""
+    membership = db.execute(
+        select(OrganizationMembership).where(
+            OrganizationMembership.user_id == user.id,
+            OrganizationMembership.organization_id == biz.organization_id,
+        )
+    ).scalar_one_or_none()
+
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You do not belong to the organization for this business workspace.",
+        )
+
+    if membership.role.lower() not in ["owner", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Only organization owners and admins can {action} semantic revisions.",
+        )
+
+    return membership
 
 
 def _resolve_target_business(
@@ -217,6 +250,193 @@ def list_semantic_revisions(
         db, current_user, x_business_id, business_id, action="view semantic revisions"
     )
     return TenantSemanticService.list_revisions(biz.id, db)
+
+
+@router.get(
+    "/revisions/{revision_id}",
+    response_model=BusinessUnderstandingResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get details for a specific semantic model revision",
+)
+def get_semantic_revision_detail(
+    revision_id: str,
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    business_id: Optional[str] = Query(None),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BusinessUnderstandingResponse:
+    """Retrieve complete representation of a specific historical or pending semantic model revision."""
+    biz = _resolve_target_business(
+        db, current_user, x_business_id, business_id, action="view semantic revision"
+    )
+    model = TenantSemanticService.get_revision(revision_id, biz.id, db)
+    if not model:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Semantic revision '{revision_id}' not found for this business workspace.",
+        )
+    return TenantSemanticService.to_response(model)
+
+
+@router.get(
+    "/revisions/{revision_id}/diff",
+    response_model=SemanticDiffResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Compute deterministic diff between semantic revision and active or base revision",
+)
+def get_semantic_revision_diff(
+    revision_id: str,
+    base_revision_id: Optional[str] = Query(None, description="Optional base revision ID to compare against. Defaults to active model."),
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    business_id: Optional[str] = Query(None),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SemanticDiffResponse:
+    """Deterministically compare proposed revision against base revision, returning structured changes and conflicts."""
+    biz = _resolve_target_business(
+        db, current_user, x_business_id, business_id, action="diff semantic revision"
+    )
+    return TenantSemanticService.compute_revision_diff(
+        target_revision_id=revision_id,
+        business_id=biz.id,
+        db=db,
+        base_revision_id=base_revision_id,
+    )
+
+
+@router.post(
+    "/revisions/{revision_id}/approve",
+    response_model=SemanticReviewActionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Approve and activate a proposed semantic revision",
+)
+def approve_semantic_revision(
+    revision_id: str,
+    payload: SemanticReviewActionRequest = SemanticReviewActionRequest(),
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    business_id: Optional[str] = Query(None),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SemanticReviewActionResponse:
+    """Approve a REQUIRES_REVIEW revision. Atomically archives the old active model and activates this revision."""
+    biz = _resolve_target_business(
+        db, current_user, x_business_id, business_id, action="approve semantic revision"
+    )
+    _verify_reviewer_role(db, current_user, biz, action="approve")
+
+    rev, decision = TenantSemanticService.approve_revision(
+        revision_id=revision_id,
+        business_id=biz.id,
+        reviewer_user_id=current_user.id,
+        reviewer_email=current_user.email,
+        db=db,
+        comment=payload.comment,
+    )
+
+    return SemanticReviewActionResponse(
+        revision_id=rev.id,
+        version=rev.version,
+        previous_status="REQUIRES_REVIEW",
+        new_status=rev.status,
+        action="APPROVED",
+        message=f"Semantic revision v{rev.version} approved and activated successfully.",
+        reviewed_by=current_user.email,
+        reviewed_at=decision.reviewed_at.isoformat() if decision.reviewed_at else "",
+        decision_record_id=decision.id,
+        active_version=rev.version,
+    )
+
+
+@router.post(
+    "/revisions/{revision_id}/reject",
+    response_model=SemanticReviewActionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reject a proposed semantic revision",
+)
+def reject_semantic_revision(
+    revision_id: str,
+    payload: SemanticReviewActionRequest = SemanticReviewActionRequest(),
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    business_id: Optional[str] = Query(None),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SemanticReviewActionResponse:
+    """Reject a proposed revision, leaving the existing verified active model in place."""
+    biz = _resolve_target_business(
+        db, current_user, x_business_id, business_id, action="reject semantic revision"
+    )
+    _verify_reviewer_role(db, current_user, biz, action="reject")
+
+    rev, decision = TenantSemanticService.reject_revision(
+        revision_id=revision_id,
+        business_id=biz.id,
+        reviewer_user_id=current_user.id,
+        reviewer_email=current_user.email,
+        db=db,
+        comment=payload.comment,
+    )
+
+    active_model = TenantSemanticService.get_active_semantic_model(biz.id, db)
+
+    return SemanticReviewActionResponse(
+        revision_id=rev.id,
+        version=rev.version,
+        previous_status="REQUIRES_REVIEW",
+        new_status=rev.status,
+        action="REJECTED",
+        message=f"Semantic revision v{rev.version} was rejected. Verified active model preserved.",
+        reviewed_by=current_user.email,
+        reviewed_at=decision.reviewed_at.isoformat() if decision.reviewed_at else "",
+        decision_record_id=decision.id,
+        active_version=active_model.version if active_model else None,
+    )
+
+
+@router.post(
+    "/revisions/{revision_id}/modify",
+    response_model=SemanticReviewActionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Modify proposed definitions into a new immutable semantic revision",
+)
+def modify_semantic_revision(
+    revision_id: str,
+    payload: SemanticModifyRequest,
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    business_id: Optional[str] = Query(None),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SemanticReviewActionResponse:
+    """Modify proposed definitions and create a new immutable revision ready for review/approval."""
+    biz = _resolve_target_business(
+        db, current_user, x_business_id, business_id, action="modify semantic revision"
+    )
+    _verify_reviewer_role(db, current_user, biz, action="modify")
+
+    new_rev, decision = TenantSemanticService.modify_revision(
+        revision_id=revision_id,
+        business_id=biz.id,
+        reviewer_user_id=current_user.id,
+        reviewer_email=current_user.email,
+        db=db,
+        metrics_override=payload.metrics_override,
+        custom_synonyms=payload.custom_synonyms,
+        comment=payload.comment,
+    )
+
+    active_model = TenantSemanticService.get_active_semantic_model(biz.id, db)
+
+    return SemanticReviewActionResponse(
+        revision_id=new_rev.id,
+        version=new_rev.version,
+        previous_status="REQUIRES_REVIEW",
+        new_status=new_rev.status,
+        action="MODIFIED",
+        message=f"Modified definitions saved into new immutable revision v{new_rev.version}.",
+        reviewed_by=current_user.email,
+        reviewed_at=decision.reviewed_at.isoformat() if decision.reviewed_at else "",
+        decision_record_id=decision.id,
+        active_version=active_model.version if active_model else None,
+    )
 
 
 @router.get(

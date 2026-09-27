@@ -584,6 +584,82 @@ export interface SemanticResolveResponse {
   ambiguity_candidates?: string[];
   matched_synonym?: string | null;
   evidence_provenance?: Record<string, any>;
+  semantic_version?: number | null;
+  semantic_revision_id?: string | null;
+}
+
+export interface MetricDiffItem {
+  metric_name: string;
+  change_type: 'ADDED' | 'REMOVED' | 'CHANGED' | 'UNCHANGED';
+  previous_definition?: string | null;
+  proposed_definition?: string | null;
+  previous_formula?: string | null;
+  proposed_formula?: string | null;
+  previous_availability?: string | null;
+  proposed_availability?: string | null;
+  source_data?: string | null;
+  has_conflict: boolean;
+  conflict_reason?: string | null;
+}
+
+export interface EntityDiffItem {
+  entity_name: string;
+  change_type: 'ADDED' | 'REMOVED' | 'CHANGED' | 'UNCHANGED';
+  previous_count?: number | null;
+  proposed_count?: number | null;
+  previous_fields?: Record<string, string>;
+  proposed_fields?: Record<string, string>;
+}
+
+export interface SynonymDiffItem {
+  term: string;
+  change_type: 'ADDED' | 'REMOVED' | 'CHANGED' | 'UNCHANGED';
+  previous_target?: string | null;
+  proposed_target?: string | null;
+}
+
+export interface AmbiguousTermDiffItem {
+  term: string;
+  change_type: 'ADDED' | 'REMOVED' | 'CHANGED' | 'UNCHANGED';
+  previous_candidates?: string[];
+  proposed_candidates?: string[];
+}
+
+export interface SemanticDiffResponse {
+  base_revision_id?: string | null;
+  base_version?: number | null;
+  target_revision_id: string;
+  target_version: number;
+  has_conflicts: boolean;
+  conflicts_count: number;
+  summary_diff: Record<string, any>;
+  metric_diffs: MetricDiffItem[];
+  entity_diffs: EntityDiffItem[];
+  synonym_diffs: SynonymDiffItem[];
+  ambiguous_term_diffs: AmbiguousTermDiffItem[];
+}
+
+export interface SemanticReviewActionRequest {
+  comment?: string;
+}
+
+export interface SemanticModifyRequest {
+  metrics_override: Record<string, Record<string, any>>;
+  custom_synonyms?: Record<string, string>;
+  comment?: string;
+}
+
+export interface SemanticReviewActionResponse {
+  revision_id: string;
+  version: number;
+  previous_status: string;
+  new_status: string;
+  action: 'APPROVED' | 'REJECTED' | 'MODIFIED';
+  message: string;
+  reviewed_by?: string | null;
+  reviewed_at: string;
+  decision_record_id?: number | null;
+  active_version?: number | null;
 }
 
 // ==========================================
