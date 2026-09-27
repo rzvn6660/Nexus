@@ -323,7 +323,7 @@ nexus/
 │   │   ├── security/        # Query sanitization, rate limits, guardrails
 │   │   └── observability/   # Tracing, structured logs, request correlation IDs
 │   ├── alembic/             # Database migration versions
-│   └── tests/               # 206 automated backend tests (100% pass)
+│   └── tests/               # 406 automated backend tests (100% pass)
 │
 ├── frontend/
 │   ├── src/                 # React 18, TypeScript, Tailwind CSS
