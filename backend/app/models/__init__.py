@@ -12,6 +12,7 @@ from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.tenant import (
     Business,
+    IngestionJob,
     Organization,
     OrganizationMembership,
     UploadedDataset,
@@ -25,6 +26,7 @@ __all__ = [
     "Customer",
     "DecisionRecord",
     "Expense",
+    "IngestionJob",
     "Inventory",
     "KnowledgeChunk",
     "KnowledgeDocument",

@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     businesses,
     data,
     forecast,
+    gateway,
     health,
     history,
     investigation,
@@ -24,6 +25,7 @@ api_v1_router = APIRouter(dependencies=[Depends(verify_api_key)])
 api_v1_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_v1_router.include_router(onboarding.router, prefix="/onboarding", tags=["onboarding"])
 api_v1_router.include_router(businesses.router, prefix="/businesses", tags=["businesses"])
+api_v1_router.include_router(gateway.router, prefix="/gateway", tags=["gateway"])
 api_v1_router.include_router(health.router, prefix="/health", tags=["health"])
 api_v1_router.include_router(data.router, prefix="/data", tags=["data"])
 api_v1_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])

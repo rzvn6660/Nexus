@@ -12,12 +12,14 @@ Business (Tenant-Scoped Workspace)
 UploadedDataset (Tenant-Scoped Files & Readiness)
 """
 
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -213,6 +215,9 @@ class UploadedDataset(Base, TimestampMixin):
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     row_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     column_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    content_hash: Mapped[str | None] = mapped_column(
+        String(64), index=True, nullable=True, doc="SHA-256 content fingerprint for idempotency"
+    )
     schema_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     quality_report_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     readiness_status: Mapped[str] = mapped_column(
@@ -222,4 +227,56 @@ class UploadedDataset(Base, TimestampMixin):
     # Relationships
     business: Mapped["Business"] = relationship(
         "Business", back_populates="datasets"
+    )
+    ingestion_jobs: Mapped[list["IngestionJob"]] = relationship(
+        "IngestionJob", back_populates="dataset", cascade="all, delete-orphan"
+    )
+
+
+class IngestionJob(Base, TimestampMixin):
+    """
+    Durable tracking of data ingestion lifecycle jobs.
+    Lifecycle states: PENDING, PROCESSING, COMPLETED, FAILED, REQUIRES_REVIEW.
+    """
+    __tablename__ = "ingestion_jobs"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    organization_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    business_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("businesses.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    dataset_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("uploaded_datasets.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), default="PENDING", nullable=False, index=True
+    )  # PENDING, PROCESSING, COMPLETED, FAILED, REQUIRES_REVIEW
+    target_entity: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    rows_processed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+    # Relationships
+    dataset: Mapped["UploadedDataset"] = relationship(
+        "UploadedDataset", back_populates="ingestion_jobs"
     )

@@ -8,6 +8,7 @@ import {
   Layers,
   Activity,
   Package,
+  Database,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -119,6 +120,37 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
   const s = summary?.data;
   const invData = inventory?.data;
+
+  // First-use empty workspace state
+  const isWorkspaceEmpty = !summary || (Number(s?.orders_count?.value ?? 0) === 0 && Number(s?.net_revenue?.value ?? 0) === 0);
+  if (isWorkspaceEmpty) {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-200">
+        <div className="rounded-3xl border border-surface-elevated bg-surface/40 p-8 sm:p-14 text-center max-w-2xl mx-auto space-y-6 my-12">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-center mx-auto text-brand-cyan shadow-[0_0_30px_rgba(0,242,254,0.15)]">
+            <Database className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-white font-sans">
+              Your intelligence workspace is waiting for data.
+            </h2>
+            <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+              Connect your transactional records via the NEXUS Data Gateway to begin receiving automated briefings, causal investigations, and statistical forecasts.
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              onClick={() => onNavigate('/data')}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-400 to-sky-400 hover:from-cyan-300 hover:to-sky-300 text-slate-950 font-semibold text-xs tracking-tight transition-all shadow-[0_0_20px_rgba(0,242,254,0.25)] cursor-pointer"
+            >
+              <span>Connect Data</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Build executive business state metric items
   const businessMetrics: MetricItem[] = [

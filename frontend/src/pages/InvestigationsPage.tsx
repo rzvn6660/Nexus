@@ -159,6 +159,23 @@ export const InvestigationsPage: React.FC<InvestigationsPageProps> = ({
 
       {error && <ErrorState message={error} onRetry={() => handleRunInvestigation(query)} />}
 
+      {/* Empty State / Initial Prompt */}
+      {!response && !loading && !error && (
+        <div className="rounded-3xl border border-surface-elevated bg-surface/30 p-8 sm:p-12 text-center max-w-xl mx-auto space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-void border border-surface-elevated flex items-center justify-center mx-auto text-brand-cyan">
+            <SearchCode className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-white font-sans">
+              Ask NEXUS a business question to begin an investigation.
+            </h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+              Formulate a question about metric changes, margin variances, or channel shifts above, or select one of the recommended diagnostic queries.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Structured Diagnostic Results */}
       {response && !loading && (
         <div className="space-y-6 animate-in fade-in duration-200">

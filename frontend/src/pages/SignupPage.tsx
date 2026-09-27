@@ -47,6 +47,17 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSignupSucc
   return (
     <div className="min-h-screen bg-void flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 py-12 selection:bg-cyan-500/20 selection:text-cyan-200">
       <div className="w-full max-w-lg space-y-8">
+        {/* Back to Landing Navigation */}
+        <div className="flex justify-start">
+          <button
+            type="button"
+            onClick={() => onNavigate('/')}
+            className="text-xs font-mono text-slate-400 hover:text-cyan-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
+          >
+            <span>← Back to NEXUS Overview</span>
+          </button>
+        </div>
+
         {/* Brand Header */}
         <div className="text-center space-y-3">
           <div className="flex justify-center mb-1">

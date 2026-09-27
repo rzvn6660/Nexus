@@ -224,11 +224,11 @@ export const ForecastsPage: React.FC<ForecastsPageProps> = ({
           </div>
           <div className="max-w-md mx-auto space-y-2">
             <h3 className="text-base font-bold text-sky-200 font-sans">
-              Insufficient Historical Data
+              Forecasts will appear once NEXUS has enough historical data.
             </h3>
             <p className="text-xs text-slate-300 leading-relaxed font-sans">
               {forecast?.limitations?.[0] ||
-                'The selected series does not contain enough continuous historical observations to produce an evidence-backed forecast.'}
+                'The selected series requires continuous historical observations to calibrate statistically sound prediction intervals.'}
             </p>
           </div>
           <div className="pt-2">

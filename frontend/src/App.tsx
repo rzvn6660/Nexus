@@ -10,6 +10,7 @@ import { KnowledgePage } from './pages/KnowledgePage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
+import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { getHealthStatus } from './services/api';
@@ -103,10 +104,28 @@ export const App: React.FC = () => {
         />
       );
     }
+    if (currentRoute === '/login') {
+      return (
+        <LoginPage
+          onNavigate={handleNavigate}
+          onLoginSuccess={handleAuthSuccess}
+        />
+      );
+    }
     return (
-      <LoginPage
+      <LandingPage
         onNavigate={handleNavigate}
-        onLoginSuccess={handleAuthSuccess}
+        isAuthenticated={false}
+      />
+    );
+  }
+
+  // Full-screen landing page viewable anytime by authenticated users
+  if (currentRoute === '/landing') {
+    return (
+      <LandingPage
+        onNavigate={handleNavigate}
+        isAuthenticated={true}
       />
     );
   }

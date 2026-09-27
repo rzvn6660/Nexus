@@ -245,23 +245,37 @@ export const KnowledgePage: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="p-4 rounded-2xl bg-void/60 border border-surface-elevated space-y-2 text-xs hover:border-surface-highlight transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-slate-500 uppercase">{doc.source}</span>
-                <span className="text-[10px] font-mono text-brand-cyan">{doc.chunk_count} Chunks</span>
-              </div>
-              <h4 className="font-bold text-white text-sm font-sans">{doc.title}</h4>
-              <div className="text-[11px] font-mono text-slate-400 pt-1">
-                Version: {doc.version} • Indexed: {formatDate(doc.created_at)}
-              </div>
+        {documents.length === 0 ? (
+          <div className="p-8 rounded-2xl bg-void/60 border border-surface-elevated text-center space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-surface border border-surface-elevated flex items-center justify-center mx-auto text-emerald-400">
+              <FileText className="w-5 h-5" />
             </div>
-          ))}
-        </div>
+            <h4 className="font-bold text-white text-sm font-sans">
+              Add business context to help NEXUS understand your definitions and rules.
+            </h4>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Upload operational manuals, margin guidelines, or KPI definitions to enable grounded semantic reasoning.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                className="p-4 rounded-2xl bg-void/60 border border-surface-elevated space-y-2 text-xs hover:border-surface-highlight transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-slate-500 uppercase">{doc.source}</span>
+                  <span className="text-[10px] font-mono text-brand-cyan">{doc.chunk_count} Chunks</span>
+                </div>
+                <h4 className="font-bold text-white text-sm font-sans">{doc.title}</h4>
+                <div className="text-[11px] font-mono text-slate-400 pt-1">
+                  Version: {doc.version} • Indexed: {formatDate(doc.created_at)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
