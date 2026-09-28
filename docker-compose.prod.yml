@@ -52,6 +52,7 @@ services:
       - BACKEND_PORT=8000
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-http://localhost:3000}
       - SECRET_KEY=${SECRET_KEY:-nexus-production-secret-key-change-me}
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-nexus-saas-jwt-secret-key-change-in-production-min-32-chars}
       - API_KEY_ENABLED=${API_KEY_ENABLED:-false}
       - API_KEY=${API_KEY:-}
     depends_on:

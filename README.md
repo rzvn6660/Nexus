@@ -398,7 +398,7 @@ npm run dev
 
 ### Running Validation Suites
 ```bash
-# Backend test suite (206 automated tests)
+# Backend test suite (447 automated tests)
 cd backend
 pytest
 
