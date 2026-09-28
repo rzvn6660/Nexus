@@ -22,12 +22,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.models.tenant import (
     Business,
     Organization,
     OrganizationMembership,
     UserIdentity,
 )
+
+logger = get_logger(__name__)
 
 
 class AuthService:
@@ -280,12 +283,15 @@ class AuthService:
         if not user:
             # Perform dummy PBKDF2 calculation to prevent timing-based account enumeration
             cls.verify_password(password, cls._dummy_hash)
+            logger.warning("SECURITY: Failed authentication - user not found for email='%s'", clean_email)
             return None
 
         if not cls.verify_password(password, user.password_hash):
+            logger.warning("SECURITY: Failed authentication - invalid password for email='%s'", clean_email)
             return None
 
         if not user.is_active:
+            logger.warning("SECURITY: Failed authentication - account deactivated for email='%s'", clean_email)
             return None
 
         return user

@@ -23,7 +23,8 @@ def test_api_health_endpoint(client: TestClient) -> None:
     data = response.json()
 
     # Core required fields
-    assert data["status"] == "healthy"
+    # Status reflects actual DB connectivity: 'healthy' (connected) or 'degraded' (unreachable)
+    assert data["status"] in ["healthy", "degraded"]
     assert data["service"] == "nexus"
     assert "version" in data
     assert "environment" in data
@@ -40,7 +41,7 @@ def test_api_v1_health_endpoint(client: TestClient) -> None:
     response = client.get("/api/v1/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
+    assert data["status"] in ["healthy", "degraded"]
     assert data["service"] == "nexus"
 
 

@@ -39,6 +39,7 @@ from app.models.product import Product
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.tenant import Business, IngestionJob, UploadedDataset
+from app.core.logging import get_logger
 from app.schemas.data_gateway import (
     ColumnProfile,
     DataPreviewResponse,
@@ -48,6 +49,9 @@ from app.schemas.data_gateway import (
     QualityCheckItem,
     SchemaMappingProposal,
 )
+
+
+logger = get_logger(__name__)
 
 
 class DataGatewayService:
@@ -155,11 +159,16 @@ class DataGatewayService:
     def validate_file_security(cls, filename: str, content_bytes: bytes) -> None:
         """Validate size bounds, extension whitelist, prohibited types, and binary content inspection."""
         if len(content_bytes) > cls.MAX_UPLOAD_BYTES:
+            logger.warning(
+                "Upload rejected: file size %d bytes exceeds limit for filename='%s'",
+                len(content_bytes), filename,
+            )
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"File size exceeds maximum allowable limit of {cls.MAX_UPLOAD_BYTES // (1024*1024)} MB.",
             )
         if len(content_bytes) == 0:
+            logger.warning("Upload rejected: empty file (0 bytes) filename='%s'", filename)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Uploaded file is empty (0 bytes).",
@@ -167,11 +176,19 @@ class DataGatewayService:
 
         # Check binary magic signatures (MIME spoofing detection)
         if content_bytes.startswith(b"MZ") or content_bytes.startswith(b"\x7fELF"):
+            logger.warning(
+                "SECURITY: Executable binary upload rejected. filename='%s' size=%d bytes",
+                filename, len(content_bytes),
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Executable binary format rejected.",
             )
         if content_bytes.startswith(b"#!/bin/") or content_bytes.startswith(b"#!/usr/bin/"):
+            logger.warning(
+                "SECURITY: Shell script upload rejected. filename='%s' size=%d bytes",
+                filename, len(content_bytes),
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Shell script execution format rejected.",
@@ -179,6 +196,10 @@ class DataGatewayService:
 
         ext = Path(filename).suffix.lower()
         if ext in cls.PROHIBITED_EXTENSIONS or ext not in cls.ALLOWED_EXTENSIONS:
+            logger.warning(
+                "SECURITY: Prohibited file extension upload rejected. filename='%s' ext='%s'",
+                filename, ext,
+            )
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail=f"Unsupported file extension '{ext}'. Only CSV (.csv) and Excel (.xlsx, .xls) are permitted.",
@@ -208,6 +229,10 @@ class DataGatewayService:
             )
         ).scalars().first()
         if existing_dataset:
+            logger.info(
+                "Dataset upload idempotent no-op: business_id=%s existing_dataset_id=%s filename='%s'",
+                business_id, existing_dataset.id, clean_name,
+            )
             return existing_dataset
 
         ext = Path(clean_name).suffix.lower()
@@ -330,6 +355,12 @@ class DataGatewayService:
 
         db.commit()
         db.refresh(dataset)
+        logger.info(
+            "Dataset upload accepted: business_id=%s dataset_id=%s filename='%s' "
+            "rows=%d cols=%d readiness=%s",
+            business_id, dataset_id, clean_name,
+            len(df), len(df.columns), quality_summary.overall_status,
+        )
         return dataset
 
     @classmethod
@@ -804,6 +835,10 @@ class DataGatewayService:
             )
         ).scalars().first()
         if completed_job:
+            logger.info(
+                "Ingestion idempotent no-op: business_id=%s dataset_id=%s entity=%s job_id=%s",
+                business_id, dataset_id, entity, completed_job.id,
+            )
             return {
                 "dataset_id": dataset.id,
                 "job_id": completed_job.id,
@@ -825,6 +860,10 @@ class DataGatewayService:
         )
         db.add(job)
         db.flush()
+        logger.info(
+            "Ingestion job started: business_id=%s dataset_id=%s entity=%s job_id=%s",
+            business_id, dataset_id, entity, job.id,
+        )
 
         try:
             if dataset.file_type == "csv":
@@ -1071,6 +1110,10 @@ class DataGatewayService:
 
             db.commit()
             db.refresh(dataset)
+            logger.info(
+                "Ingestion job COMPLETED: business_id=%s dataset_id=%s entity=%s job_id=%s records=%d",
+                business_id, dataset_id, entity, job.id, records_inserted,
+            )
 
             # Phase 17: Automatic Business Understanding and Semantic Activation upon DATASET READY
             try:
@@ -1102,6 +1145,10 @@ class DataGatewayService:
             job.completed_at = datetime.now(timezone.utc)
             job.error_message = "Ingestion rejected due to schema or constraint validation."
             db.commit()
+            logger.warning(
+                "Ingestion job FAILED (validation): business_id=%s dataset_id=%s entity=%s job_id=%s",
+                business_id, dataset_id, entity, job.id,
+            )
             raise
         except Exception as exc:
             db.rollback()
@@ -1111,6 +1158,11 @@ class DataGatewayService:
             job.completed_at = datetime.now(timezone.utc)
             job.error_message = safe_msg[:500]
             db.commit()
+            logger.error(
+                "Ingestion job FAILED (exception): business_id=%s dataset_id=%s entity=%s job_id=%s error=%s",
+                business_id, dataset_id, entity, job.id, safe_msg,
+                exc_info=True,
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=safe_msg,

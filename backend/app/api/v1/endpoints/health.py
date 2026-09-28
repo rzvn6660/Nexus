@@ -42,7 +42,7 @@ def get_health(
     )
 
     return HealthResponse(
-        status="healthy",
+        status="healthy" if is_connected else "degraded",
         service="nexus",
         version=settings.APP_VERSION,
         environment=settings.APP_ENV,

@@ -503,7 +503,10 @@ class NexusAgentService:
             self.session.commit()
             logger.info(f"Persisted AnalysisRun #{run_record.id} for request {request_id}")
         except Exception as db_err:
-            logger.debug(f"Could not persist AnalysisRun audit record: {db_err}")
+            logger.error(
+                f"Failed to persist AnalysisRun audit record for request {request_id}: {db_err}",
+                exc_info=True,
+            )
             try:
                 self.session.rollback()
             except Exception:

@@ -15,11 +15,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
 from app.core.auth import bearer_security, get_current_user
+from app.core.logging import get_logger
 from app.core.rate_limit import auth_rate_limiter, get_client_ip
 from app.models.tenant import UserIdentity
 from app.services.auth_service import AuthService
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 EMAIL_REGEX = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 

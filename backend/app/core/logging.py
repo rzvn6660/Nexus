@@ -1,17 +1,19 @@
-"""Structured logging setup for NEXUS."""
-
+from contextvars import ContextVar
 import logging
 import sys
 from typing import Any, Dict
 from app.core.config import settings
+
+# ContextVar holding the correlation ID for the current async request/task context
+correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="-")
 
 
 class CorrelationFilter(logging.Filter):
     """Logging filter ensuring correlation_id is always present in log records."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if not hasattr(record, "correlation_id"):
-            record.correlation_id = "-"
+        if not hasattr(record, "correlation_id") or record.correlation_id == "-":
+            record.correlation_id = correlation_id_var.get()
         return True
 
 

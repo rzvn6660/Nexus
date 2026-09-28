@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.models.tenant import (
     Business,
     Organization,
@@ -25,6 +26,7 @@ from app.models.tenant import (
 from app.services.auth_service import AuthService
 
 bearer_security = HTTPBearer(auto_error=False)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -66,6 +68,7 @@ def get_current_user(
     payload = AuthService.decode_access_token(bearer_creds.credentials)
     user_id = payload.get("sub")
     if not user_id:
+        logger.warning("SECURITY: Malformed JWT token rejected — missing sub claim")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Malformed token: missing user ID subject.",
@@ -77,6 +80,7 @@ def get_current_user(
     ).scalar_one_or_none()
 
     if not user:
+        logger.warning("SECURITY: JWT token references non-existent user_id=%s", user_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account associated with this token was not found.",
@@ -84,6 +88,7 @@ def get_current_user(
         )
 
     if not user.is_active:
+        logger.warning("SECURITY: Deactivated account access attempt user_id=%s", user_id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is deactivated.",
@@ -257,6 +262,10 @@ def verify_user_business_access(
     ).scalars().all()
 
     if biz.organization_id not in user_org_ids:
+        logger.warning(
+            "SECURITY: IDOR attempt — user_id=%s attempted to %s business_id=%s (org_id=%s not in user orgs)",
+            user.id, action, business_id, biz.organization_id,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You do not have permission to access this business workspace.",

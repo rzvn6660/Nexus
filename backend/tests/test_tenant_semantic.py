@@ -732,8 +732,14 @@ def test_21_alembic_migration_007_real_verification():
 
     # 1. Verify revision chain across 005 -> 006 -> 007
     p005 = Path("backend/alembic/versions/005_phase15_saas_multi_tenancy.py")
+    if not p005.exists():
+        p005 = Path("alembic/versions/005_phase15_saas_multi_tenancy.py")
     p006 = Path("backend/alembic/versions/006_phase16_data_gateway_ingestion.py")
+    if not p006.exists():
+        p006 = Path("alembic/versions/006_phase16_data_gateway_ingestion.py")
     p007 = Path("backend/alembic/versions/007_phase17_business_understanding_semantic.py")
+    if not p007.exists():
+        p007 = Path("alembic/versions/007_phase17_business_understanding_semantic.py")
 
     assert p005.exists(), "Migration 005 must exist"
     assert p006.exists(), "Migration 006 must exist"

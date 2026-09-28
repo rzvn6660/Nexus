@@ -681,6 +681,8 @@ def test_23_alembic_migration_006_schema_verification():
     import importlib.util
 
     migration_file = Path("backend/alembic/versions/006_phase16_data_gateway_ingestion.py")
+    if not migration_file.exists():
+        migration_file = Path("alembic/versions/006_phase16_data_gateway_ingestion.py")
     assert migration_file.exists(), "Migration 006 file must exist in alembic/versions"
 
     spec = importlib.util.spec_from_file_location("migration_006", migration_file)
