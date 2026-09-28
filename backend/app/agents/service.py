@@ -407,8 +407,8 @@ class NexusAgentService:
             calculations=final_state.get("calculations", []),
             assumptions=final_state.get("assumptions", []),
             limitations=final_state.get("limitations", []),
-            evidence_records=[e.model_dump() for e in evidence_records],
-            rag_citations=[r.model_dump() for r in rag_records],
+            evidence_records=[e.model_dump(mode="json") for e in evidence_records],
+            rag_citations=[r.model_dump(mode="json") for r in rag_records],
             snapshot=snapshot,
             recommendations=final_state.get("recommendations", []),
         )

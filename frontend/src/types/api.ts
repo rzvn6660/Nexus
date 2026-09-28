@@ -719,6 +719,8 @@ export interface DatasetDateCoverage {
 
 export interface AnalysisRunItem {
   id: number;
+  business_id?: string | null;
+  organization_id?: string | null;
   request_id: string;
   query: string;
   intent?: string | null;

@@ -49,6 +49,7 @@ class AnalysisRunSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    business_id: str | None = None
     request_id: str
     query: str
     intent: str | None = None
