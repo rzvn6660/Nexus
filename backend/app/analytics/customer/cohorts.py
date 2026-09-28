@@ -46,6 +46,8 @@ class CustomerCohortAnalyzer:
             Customer.id.label("customer_id"),
             Customer.acquisition_date.label("acq_date"),
         )
+        if context and context.business_id:
+            cust_stmt = cust_stmt.where(Customer.business_id == context.business_id)
         if context and context.customer_segments:
             cust_stmt = cust_stmt.where(Customer.customer_segment.in_(context.customer_segments))
 
@@ -75,6 +77,8 @@ class CustomerCohortAnalyzer:
             (Sale.subtotal - Sale.discount_amount).label("net_revenue"),
         ).where(Sale.status.in_(["completed", "shipped"]))
 
+        if context and context.business_id:
+            sales_stmt = sales_stmt.where(Sale.business_id == context.business_id)
         if context and context.date_from:
             sales_stmt = sales_stmt.where(Sale.transaction_date >= context.date_from)
         if context and context.date_to:

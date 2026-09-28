@@ -85,7 +85,10 @@ class AnalyticsTool:
         start_time = time.perf_counter()
         try:
             validated_input = self.input_schema.model_validate(arguments)
-            result = self.handler(session, validated_input.model_dump())
+            payload = validated_input.model_dump()
+            if "business_id" in arguments and not payload.get("business_id"):
+                payload["business_id"] = arguments["business_id"]
+            result = self.handler(session, payload)
             result.execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
             return result
         except ValidationError as ve:
@@ -158,7 +161,7 @@ class ToolRegistry:
     def _register_default_tools(self) -> None:
         # 1. Financial Summary
         def _exec_financial_summary(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -188,7 +191,7 @@ class ToolRegistry:
 
         # 2. Revenue / Sales Timeseries
         def _exec_timeseries(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             granularity = PeriodGranularity(args.get("granularity", "monthly"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
@@ -216,7 +219,7 @@ class ToolRegistry:
 
         # 3. Product Rankings
         def _exec_product_rankings(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -246,7 +249,7 @@ class ToolRegistry:
 
         # 4. Category Breakdown
         def _exec_category_breakdown(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -272,7 +275,7 @@ class ToolRegistry:
 
         # 5. Customer Segments
         def _exec_customer_segments(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -297,7 +300,7 @@ class ToolRegistry:
 
         # 6. Customer RFM Analysis
         def _exec_rfm(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -324,7 +327,7 @@ class ToolRegistry:
 
         # 7. Customer Cohort Retention
         def _exec_cohorts(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -350,7 +353,7 @@ class ToolRegistry:
 
         # 8. Repeat Purchase Analytics
         def _exec_repeat_purchase(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -375,7 +378,7 @@ class ToolRegistry:
 
         # 9. Inventory Overview
         def _exec_inventory_overview(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             res, evidence = service.get_inventory_overview(
                 warehouse=args.get("warehouse"),
                 category=args.get("category"),
@@ -399,7 +402,7 @@ class ToolRegistry:
 
         # 10. Inventory Turnover
         def _exec_inventory_turnover(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -424,7 +427,7 @@ class ToolRegistry:
 
         # 11. Inventory Velocity
         def _exec_inventory_velocity(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -449,7 +452,7 @@ class ToolRegistry:
 
         # 12. Operating Expenses
         def _exec_expenses(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -476,7 +479,7 @@ class ToolRegistry:
 
         # 13. Variance Analysis (Diagnostic)
         def _exec_variance(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -504,7 +507,7 @@ class ToolRegistry:
 
         # 14. Price / Volume / Mix Decomposition
         def _exec_pvm(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -531,7 +534,7 @@ class ToolRegistry:
 
         # 15. Bivariate Correlation
         def _exec_correlation(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -561,7 +564,7 @@ class ToolRegistry:
 
         # 16. Hypothesis Testing
         def _exec_hypothesis(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -632,7 +635,7 @@ class ToolRegistry:
 
         # 18. Time Series Diagnostics
         def _exec_ts_diagnostics(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -658,7 +661,7 @@ class ToolRegistry:
 
         # 19. Pareto Concentration & Gini
         def _exec_pareto(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
@@ -710,7 +713,7 @@ class ToolRegistry:
             y = [float(getattr(r, dep_var, 0.0) or 0.0) for r in rows]
             X = {var_name: [float(getattr(r, var_name, 0.0) or 0.0) for r in rows] for var_name in indep_vars}
 
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(date_from=args.get("date_from"), date_to=args.get("date_to"))
             res, evidence = service.run_regression_analysis(y=y, X=X, dependent_variable_name=dep_var, context=context)
             return ToolExecutionResult(
@@ -738,7 +741,7 @@ class ToolRegistry:
             except ValueError:
                 q_type = AnalyticalQuestionType.GROUP_COMPARISON
 
-            service = AnalyticsService(session)
+            service = AnalyticsService(session, business_id=args.get("business_id"))
             rec = service.recommend_analytical_method(question_type=q_type)
             return ToolExecutionResult(
                 tool="recommend_analytical_method",

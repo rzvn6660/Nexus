@@ -27,6 +27,8 @@ class RepeatPurchaseAnalyzer:
             .group_by(Sale.customer_id)
         )
 
+        if context and context.business_id:
+            stmt = stmt.where(Sale.business_id == context.business_id)
         if context and context.date_from:
             stmt = stmt.where(Sale.transaction_date >= context.date_from)
         if context and context.date_to:

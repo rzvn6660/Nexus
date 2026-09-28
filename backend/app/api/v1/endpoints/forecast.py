@@ -2,12 +2,15 @@
 
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.tools.date_interpreter import DateInterpreter
+from app.core.auth import get_optional_current_user, verify_user_business_access
 from app.core.config import settings
 from app.core.database import get_db
+from app.models.tenant import Business, OrganizationMembership, UserIdentity
 from app.predictive.schemas import (
     ForecastAnalyzeRequest,
     ForecastFrequency,
@@ -20,6 +23,30 @@ from app.predictive.schemas import (
 from app.predictive.services.forecasting_service import ForecastingService
 
 router = APIRouter()
+
+
+def _resolve_tenant_business_id(
+    db: Session,
+    current_user: UserIdentity | None = None,
+    x_business_id: str | None = None,
+) -> str | None:
+    if current_user:
+        if x_business_id:
+            biz = verify_user_business_access(
+                db, current_user, x_business_id, action="access forecasting for"
+            )
+            return biz.id
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        biz = db.execute(
+            select(Business).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().first()
+        if biz:
+            return biz.id
+    return x_business_id
 
 
 def _resolve_forecast_intent_from_query(query: str) -> tuple[str, str, int, str | None, str | None]:
@@ -79,6 +106,8 @@ def _resolve_forecast_intent_from_query(query: str) -> tuple[str, str, int, str 
 )
 def analyze_forecast_query(
     payload: ForecastAnalyzeRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> ForecastResponse:
     """Natural language entrypoint for predictive intelligence."""
@@ -90,7 +119,8 @@ def analyze_forecast_query(
             detail=f"Forecast horizon {horizon} exceeds maximum allowed limit of {settings.MAX_FORECAST_HORIZON} periods.",
         )
 
-    service = ForecastingService(db)
+    biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    service = ForecastingService(db, business_id=biz_id)
     result = service.generate_forecast(
         target_metric=target_metric,
         frequency=frequency,
@@ -117,6 +147,8 @@ def analyze_forecast_query(
 )
 def generate_structured_forecast(
     payload: ForecastRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> ForecastResponse:
     """Direct structured entrypoint for time-series forecasting."""
@@ -144,7 +176,8 @@ def generate_structured_forecast(
 
     policy_str = payload.model_policy.value if isinstance(payload.model_policy, ModelPolicy) else str(payload.model_policy)
 
-    service = ForecastingService(db)
+    biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    service = ForecastingService(db, business_id=biz_id)
     result = service.generate_forecast(
         target_metric=payload.target_metric,
         frequency=payload.frequency,

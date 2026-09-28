@@ -40,7 +40,9 @@ def execute_tool_node(state: AgentState, config: RunnableConfig | None = None) -
 
     current_step = steps[step_idx]
     tool_name = current_step.get("tool_name")
-    arguments = current_step.get("arguments", {})
+    arguments = dict(current_step.get("arguments", {}))
+    if "business_id" not in arguments and state.get("business_id"):
+        arguments["business_id"] = state.get("business_id")
 
     # Extract session from LangGraph config or create temporary session
     session_provided = False

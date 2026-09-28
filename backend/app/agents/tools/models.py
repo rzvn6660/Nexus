@@ -12,6 +12,7 @@ class BaseToolInput(BaseModel):
     date_to: date | None = Field(default=None, description="End date of primary analysis interval (YYYY-MM-DD)")
     comparison_date_from: date | None = Field(default=None, description="Start date of comparison baseline (YYYY-MM-DD)")
     comparison_date_to: date | None = Field(default=None, description="End date of comparison baseline (YYYY-MM-DD)")
+    business_id: str | None = Field(default=None, description="Tenant business workspace boundary")
 
 
 class FinancialSummaryToolInput(BaseToolInput):

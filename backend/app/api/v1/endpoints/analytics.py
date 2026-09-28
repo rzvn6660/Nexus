@@ -2,9 +2,12 @@
 
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, Header, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.api.deps import get_db_session
+from app.core.auth import get_optional_current_user, verify_user_business_access
+from app.models.tenant import Business, OrganizationMembership, UserIdentity
 from app.analytics.core.types import (
     PeriodGranularity,
     SortOrder,
@@ -38,6 +41,38 @@ from app.schemas.analytics import (
 router = APIRouter()
 
 
+def _resolve_tenant_business_id(
+    db: Session,
+    current_user: Optional[UserIdentity] = None,
+    x_business_id: Optional[str] = None,
+) -> Optional[str]:
+    if current_user:
+        if x_business_id:
+            biz = verify_user_business_access(
+                db, current_user, x_business_id, action="access analytics for"
+            )
+            return biz.id
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        biz = db.execute(
+            select(Business).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().first()
+        if biz:
+            return biz.id
+    return x_business_id
+
+
+def get_analytics_business_id(
+    db: Session = Depends(get_db_session),
+    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+) -> Optional[str]:
+    return _resolve_tenant_business_id(db, current_user, x_business_id)
+
+
 def _build_context(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
@@ -49,9 +84,11 @@ def _build_context(
     product_ids: Optional[List[int]] = None,
     customer_ids: Optional[List[int]] = None,
     granularity: PeriodGranularity = PeriodGranularity.MONTHLY,
+    business_id: Optional[str] = None,
 ) -> AnalysisContext:
     try:
         return AnalysisContext(
+            business_id=business_id,
             date_from=date_from,
             date_to=date_to,
             comparison_date_from=comparison_date_from,
@@ -75,6 +112,7 @@ def get_summary(
     comparison_date_to: Optional[datetime] = Query(None, description="Baseline comparison end"),
     categories: Optional[List[str]] = Query(None),
     customer_segments: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
     ctx = _build_context(
@@ -84,8 +122,9 @@ def get_summary(
         comparison_date_to=comparison_date_to,
         categories=categories,
         customer_segments=customer_segments,
+        business_id=biz_id,
     )
-    service = AnalyticsService(db)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_financial_summary(ctx)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -97,6 +136,7 @@ def get_revenue(
     granularity: PeriodGranularity = Query(PeriodGranularity.MONTHLY),
     categories: Optional[List[str]] = Query(None),
     customer_segments: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
     ctx = _build_context(
@@ -105,8 +145,9 @@ def get_revenue(
         categories=categories,
         customer_segments=customer_segments,
         granularity=granularity,
+        business_id=biz_id,
     )
-    service = AnalyticsService(db)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_timeseries_analytics(ctx, metric="revenue")
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -117,6 +158,7 @@ def get_profit(
     date_to: Optional[datetime] = Query(None),
     granularity: PeriodGranularity = Query(PeriodGranularity.MONTHLY),
     categories: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
     ctx = _build_context(
@@ -124,8 +166,9 @@ def get_profit(
         date_to=date_to,
         categories=categories,
         granularity=granularity,
+        business_id=biz_id,
     )
-    service = AnalyticsService(db)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_timeseries_analytics(ctx, metric="profit")
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -136,6 +179,7 @@ def get_sales(
     date_to: Optional[datetime] = Query(None),
     granularity: PeriodGranularity = Query(PeriodGranularity.MONTHLY),
     categories: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
     ctx = _build_context(
@@ -143,8 +187,9 @@ def get_sales(
         date_to=date_to,
         categories=categories,
         granularity=granularity,
+        business_id=biz_id,
     )
-    service = AnalyticsService(db)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_timeseries_analytics(ctx, metric="units")
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -157,10 +202,11 @@ def get_products(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     categories: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to, categories=categories)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, categories=categories, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_product_rankings(
         ctx, ranking_metric=ranking_metric, limit=limit, sort_order=sort_order
     )
@@ -172,10 +218,11 @@ def get_categories(
     metric: str = Query("revenue", description="Metric to rank: revenue, profit, units, orders"),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_category_breakdown(ctx, metric=metric)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -184,10 +231,11 @@ def get_categories(
 def get_customers(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_customer_segments_breakdown(ctx)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -199,10 +247,11 @@ def get_rfm(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     customer_segments: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to, customer_segments=customer_segments)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, customer_segments=customer_segments, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_rfm_analysis(ctx, quantile_bins=quantile_bins, limit_top=limit_top)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -213,10 +262,11 @@ def get_cohorts(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     customer_segments: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to, customer_segments=customer_segments)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, customer_segments=customer_segments, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_cohort_analysis(ctx, max_periods=max_periods)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -225,10 +275,11 @@ def get_cohorts(
 def get_repeat_purchase(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_repeat_purchase_metrics(ctx)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -237,9 +288,10 @@ def get_repeat_purchase(
 def get_inventory(
     warehouse: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    service = AnalyticsService(db)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_inventory_overview(warehouse=warehouse, category=category)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -249,10 +301,11 @@ def get_inventory_turnover(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     categories: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to, categories=categories)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, categories=categories, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_inventory_turnover(ctx)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -263,6 +316,7 @@ def get_expenses(
     date_to: Optional[datetime] = Query(None),
     comparison_date_from: Optional[datetime] = Query(None),
     comparison_date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
     ctx = _build_context(
@@ -270,8 +324,9 @@ def get_expenses(
         date_to=date_to,
         comparison_date_from=comparison_date_from,
         comparison_date_to=comparison_date_to,
+        business_id=biz_id,
     )
-    service = AnalyticsService(db)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_expense_analytics(ctx)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -283,10 +338,11 @@ def get_timeseries(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     categories: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to, categories=categories, granularity=granularity)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, categories=categories, granularity=granularity, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_timeseries_analytics(ctx, metric=metric)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -299,6 +355,7 @@ def get_variance(
     comparison_date_from: Optional[datetime] = Query(None),
     comparison_date_to: Optional[datetime] = Query(None),
     top_n: int = Query(5, ge=1, le=20),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
     ctx = _build_context(
@@ -306,13 +363,14 @@ def get_variance(
         date_to=date_to,
         comparison_date_from=comparison_date_from,
         comparison_date_to=comparison_date_to,
+        business_id=biz_id,
     )
     if not ctx.has_comparison:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Variance analysis requires comparison_date_from and comparison_date_to query parameters.",
         )
-    service = AnalyticsService(db)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_variance_analysis(ctx, dimension=dimension)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -323,6 +381,7 @@ def get_decomposition(
     date_to: Optional[datetime] = Query(None),
     comparison_date_from: Optional[datetime] = Query(None),
     comparison_date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
     ctx = _build_context(
@@ -330,13 +389,14 @@ def get_decomposition(
         date_to=date_to,
         comparison_date_from=comparison_date_from,
         comparison_date_to=comparison_date_to,
+        business_id=biz_id,
     )
     if not ctx.has_comparison:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Price/Volume/Mix decomposition requires comparison_date_from and comparison_date_to.",
         )
-    service = AnalyticsService(db)
+    service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_pvm_decomposition(ctx)
     return {"success": True, "data": data, "evidence": evidence}
 
@@ -348,10 +408,11 @@ def get_correlation(
     method: CorrelationMethod = Query(CorrelationMethod.PEARSON),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     try:
         data, evidence = service.get_bivariate_correlation(
             variable_x=variable_x, variable_y=variable_y, context=ctx, method=method
@@ -368,10 +429,11 @@ def get_hypothesis(
     metric: str = Query("order_value", description="Metric to compare"),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
     db: Session = Depends(get_db_session),
 ):
-    ctx = _build_context(date_from=date_from, date_to=date_to)
-    service = AnalyticsService(db)
+    ctx = _build_context(date_from=date_from, date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
     try:
         data, evidence = service.get_hypothesis_test(
             group1_segment=group1, group2_segment=group2, metric=metric, context=ctx

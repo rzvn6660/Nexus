@@ -86,13 +86,24 @@ class AnalyticsService:
     Every operation returns strongly-typed results alongside traceable EvidenceRecords.
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, business_id: Optional[str] = None) -> None:
         self.session = session
+        self.business_id = business_id
+
+    def _ensure_context(self, context: Optional[AnalysisContext]) -> Optional[AnalysisContext]:
+        if context is None:
+            if self.business_id:
+                return AnalysisContext(business_id=self.business_id)
+            return None
+        if self.business_id and not context.business_id:
+            return context.model_copy(update={"business_id": self.business_id})
+        return context
 
     def get_financial_summary(
         self, context: AnalysisContext
     ) -> Tuple[FinancialSummaryResult, EvidenceRecord]:
         """Compute the full 12-metric executive scorecard with evidence."""
+        context = self._ensure_context(context)
         summary = FinancialMetricsCalculator.evaluate_summary(self.session, context)
 
         builder = (
@@ -131,6 +142,7 @@ class AnalyticsService:
         sort_order: SortOrder = SortOrder.DESC,
     ) -> Tuple[List[ProductPerformanceItem], EvidenceRecord]:
         """Rank products transparently by an explicit metric."""
+        context = self._ensure_context(context)
         items = ProductAnalyticsService.get_product_rankings(
             self.session,
             context,
@@ -164,6 +176,7 @@ class AnalyticsService:
         self, context: AnalysisContext, metric: str = "revenue"
     ) -> Tuple[BreakdownResult, EvidenceRecord]:
         """Evaluate category performance breakdown."""
+        context = self._ensure_context(context)
         result = ProductAnalyticsService.get_category_breakdown(
             self.session, context, metric=metric
         )
@@ -187,6 +200,7 @@ class AnalyticsService:
         self, context: AnalysisContext
     ) -> Tuple[BreakdownResult, EvidenceRecord]:
         """Break down customer activity by segment."""
+        context = self._ensure_context(context)
         result = SegmentationAnalyzer.get_customer_segment_breakdown(self.session, context)
         builder = (
             EvidenceBuilder.create("customer_segment_breakdown", context)
@@ -206,6 +220,7 @@ class AnalyticsService:
         self, context: AnalysisContext, quantile_bins: int = 5, limit_top: int = 50
     ) -> Tuple[RFMAnalysisSummary, EvidenceRecord]:
         """Calculate customer RFM scores and quantile segments."""
+        context = self._ensure_context(context)
         summary = RFMAnalyzer.evaluate(
             self.session,
             context=context,
@@ -236,6 +251,7 @@ class AnalyticsService:
         self, context: AnalysisContext, max_periods: int = 12
     ) -> Tuple[CohortAnalysisResult, EvidenceRecord]:
         """Compute customer acquisition cohort retention and spend."""
+        context = self._ensure_context(context)
         result = CustomerCohortAnalyzer.evaluate(
             self.session, context=context, max_period_offset=max_periods
         )
@@ -258,6 +274,7 @@ class AnalyticsService:
         self, context: AnalysisContext
     ) -> Tuple[RepeatPurchaseResult, EvidenceRecord]:
         """Compute repeat purchase rate and order frequency metrics."""
+        context = self._ensure_context(context)
         result = RepeatPurchaseAnalyzer.evaluate(self.session, context)
         builder = (
             EvidenceBuilder.create("repeat_purchase_metrics", context)
@@ -277,7 +294,7 @@ class AnalyticsService:
     ) -> Tuple[InventoryOverviewResult, EvidenceRecord]:
         """Evaluate inventory health, valuation, and reorder alerts."""
         result = InventoryStockAnalyzer.evaluate(
-            self.session, warehouse=warehouse, category=category
+            self.session, warehouse=warehouse, category=category, business_id=self.business_id
         )
         builder = (
             EvidenceBuilder.create("inventory_overview")
@@ -301,6 +318,7 @@ class AnalyticsService:
         self, context: AnalysisContext
     ) -> Tuple[InventoryTurnoverResult, EvidenceRecord]:
         """Compute inventory turnover ratio and DSI."""
+        context = self._ensure_context(context)
         result = InventoryTurnoverCalculator.evaluate(self.session, context)
         builder = (
             EvidenceBuilder.create("inventory_turnover", context)
@@ -321,6 +339,7 @@ class AnalyticsService:
         self, context: AnalysisContext
     ) -> Tuple[VelocityAnalysisResult, EvidenceRecord]:
         """Compute sales velocity and identify slow/dormant items."""
+        context = self._ensure_context(context)
         result = ProductVelocityCalculator.evaluate(self.session, context)
         builder = (
             EvidenceBuilder.create("inventory_velocity", context)
@@ -339,6 +358,7 @@ class AnalyticsService:
         self, context: AnalysisContext
     ) -> Tuple[ExpenseAnalysisResult, EvidenceRecord]:
         """Compute operating expense metrics and recurring overhead breakdown."""
+        context = self._ensure_context(context)
         result = ExpenseAnalyticsCalculator.evaluate(self.session, context)
         builder = (
             EvidenceBuilder.create("expense_analytics", context)
@@ -355,6 +375,7 @@ class AnalyticsService:
         self, context: AnalysisContext, metric: str = "revenue"
     ) -> Tuple[TimeSeriesResult, EvidenceRecord]:
         """Aggregate chronological buckets across the evaluated timeframe."""
+        context = self._ensure_context(context)
         result = TimeSeriesAnalyzer.evaluate(self.session, context, metric=metric)
         builder = (
             EvidenceBuilder.create(f"timeseries_{metric}_{context.granularity.value}", context)
@@ -378,6 +399,7 @@ class AnalyticsService:
         self, context: AnalysisContext, dimension: str = "product"
     ) -> Tuple[VarianceAnalysisResult, EvidenceRecord]:
         """Diagnose revenue variance between two periods across dimensional entities."""
+        context = self._ensure_context(context)
         result = VarianceDiagnosticAnalyzer.analyze_revenue_variance(
             self.session, context, dimension=dimension
         )
@@ -405,6 +427,7 @@ class AnalyticsService:
         self, context: AnalysisContext
     ) -> Tuple[PriceVolumeMixDecomposition, EvidenceRecord]:
         """Decompose revenue change into Volume Effect, Price Effect, and Mix Effect."""
+        context = self._ensure_context(context)
         result = PriceVolumeMixAnalyzer.decompose(self.session, context)
         builder = (
             EvidenceBuilder.create("price_volume_mix_decomposition", context)
@@ -447,6 +470,9 @@ class AnalyticsService:
             .where(Sale.status.in_(["completed", "shipped"]))
             .group_by(Sale.id)
         )
+        context = self._ensure_context(context)
+        if context and context.business_id:
+            stmt = stmt.where(Sale.business_id == context.business_id)
         if context and context.date_from:
             stmt = stmt.where(Sale.transaction_date >= context.date_from)
         if context and context.date_to:
@@ -512,6 +538,9 @@ class AnalyticsService:
                 )
             )
         )
+        context = self._ensure_context(context)
+        if context and context.business_id:
+            stmt = stmt.where(Sale.business_id == context.business_id, Customer.business_id == context.business_id)
         if context and context.date_from:
             stmt = stmt.where(Sale.transaction_date >= context.date_from)
         if context and context.date_to:
@@ -643,7 +672,7 @@ class AnalyticsService:
         """
         Execute time-series diagnostic battery on business metric aggregations.
         """
-        ctx = context or AnalysisContext()
+        ctx = self._ensure_context(context) or AnalysisContext()
         ts_res = TimeSeriesAnalyzer.evaluate(self.session, ctx, metric=metric)
 
         values = [float(pt.value) for pt in ts_res.points]
@@ -690,7 +719,7 @@ class AnalyticsService:
         """
         Evaluate deterministic Pareto 80/20 concentration and Gini coefficient across entities.
         """
-        ctx = context or AnalysisContext()
+        ctx = self._ensure_context(context) or AnalysisContext()
         entities: List[Dict[str, Any]] = []
 
         if dimension.lower() in ["customer", "customers"]:
@@ -703,6 +732,8 @@ class AnalyticsService:
                 .join(Sale, Customer.id == Sale.customer_id)
                 .where(Sale.status.in_(ctx.statuses if ctx.statuses else ["completed", "shipped"]))
             )
+            if ctx.business_id:
+                stmt = stmt.where(Sale.business_id == ctx.business_id, Customer.business_id == ctx.business_id)
             if ctx.date_from:
                 stmt = stmt.where(Sale.transaction_date >= ctx.date_from)
             if ctx.date_to:
@@ -728,6 +759,8 @@ class AnalyticsService:
                 .join(Sale, SaleItem.sale_id == Sale.id)
                 .where(Sale.status.in_(ctx.statuses if ctx.statuses else ["completed", "shipped"]))
             )
+            if ctx.business_id:
+                stmt = stmt.where(Sale.business_id == ctx.business_id, Product.business_id == ctx.business_id)
             if ctx.date_from:
                 stmt = stmt.where(Sale.transaction_date >= ctx.date_from)
             if ctx.date_to:

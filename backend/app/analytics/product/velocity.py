@@ -75,6 +75,9 @@ class ProductVelocityCalculator:
                     SaleItem.sale_id.in_(
                         select(Sale.id).where(
                             and_(
+                                Sale.business_id == context.business_id
+                                if context.business_id
+                                else True,
                                 Sale.transaction_date >= context.date_from
                                 if context.date_from
                                 else True,
@@ -87,7 +90,12 @@ class ProductVelocityCalculator:
                     ),
                 ),
             )
-            .where(Product.active.is_(True))
+            .where(
+                and_(
+                    Product.active.is_(True),
+                    Product.business_id == context.business_id if context.business_id else True,
+                )
+            )
             .group_by(Product.id)
             .order_by(func.coalesce(func.sum(SaleItem.quantity), 0).desc())
         )

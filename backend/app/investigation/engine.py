@@ -45,8 +45,9 @@ class InvestigationEngine:
     9. Causality-safeguarded conclusion synthesis
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, business_id: str | None = None) -> None:
         self.session = session
+        self.business_id = business_id
         self.retriever = HybridRetriever(session)
         self.semantic_resolver = semantic_resolver
 
@@ -167,7 +168,10 @@ class InvestigationEngine:
                 logger.warning(f"Tool '{current_step.tool}' not found during investigation step.")
                 continue
 
-            tool_exec_result = tool.execute(self.session, current_step.arguments)
+            args = dict(current_step.arguments)
+            if "business_id" not in args and self.business_id:
+                args["business_id"] = self.business_id
+            tool_exec_result = tool.execute(self.session, args)
             current_step.executed = True
             current_step.result_summary = {
                 "status": tool_exec_result.status,

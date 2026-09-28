@@ -40,8 +40,9 @@ class ForecastingService:
     probabilistically valid prediction intervals, and comprehensive provenance.
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, business_id: str | None = None) -> None:
         self.session = session
+        self.business_id = business_id
         self.registry = ModelRegistry()
         self.semantic_resolver = semantic_resolver
         self.retriever = HybridRetriever(session)
@@ -146,6 +147,7 @@ class ForecastingService:
             frequency=frequency,
             entity_type=entity_type,
             entity_id=entity_id,
+            business_id=self.business_id,
         )
 
         min_obs = (

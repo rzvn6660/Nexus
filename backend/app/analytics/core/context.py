@@ -14,6 +14,10 @@ class AnalysisContext(BaseModel):
     Prevents ad-hoc dict passing and guarantees consistent boundary enforcement across
     metrics, time-series, segmentation, and diagnostic decompositions.
     """
+    business_id: Optional[str] = Field(
+        default=None,
+        description="Tenant business workspace boundary"
+    )
     date_from: Optional[datetime] = Field(
         default=None,
         description="Inclusive start timestamp of the primary evaluation window (UTC)"

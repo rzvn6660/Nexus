@@ -47,6 +47,8 @@ class TimeSeriesAnalyzer:
         )
 
         clauses = []
+        if context.business_id:
+            clauses.append(Sale.business_id == context.business_id)
         if context.date_from:
             clauses.append(Sale.transaction_date >= context.date_from)
         if context.date_to:

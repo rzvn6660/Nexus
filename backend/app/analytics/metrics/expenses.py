@@ -37,6 +37,8 @@ class ExpenseAnalyticsCalculator:
         """
         # Primary period
         clauses = []
+        if context.business_id:
+            clauses.append(Expense.business_id == context.business_id)
         if context.date_from:
             clauses.append(Expense.expense_date >= context.date_from.date())
         if context.date_to:
@@ -104,6 +106,8 @@ class ExpenseAnalyticsCalculator:
         comp: Optional[ComparisonResult] = None
         if context.has_comparison:
             prev_clauses = []
+            if context.business_id:
+                prev_clauses.append(Expense.business_id == context.business_id)
             if context.comparison_date_from:
                 prev_clauses.append(Expense.expense_date >= context.comparison_date_from.date())
             if context.comparison_date_to:

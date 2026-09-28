@@ -65,62 +65,91 @@ class TimeSeriesPreparer:
         entity_id: str | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        business_id: str | None = None,
     ) -> pd.DataFrame:
         """
         Extract transactions, aggregate into continuous frequency buckets, and return DataFrame
         with columns: [period_label, period_start, period_end, value, is_zero].
         """
-        # Formulate query
-        stmt = (
-            select(
-                Sale.id.label("sale_id"),
-                Sale.transaction_date.label("transaction_date"),
-                Sale.status.label("status"),
-                SaleItem.quantity.label("quantity"),
-                SaleItem.line_total.label("line_total"),
-                Product.sku.label("sku"),
-                Product.name.label("product_name"),
-                Product.category.label("category"),
-            )
-            .join(SaleItem, Sale.id == SaleItem.sale_id)
-            .join(Product, SaleItem.product_id == Product.id)
-            .where(Sale.status.in_(["completed", "shipped"]))
+        is_item_level = bool(
+            (entity_type == "product" and entity_id)
+            or (entity_type == "category" and entity_id)
+            or (target_metric in ("product_demand", "product_sales", "units", "quantity") and entity_id)
         )
 
-        clauses = []
+        clauses = [Sale.status.in_(["completed", "shipped"])]
+        if business_id:
+            clauses.append(Sale.business_id == business_id)
         if date_from:
             clauses.append(Sale.transaction_date >= date_from)
         if date_to:
             clauses.append(Sale.transaction_date <= date_to)
 
-        # Entity filtering
-        if entity_type == "product" and entity_id or target_metric in ("product_demand", "product_sales") and entity_id:
-            clauses.append(Product.sku == entity_id)
-        elif entity_type == "category" and entity_id:
-            clauses.append(Product.category == entity_id)
+        if is_item_level:
+            stmt = (
+                select(
+                    Sale.id.label("sale_id"),
+                    Sale.transaction_date.label("transaction_date"),
+                    Sale.status.label("status"),
+                    SaleItem.quantity.label("quantity"),
+                    SaleItem.line_total.label("line_total"),
+                    Product.sku.label("sku"),
+                    Product.name.label("product_name"),
+                    Product.category.label("category"),
+                )
+                .join(SaleItem, Sale.id == SaleItem.sale_id)
+                .join(Product, SaleItem.product_id == Product.id)
+            )
+            if entity_type == "product" and entity_id or target_metric in ("product_demand", "product_sales") and entity_id:
+                clauses.append(Product.sku == entity_id)
+            elif entity_type == "category" and entity_id:
+                clauses.append(Product.category == entity_id)
 
-        if clauses:
             stmt = stmt.where(and_(*clauses))
+            rows = session.execute(stmt).all()
+            if not rows:
+                return pd.DataFrame(columns=["period_label", "period_start", "period_end", "value", "is_zero"])
 
-        rows = session.execute(stmt).all()
+            data = []
+            for r in rows:
+                tx: datetime = r.transaction_date
+                if tx.tzinfo is None:
+                    tx = tx.replace(tzinfo=UTC)
+                rev = float(Decimal(str(r.line_total)))
+                qty = int(r.quantity)
+                data.append({
+                    "sale_id": r.sale_id,
+                    "date": tx,
+                    "revenue": rev,
+                    "units": qty,
+                })
+        else:
+            # Order-level sales query directly from Sale table
+            stmt = (
+                select(
+                    Sale.id.label("sale_id"),
+                    Sale.transaction_date.label("transaction_date"),
+                    Sale.status.label("status"),
+                    Sale.total_amount.label("total_amount"),
+                )
+                .where(and_(*clauses))
+            )
+            rows = session.execute(stmt).all()
+            if not rows:
+                return pd.DataFrame(columns=["period_label", "period_start", "period_end", "value", "is_zero"])
 
-        if not rows:
-            return pd.DataFrame(columns=["period_label", "period_start", "period_end", "value", "is_zero"])
-
-        # Collect raw records
-        data = []
-        for r in rows:
-            tx: datetime = r.transaction_date
-            if tx.tzinfo is None:
-                tx = tx.replace(tzinfo=UTC)
-            rev = float(Decimal(str(r.line_total)))
-            qty = int(r.quantity)
-            data.append({
-                "sale_id": r.sale_id,
-                "date": tx,
-                "revenue": rev,
-                "units": qty,
-            })
+            data = []
+            for r in rows:
+                tx: datetime = r.transaction_date
+                if tx.tzinfo is None:
+                    tx = tx.replace(tzinfo=UTC)
+                rev = float(Decimal(str(r.total_amount)))
+                data.append({
+                    "sale_id": r.sale_id,
+                    "date": tx,
+                    "revenue": rev,
+                    "units": 1,
+                })
 
         raw_df = pd.DataFrame(data)
         raw_df["date"] = pd.to_datetime(raw_df["date"], utc=True)

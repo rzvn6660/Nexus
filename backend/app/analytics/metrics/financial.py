@@ -108,6 +108,8 @@ class FinancialMetricsCalculator:
     def _apply_sale_filters(query, context: AnalysisContext, date_col):
         """Apply date range, status, and dimensional filters to Sale queries."""
         clauses = []
+        if context.business_id:
+            clauses.append(Sale.business_id == context.business_id)
         if context.date_from:
             clauses.append(date_col >= context.date_from)
         if context.date_to:
@@ -243,6 +245,8 @@ class FinancialMetricsCalculator:
 
         stmt = select(func.coalesce(func.sum(Expense.amount), Decimal("0.00")).label("opex"))
         clauses = []
+        if context.business_id:
+            clauses.append(Expense.business_id == context.business_id)
         if d_from:
             clauses.append(Expense.expense_date >= d_from.date())
         if d_to:

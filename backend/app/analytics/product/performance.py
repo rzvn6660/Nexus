@@ -44,6 +44,8 @@ class ProductAnalyticsService:
         total_rev_stmt = select(func.coalesce(func.sum(SaleItem.line_total), Decimal("0.00"))).join(
             Sale, SaleItem.sale_id == Sale.id
         )
+        if context.business_id:
+            total_rev_stmt = total_rev_stmt.where(Sale.business_id == context.business_id)
         if context.date_from:
             total_rev_stmt = total_rev_stmt.where(Sale.transaction_date >= context.date_from)
         if context.date_to:
@@ -73,6 +75,9 @@ class ProductAnalyticsService:
         )
 
         clauses = []
+        if context.business_id:
+            clauses.append(Sale.business_id == context.business_id)
+            clauses.append(Product.business_id == context.business_id)
         if context.date_from:
             clauses.append(Sale.transaction_date >= context.date_from)
         if context.date_to:
@@ -173,6 +178,9 @@ class ProductAnalyticsService:
         )
 
         clauses = []
+        if context.business_id:
+            clauses.append(Sale.business_id == context.business_id)
+            clauses.append(Product.business_id == context.business_id)
         if context.date_from:
             clauses.append(Sale.transaction_date >= context.date_from)
         if context.date_to:

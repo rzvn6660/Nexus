@@ -45,6 +45,7 @@ class InventoryStockAnalyzer:
         session: Session,
         warehouse: Optional[str] = None,
         category: Optional[str] = None,
+        business_id: Optional[str] = None,
     ) -> InventoryOverviewResult:
         """
         Evaluate current inventory snapshot across all active products.
@@ -64,6 +65,8 @@ class InventoryStockAnalyzer:
             .where(Product.active.is_(True))
         )
 
+        if business_id:
+            stmt = stmt.where(Product.business_id == business_id, Inventory.business_id == business_id)
         if warehouse:
             stmt = stmt.where(Inventory.warehouse_location == warehouse)
         if category:

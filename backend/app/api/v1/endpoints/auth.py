@@ -116,7 +116,15 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db_sess
     auth_rate_limiter.reset(rate_key)
 
     tenants = AuthService.get_user_tenants(db=db, user_id=user.id)
-    primary_org = tenants[0]["organization"] if tenants else None
+    primary_org = (
+        {
+            "id": tenants[0]["organization_id"],
+            "name": tenants[0]["organization_name"],
+            "slug": tenants[0]["organization_slug"],
+        }
+        if tenants
+        else None
+    )
     primary_biz = tenants[0]["businesses"][0] if tenants and tenants[0]["businesses"] else None
 
     token = AuthService.create_access_token(

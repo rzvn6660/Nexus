@@ -35,6 +35,8 @@ class PriceVolumeMixAnalyzer:
             clauses = [
                 Sale.status.in_(context.statuses if context.statuses else ["completed", "shipped"])
             ]
+            if context.business_id:
+                clauses.append(Sale.business_id == context.business_id)
             if d_from:
                 clauses.append(Sale.transaction_date >= d_from)
             if d_to:

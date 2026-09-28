@@ -56,6 +56,15 @@ def setup_test_database():
     Base.metadata.drop_all(bind=test_engine)
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiters():
+    """Clear auth sliding-window records across test executions."""
+    from app.core.rate_limit import auth_rate_limiter
+    auth_rate_limiter.clear_all()
+    yield
+    auth_rate_limiter.clear_all()
+
+
 @pytest.fixture(scope="function")
 def db_session() -> Session:
     """Provide an isolated database session per test function."""

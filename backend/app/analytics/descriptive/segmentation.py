@@ -35,6 +35,8 @@ class SegmentationAnalyzer:
             .group_by(Customer.customer_segment)
         )
 
+        if context and context.business_id:
+            stmt = stmt.where(Sale.business_id == context.business_id, Customer.business_id == context.business_id)
         if context and context.date_from:
             stmt = stmt.where(Sale.transaction_date >= context.date_from)
         if context and context.date_to:
@@ -103,6 +105,8 @@ class SegmentationAnalyzer:
             .group_by(Customer.city)
         )
 
+        if context and context.business_id:
+            stmt = stmt.where(Sale.business_id == context.business_id, Customer.business_id == context.business_id)
         if context and context.date_from:
             stmt = stmt.where(Sale.transaction_date >= context.date_from)
         if context and context.date_to:

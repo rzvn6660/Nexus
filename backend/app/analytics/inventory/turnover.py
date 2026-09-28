@@ -57,6 +57,8 @@ class InventoryTurnoverCalculator:
                 func.sum(Inventory.stock_quantity * Product.unit_cost), Decimal("0.00")
             )
         ).join(Product, Inventory.product_id == Product.id)
+        if context.business_id:
+            inv_stmt = inv_stmt.where(Inventory.business_id == context.business_id, Product.business_id == context.business_id)
         if context.categories:
             inv_stmt = inv_stmt.where(Product.category.in_(context.categories))
         inv_val = Decimal(str(session.execute(inv_stmt).scalar_one())).quantize(
