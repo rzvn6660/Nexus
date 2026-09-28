@@ -9,7 +9,12 @@ from app.models.sale_item import SaleItem
 from app.models.customer import Customer
 from app.models.product import Product
 from app.analytics.core.context import AnalysisContext
-from app.analytics.core.types import CorrelationMethod, HypothesisTestType, SortOrder
+from app.analytics.core.types import (
+    CorrelationMethod,
+    HypothesisTestType,
+    SortOrder,
+    AnalyticalQuestionType,
+)
 from app.analytics.core.models import (
     FinancialSummaryResult,
     ProductPerformanceItem,
@@ -20,6 +25,15 @@ from app.analytics.core.models import (
     PriceVolumeMixDecomposition,
     StatisticalTestResult,
     CorrelationResult,
+    DescriptiveExtendedStats,
+    RegressionAnalysisResult,
+    TimeSeriesDiagnosticResult,
+    ParetoAnalysisResult,
+    AnalyticalMethodRecommendation,
+    ChartRecommendation,
+    AnovaResult,
+    ChiSquareContingencyResult,
+    TwoProportionResult,
 )
 from app.analytics.evidence.models import EvidenceRecord
 from app.analytics.evidence.builder import EvidenceBuilder
@@ -56,6 +70,12 @@ from app.analytics.diagnostic.variance import VarianceDiagnosticAnalyzer
 from app.analytics.diagnostic.decomposition import PriceVolumeMixAnalyzer
 from app.analytics.statistics.correlation import CorrelationAnalyzer
 from app.analytics.statistics.hypothesis import HypothesisTestRunner
+from app.analytics.statistics.descriptive import DescriptiveStatistics
+from app.analytics.statistics.regression import RegressionAnalyzer
+from app.analytics.statistics.time_series_diagnostics import TimeSeriesDiagnosticAnalyzer
+from app.analytics.statistics.pareto import ParetoAnalyzer
+from app.analytics.statistics.selector import AnalyticalMethodSelector
+from app.analytics.statistics.visual_analytics import ChartAdvisor
 
 
 class AnalyticsService:
@@ -523,3 +543,355 @@ class AnalyticsService:
             })
         )
         return result, builder.build()
+
+    def get_extended_descriptive_stats(
+        self,
+        values: List[float],
+        variable_name: str = "metric",
+        context: Optional[AnalysisContext] = None,
+        alpha: float = 0.05,
+    ) -> Tuple[DescriptiveExtendedStats, EvidenceRecord]:
+        """
+        Compute extended descriptive distribution metrics with complete provenance.
+        """
+        stats_res = DescriptiveStatistics.compute_extended(values, variable_name=variable_name, alpha=alpha)
+
+        builder = (
+            EvidenceBuilder.create(f"descriptive_{variable_name}", context)
+            .with_sources(["computed_series"], [variable_name])
+            .with_calculation(
+                f"Evaluates central tendency (mean, median, mode), dispersion (variance, std_dev, IQR, CV), "
+                f"shape (skewness={stats_res.skewness}, kurtosis={stats_res.kurtosis}), "
+                f"normality ({stats_res.distribution_type.value}), 95% CI, and Tukey/Z-score outlier fences."
+            )
+            .with_assumptions([
+                "Finite second moments required for variance and standard error.",
+                "Student's t confidence interval assumes approximate normality or CLT applicability.",
+            ])
+            .with_limitations([
+                "Sample percentiles may be unstable for very small sample sizes (n < 10).",
+                "Extreme outliers can distort arithmetic mean and standard deviation.",
+            ])
+            .with_result_summary({
+                "count": stats_res.count,
+                "mean": stats_res.mean,
+                "median": stats_res.median,
+                "std_dev": stats_res.std_dev,
+                "is_normal": stats_res.is_normally_distributed,
+                "outliers_count": stats_res.outliers_tukey.count if stats_res.outliers_tukey else 0,
+            })
+        )
+        return stats_res, builder.build()
+
+    def run_regression_analysis(
+        self,
+        y: List[float],
+        X: Dict[str, List[float]],
+        dependent_variable_name: str = "target",
+        context: Optional[AnalysisContext] = None,
+        alpha: float = 0.05,
+    ) -> Tuple[RegressionAnalysisResult, EvidenceRecord]:
+        """
+        Execute deterministic multivariate OLS regression driver analysis.
+        """
+        reg_res = RegressionAnalyzer.fit(
+            y=y,
+            X=X,
+            dependent_variable_name=dependent_variable_name,
+            alpha=alpha,
+        )
+
+        sources = list(X.keys()) + [dependent_variable_name]
+        builder = (
+            EvidenceBuilder.create(f"regression_{dependent_variable_name}", context)
+            .with_sources(["regression_features"], sources)
+            .with_calculation(
+                f"Ordinary Least Squares (OLS): {dependent_variable_name} ~ Intercept + "
+                + " + ".join(X.keys())
+                + f" | R²={reg_res.r_squared:.4f}, Adj R²={reg_res.adjusted_r_squared:.4f}, F={reg_res.f_statistic:.2f} (p={reg_res.f_pvalue:.4f})"
+            )
+            .with_assumptions([
+                "Linearity: the relationship between predictors and expected value of outcome is linear.",
+                "Independence: observations are independently and identically distributed.",
+                "Homoskedasticity: error terms have constant variance across predictor levels.",
+                "No perfect collinearity: predictors are linearly independent.",
+            ])
+            .with_limitations(reg_res.limitations + [reg_res.causation_warning])
+            .with_result_summary({
+                "sample_size": reg_res.sample_size,
+                "r_squared": reg_res.r_squared,
+                "adj_r_squared": reg_res.adjusted_r_squared,
+                "f_statistic": reg_res.f_statistic,
+                "p_value": reg_res.f_pvalue,
+                "condition_number": reg_res.condition_number,
+                "multicollinearity_flag": reg_res.multicollinearity_warning,
+                "durbin_watson": reg_res.durbin_watson_statistic,
+                "heteroskedasticity_flag": reg_res.heteroskedasticity_warning,
+                "robust_se_recommended": reg_res.robust_standard_errors_recommended,
+                "influential_points_count": reg_res.influential_observations_count,
+                "is_rank_deficient": reg_res.is_rank_deficient,
+            })
+        )
+        return reg_res, builder.build()
+
+    def run_time_series_diagnostics(
+        self,
+        metric: str = "revenue",
+        context: Optional[AnalysisContext] = None,
+        alpha: float = 0.05,
+    ) -> Tuple[TimeSeriesDiagnosticResult, EvidenceRecord]:
+        """
+        Execute time-series diagnostic battery on business metric aggregations.
+        """
+        ctx = context or AnalysisContext()
+        ts_res = TimeSeriesAnalyzer.evaluate(self.session, ctx, metric=metric)
+
+        values = [float(pt.value) for pt in ts_res.points]
+        dates = [pt.period_label for pt in ts_res.points]
+
+        diag_res = TimeSeriesDiagnosticAnalyzer.evaluate(
+            values=values,
+            dates=dates,
+            metric_name=metric,
+            granularity=ctx.granularity.value if hasattr(ctx.granularity, "value") else str(ctx.granularity),
+            alpha=alpha,
+        )
+
+        builder = (
+            EvidenceBuilder.create(f"time_series_diagnostics_{metric}", context)
+            .with_sources(["sales", "sale_items"], ["transaction_date", "subtotal"])
+            .with_calculation(
+                f"Evaluates linear slope ({diag_res.trend_slope:+.4f}/period), "
+                f"Augmented Dickey-Fuller stationarity test, autocorrelation function lags, and Tukey residual anomalies."
+            )
+            .with_assumptions([
+                "Temporal buckets are chronologically ordered and uniformly spaced.",
+                "Residuals from linear trend reflect cyclical, seasonal, or irregular shocks.",
+            ])
+            .with_limitations(diag_res.limitations)
+            .with_result_summary({
+                "sample_size": diag_res.sample_size,
+                "trend_slope": diag_res.trend_slope,
+                "trend_direction": diag_res.trend_direction.value,
+                "is_stationary": diag_res.is_stationary,
+                "adf_p_value": diag_res.adf_p_value,
+                "seasonal_period": diag_res.seasonal_period,
+                "anomalies_count": diag_res.anomalies_detected,
+            })
+        )
+        return diag_res, builder.build()
+
+    def get_pareto_concentration(
+        self,
+        dimension: str = "customer",
+        metric: str = "revenue",
+        context: Optional[AnalysisContext] = None,
+    ) -> Tuple[ParetoAnalysisResult, EvidenceRecord]:
+        """
+        Evaluate deterministic Pareto 80/20 concentration and Gini coefficient across entities.
+        """
+        ctx = context or AnalysisContext()
+        entities: List[Dict[str, Any]] = []
+
+        if dimension.lower() in ["customer", "customers"]:
+            stmt = (
+                select(
+                    Customer.id.label("id"),
+                    Customer.name.label("name"),
+                    func.sum(Sale.subtotal - Sale.discount_amount).label("total_val"),
+                )
+                .join(Sale, Customer.id == Sale.customer_id)
+                .where(Sale.status.in_(ctx.statuses if ctx.statuses else ["completed", "shipped"]))
+            )
+            if ctx.date_from:
+                stmt = stmt.where(Sale.transaction_date >= ctx.date_from)
+            if ctx.date_to:
+                stmt = stmt.where(Sale.transaction_date <= ctx.date_to)
+            stmt = stmt.group_by(Customer.id, Customer.name)
+
+            rows = self.session.execute(stmt).all()
+            for r in rows:
+                entities.append({
+                    "entity_id": r.id,
+                    "entity_name": r.name,
+                    "value": float(r.total_val or 0.0),
+                })
+        else:
+            # Default to products
+            stmt = (
+                select(
+                    Product.id.label("id"),
+                    Product.name.label("name"),
+                    func.sum(SaleItem.line_total).label("total_val"),
+                )
+                .join(SaleItem, Product.id == SaleItem.product_id)
+                .join(Sale, SaleItem.sale_id == Sale.id)
+                .where(Sale.status.in_(ctx.statuses if ctx.statuses else ["completed", "shipped"]))
+            )
+            if ctx.date_from:
+                stmt = stmt.where(Sale.transaction_date >= ctx.date_from)
+            if ctx.date_to:
+                stmt = stmt.where(Sale.transaction_date <= ctx.date_to)
+            stmt = stmt.group_by(Product.id, Product.name)
+
+            rows = self.session.execute(stmt).all()
+            for r in rows:
+                entities.append({
+                    "entity_id": r.id,
+                    "entity_name": r.name,
+                    "value": float(r.total_val or 0.0),
+                })
+
+        pareto_res = ParetoAnalyzer.evaluate(
+            entities=entities,
+            metric_key="value",
+            entity_id_key="entity_id",
+            entity_name_key="entity_name",
+            dimension_name=dimension,
+        )
+
+        builder = (
+            EvidenceBuilder.create(f"pareto_{dimension}_{metric}", context)
+            .with_sources([dimension, "sales"], ["id", "name", "subtotal"])
+            .with_calculation(
+                f"Evaluates cumulative Lorenz curve, Gini coefficient (G={pareto_res.gini_coefficient:.4f}), "
+                f"and Pareto 80/20 concentration rule across {pareto_res.total_entities} {dimension} entities."
+            )
+            .with_assumptions([
+                "Entity revenue aggregations reflect net sales within the specified temporal filter.",
+            ])
+            .with_limitations(pareto_res.limitations)
+            .with_result_summary({
+                "total_entities": pareto_res.total_entities,
+                "top_20_share_pct": pareto_res.top_20_pct_share,
+                "gini_coefficient": pareto_res.gini_coefficient,
+                "satisfies_80_20": pareto_res.satisfies_80_20_rule,
+                "concentration": pareto_res.concentration_classification,
+            })
+        )
+        return pareto_res, builder.build()
+
+    def recommend_analytical_method(
+        self,
+        question_type: AnalyticalQuestionType,
+        data: Optional[Dict[str, List[Any]]] = None,
+        is_paired: bool = False,
+        alpha: float = 0.05,
+    ) -> AnalyticalMethodRecommendation:
+        """
+        Deterministic method selection decision layer recommending statistically valid tests and charts.
+        """
+        return AnalyticalMethodSelector.recommend_method(
+            question_type=question_type,
+            data=data,
+            is_paired=is_paired,
+            alpha=alpha,
+        )
+
+    def run_one_way_anova(
+        self,
+        groups: Dict[str, List[float]],
+        metric_name: str = "metric",
+        context: Optional[AnalysisContext] = None,
+        alpha: float = 0.05,
+    ) -> Tuple[AnovaResult, EvidenceRecord]:
+        """
+        Execute One-Way ANOVA across 3 or more groups with evidence.
+        """
+        anova_res = HypothesisTestRunner.run_one_way_anova(groups, metric_name=metric_name, alpha=alpha)
+
+        builder = (
+            EvidenceBuilder.create(f"anova_{metric_name}", context)
+            .with_sources(list(groups.keys()), [metric_name])
+            .with_calculation(
+                f"One-Way ANOVA: F({anova_res.df_between}, {anova_res.df_within})={anova_res.f_statistic:.4f}, "
+                f"p={anova_res.p_value:.6f}, eta²={anova_res.eta_squared:.4f}."
+            )
+            .with_assumptions(anova_res.assumptions_and_limitations)
+            .with_result_summary({
+                "f_statistic": anova_res.f_statistic,
+                "p_value": anova_res.p_value,
+                "eta_squared": anova_res.eta_squared,
+                "significant": anova_res.is_statistically_significant,
+                "post_hoc_comparisons_count": len(anova_res.post_hoc_comparisons) if anova_res.post_hoc_comparisons else 0,
+                "post_hoc_correction_method": anova_res.post_hoc_correction_method,
+            })
+        )
+        return anova_res, builder.build()
+
+    def run_chi_square_contingency(
+        self,
+        contingency_table: Dict[str, Dict[str, int]],
+        variable_x: str,
+        variable_y: str,
+        context: Optional[AnalysisContext] = None,
+        alpha: float = 0.05,
+    ) -> Tuple[ChiSquareContingencyResult, EvidenceRecord]:
+        """
+        Execute Chi-Square test of independence with evidence.
+        """
+        chi_res = HypothesisTestRunner.run_chi_square_contingency(
+            contingency_table, variable_x=variable_x, variable_y=variable_y, alpha=alpha
+        )
+
+        builder = (
+            EvidenceBuilder.create(f"chi_square_{variable_x}_vs_{variable_y}", context)
+            .with_sources(["contingency_table"], [variable_x, variable_y])
+            .with_calculation(
+                f"Chi-Square Test of Independence: chi2({chi_res.degrees_of_freedom})={chi_res.chi2_statistic:.4f}, "
+                f"p={chi_res.p_value:.6f}, Cramér's V={chi_res.cramers_v:.4f}."
+            )
+            .with_assumptions(chi_res.assumptions_and_limitations)
+            .with_result_summary({
+                "chi2_statistic": chi_res.chi2_statistic,
+                "p_value": chi_res.p_value,
+                "cramers_v": chi_res.cramers_v,
+                "significant": chi_res.is_statistically_significant,
+                "cochran_valid": chi_res.expected_frequencies_valid,
+                "min_expected_frequency": chi_res.min_expected_frequency,
+                "fishers_exact_p_value": chi_res.fishers_exact_p_value,
+            })
+        )
+        return chi_res, builder.build()
+
+    def run_two_proportions_test(
+        self,
+        successes_1: int,
+        total_1: int,
+        successes_2: int,
+        total_2: int,
+        group1_name: str = "Group 1",
+        group2_name: str = "Group 2",
+        context: Optional[AnalysisContext] = None,
+        alpha: float = 0.05,
+    ) -> Tuple[TwoProportionResult, EvidenceRecord]:
+        """
+        Execute two-proportion z-test with evidence.
+        """
+        prop_res = HypothesisTestRunner.test_two_proportions(
+            successes_1=successes_1,
+            total_1=total_1,
+            successes_2=successes_2,
+            total_2=total_2,
+            group1_name=group1_name,
+            group2_name=group2_name,
+            alpha=alpha,
+        )
+
+        builder = (
+            EvidenceBuilder.create(f"proportion_test_{group1_name}_vs_{group2_name}", context)
+            .with_sources([group1_name, group2_name], ["successes", "trials"])
+            .with_calculation(
+                f"Two-Proportion Z-Test: z={prop_res.z_statistic:.4f}, p={prop_res.p_value:.6f}, "
+                f"difference={prop_res.absolute_difference:+.4f} (95% CI: [{prop_res.confidence_interval.lower_bound:.4f}, {prop_res.confidence_interval.upper_bound:.4f}])."
+            )
+            .with_assumptions(prop_res.assumptions_and_limitations)
+            .with_result_summary({
+                "z_statistic": prop_res.z_statistic,
+                "p_value": prop_res.p_value,
+                "prop_1": prop_res.proportion_1,
+                "prop_2": prop_res.proportion_2,
+                "significant": prop_res.is_statistically_significant,
+            })
+        )
+        return prop_res, builder.build()

@@ -30,6 +30,10 @@ from app.agents.tools.models import (
     RFMAnalysisToolInput,
     ToolExecutionResult,
     VarianceAnalysisToolInput,
+    TimeSeriesDiagnosticsToolInput,
+    ParetoConcentrationToolInput,
+    RegressionDriverToolInput,
+    MethodRecommendationToolInput,
 )
 from app.analytics.core.context import AnalysisContext
 from app.analytics.core.types import (
@@ -37,6 +41,7 @@ from app.analytics.core.types import (
     HypothesisTestType,
     PeriodGranularity,
     SortOrder,
+    AnalyticalQuestionType,
 )
 from app.analytics.service import AnalyticsService
 
@@ -624,6 +629,133 @@ class ToolRegistry:
             input_schema=ForecastMetricToolInput,
             handler=_exec_forecast,
         ))
+
+        # 18. Time Series Diagnostics
+        def _exec_ts_diagnostics(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
+            service = AnalyticsService(session)
+            context = AnalysisContext(
+                date_from=args.get("date_from"),
+                date_to=args.get("date_to"),
+            )
+            metric = args.get("metric", "revenue")
+            res, evidence = service.run_time_series_diagnostics(metric=metric, context=context)
+            return ToolExecutionResult(
+                tool="run_time_series_diagnostics",
+                status="success",
+                result=_serialize_obj(res),
+                evidence=_serialize_obj(evidence),
+                assumptions=evidence.assumptions,
+                limitations=evidence.limitations,
+            )
+
+        self.register(AnalyticsTool(
+            name="run_time_series_diagnostics",
+            description="Computes deterministic statistical diagnostics on sequential metrics: trend slope, ADF stationarity, autocorrelation (ACF), and anomalies.",
+            category="statistics",
+            input_schema=TimeSeriesDiagnosticsToolInput,
+            handler=_exec_ts_diagnostics,
+        ))
+
+        # 19. Pareto Concentration & Gini
+        def _exec_pareto(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
+            service = AnalyticsService(session)
+            context = AnalysisContext(
+                date_from=args.get("date_from"),
+                date_to=args.get("date_to"),
+            )
+            dimension = args.get("dimension", "customer")
+            metric = args.get("metric", "revenue")
+            res, evidence = service.get_pareto_concentration(dimension=dimension, metric=metric, context=context)
+            return ToolExecutionResult(
+                tool="run_pareto_concentration",
+                status="success",
+                result=_serialize_obj(res),
+                evidence=_serialize_obj(evidence),
+                assumptions=evidence.assumptions,
+                limitations=evidence.limitations,
+            )
+
+        self.register(AnalyticsTool(
+            name="run_pareto_concentration",
+            description="Evaluates Pareto 80/20 concentration, Gini inequality coefficient, and Lorenz curve for customers or products.",
+            category="statistics",
+            input_schema=ParetoConcentrationToolInput,
+            handler=_exec_pareto,
+        ))
+
+        # 20. Regression Driver Analysis
+        def _exec_regression(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
+            from sqlalchemy import select
+            from app.models.sale import Sale
+
+            dep_var = args.get("dependent_variable", "subtotal")
+            indep_vars = args.get("independent_variables", ["quantity", "discount_amount"])
+
+            # Query underlying order records
+            stmt = select(Sale).where(Sale.status.in_(["completed", "shipped"]))
+            if args.get("date_from"):
+                stmt = stmt.where(Sale.transaction_date >= args["date_from"])
+            if args.get("date_to"):
+                stmt = stmt.where(Sale.transaction_date <= args["date_to"])
+
+            rows = session.execute(stmt).scalars().all()
+            if len(rows) < len(indep_vars) + 2:
+                return ToolExecutionResult(
+                    tool="run_regression_driver",
+                    status="error",
+                    result={},
+                    error_message=f"Insufficient observations ({len(rows)}) for {len(indep_vars)} predictors.",
+                )
+
+            y = [float(getattr(r, dep_var, 0.0) or 0.0) for r in rows]
+            X = {var_name: [float(getattr(r, var_name, 0.0) or 0.0) for r in rows] for var_name in indep_vars}
+
+            service = AnalyticsService(session)
+            context = AnalysisContext(date_from=args.get("date_from"), date_to=args.get("date_to"))
+            res, evidence = service.run_regression_analysis(y=y, X=X, dependent_variable_name=dep_var, context=context)
+            return ToolExecutionResult(
+                tool="run_regression_driver",
+                status="success",
+                result=_serialize_obj(res),
+                evidence=_serialize_obj(evidence),
+                assumptions=evidence.assumptions,
+                limitations=evidence.limitations,
+            )
+
+        self.register(AnalyticsTool(
+            name="run_regression_driver",
+            description="Performs deterministic multivariate OLS linear regression with R², coefficients, p-values, and VIF multicollinearity checks.",
+            category="statistics",
+            input_schema=RegressionDriverToolInput,
+            handler=_exec_regression,
+        ))
+
+        # 21. Method Selection Recommendation
+        def _exec_method_rec(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
+            q_type_str = args.get("question_type", "group_comparison")
+            try:
+                q_type = AnalyticalQuestionType(q_type_str)
+            except ValueError:
+                q_type = AnalyticalQuestionType.GROUP_COMPARISON
+
+            service = AnalyticsService(session)
+            rec = service.recommend_analytical_method(question_type=q_type)
+            return ToolExecutionResult(
+                tool="recommend_analytical_method",
+                status="success",
+                result=_serialize_obj(rec),
+                assumptions=rec.assumptions_evaluated,
+                limitations=rec.data_quality_warnings,
+            )
+
+        self.register(AnalyticsTool(
+            name="recommend_analytical_method",
+            description="Deterministic analytical method selection layer that evaluates question type, statistical assumptions, and recommends appropriate tests and charts.",
+            category="statistics",
+            input_schema=MethodRecommendationToolInput,
+            handler=_exec_method_rec,
+        ))
+
 
 
 # Default global tool registry instance

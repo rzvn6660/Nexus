@@ -100,6 +100,31 @@ class HypothesisTestToolInput(BaseToolInput):
     test_type: str = Field(default="two_sample_ttest", description="Statistical test method ('two_sample_ttest')")
 
 
+class TimeSeriesDiagnosticsToolInput(BaseToolInput):
+    """Input for statistical time-series diagnostics (trend, stationarity, autocorrelation, anomalies)."""
+    metric: str = Field(default="revenue", description="Metric to diagnose: 'revenue', 'orders', 'units', 'profit'")
+
+
+class ParetoConcentrationToolInput(BaseToolInput):
+    """Input for deterministic Pareto 80/20 concentration and Gini analysis."""
+    dimension: str = Field(default="customer", description="Dimension to evaluate: 'customer' or 'product'")
+    metric: str = Field(default="revenue", description="Metric for concentration: 'revenue'")
+
+
+class RegressionDriverToolInput(BaseToolInput):
+    """Input for deterministic OLS linear regression driver analysis."""
+    dependent_variable: str = Field(default="subtotal", description="Target variable to predict / explain")
+    independent_variables: list[str] = Field(
+        default_factory=lambda: ["quantity", "discount_amount"],
+        description="Predictor variables",
+    )
+
+
+class MethodRecommendationToolInput(BaseModel):
+    """Input for deterministic statistical method and chart selection recommendation."""
+    question_type: str = Field(default="group_comparison", description="Analytical question archetype")
+
+
 class ForecastMetricToolInput(BaseToolInput):
     """Input for Phase 7 deterministic time-series forecasting."""
     target_metric: str = Field(default="revenue", description="Target metric: 'revenue', 'net_revenue', 'gross_sales', 'units_sold', 'order_volume', 'product_demand'")
@@ -113,6 +138,7 @@ class ForecastMetricToolInput(BaseToolInput):
 
 
 class ToolExecutionResult(BaseModel):
+
     """Standardized deterministic execution payload returned by every agent tool."""
     tool: str = Field(description="Name of the executed tool")
     status: str = Field(default="success", description="Status: 'success' or 'error'")
