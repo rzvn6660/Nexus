@@ -147,13 +147,31 @@ def list_documents(
     db: Session = Depends(get_db),
 ) -> list[DocumentSummaryResponse]:
     """Retrieve summaries of all active registered knowledge documents."""
-    if x_business_id:
-        verify_user_business_access(db, current_user, x_business_id, action="list documents of")
-
     stmt = select(KnowledgeDocument).where(KnowledgeDocument.status == "active")
+
     if x_business_id is not None:
+        verify_user_business_access(db, current_user, x_business_id, action="list documents of")
         stmt = stmt.where(
             (KnowledgeDocument.business_id == x_business_id) | (KnowledgeDocument.is_global.is_(True))
+        )
+    elif current_user:
+        from app.models.tenant import OrganizationMembership, Business
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        user_biz_ids = db.execute(
+            select(Business.id).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().all()
+        stmt = stmt.where(
+            (KnowledgeDocument.business_id.in_(user_biz_ids))
+            | (KnowledgeDocument.is_global.is_(True))
+            | (KnowledgeDocument.business_id.is_(None))
+        )
+    else:
+        stmt = stmt.where(
+            (KnowledgeDocument.is_global.is_(True)) | (KnowledgeDocument.business_id.is_(None))
         )
     if domain:
         stmt = stmt.where(KnowledgeDocument.business_domain == domain)
@@ -246,9 +264,21 @@ def search_knowledge(
     current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeSearchResponse:
-    """Search business context documents with provenance evidence."""
-    if x_business_id:
-        verify_user_business_access(db, current_user, x_business_id, action="search knowledge in")
+    target_biz_id = x_business_id
+    if target_biz_id:
+        verify_user_business_access(db, current_user, target_biz_id, action="search knowledge in")
+    elif current_user:
+        from app.models.tenant import OrganizationMembership, Business
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        biz = db.execute(
+            select(Business).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().first()
+        if biz:
+            target_biz_id = biz.id
 
     retriever = HybridRetriever(db)
     result = retriever.retrieve(
@@ -256,6 +286,6 @@ def search_knowledge(
         business_domain=payload.business_domain,
         top_k=payload.top_k,
         similarity_threshold=payload.similarity_threshold,
-        business_id=x_business_id,
+        business_id=target_biz_id,
     )
     return KnowledgeSearchResponse.model_validate(result.model_dump())

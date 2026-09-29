@@ -53,7 +53,10 @@ def list_analysis_runs(
 ) -> List[AnalysisRunSummary]:
     stmt = select(AnalysisRun)
 
-    if current_user:
+    if x_business_id is not None:
+        verify_user_business_access(db, current_user, x_business_id, action="view analysis runs of")
+        stmt = stmt.where(AnalysisRun.business_id == x_business_id)
+    elif current_user:
         user_org_ids = db.execute(
             select(OrganizationMembership.organization_id).where(
                 OrganizationMembership.user_id == current_user.id
@@ -62,14 +65,7 @@ def list_analysis_runs(
         user_biz_ids = db.execute(
             select(Business.id).where(Business.organization_id.in_(user_org_ids))
         ).scalars().all()
-
-        if x_business_id is not None:
-            verify_user_business_access(db, current_user, x_business_id, action="view analysis runs of")
-            stmt = stmt.where(AnalysisRun.business_id == x_business_id)
-        else:
-            stmt = stmt.where(AnalysisRun.business_id.in_(user_biz_ids))
-    elif x_business_id is not None:
-        stmt = stmt.where(AnalysisRun.business_id == x_business_id)
+        stmt = stmt.where(AnalysisRun.business_id.in_(user_biz_ids))
 
     stmt = (
         stmt
@@ -281,7 +277,10 @@ def list_decisions(
 ) -> List[DecisionRecordResponse]:
     stmt = select(DecisionRecord)
 
-    if current_user:
+    if x_business_id is not None:
+        verify_user_business_access(db, current_user, x_business_id, action="view decision records of")
+        stmt = stmt.where(DecisionRecord.business_id == x_business_id)
+    elif current_user:
         user_org_ids = db.execute(
             select(OrganizationMembership.organization_id).where(
                 OrganizationMembership.user_id == current_user.id
@@ -290,14 +289,7 @@ def list_decisions(
         user_biz_ids = db.execute(
             select(Business.id).where(Business.organization_id.in_(user_org_ids))
         ).scalars().all()
-
-        if x_business_id is not None:
-            verify_user_business_access(db, current_user, x_business_id, action="view decision records of")
-            stmt = stmt.where(DecisionRecord.business_id == x_business_id)
-        else:
-            stmt = stmt.where(DecisionRecord.business_id.in_(user_biz_ids))
-    elif x_business_id is not None:
-        stmt = stmt.where(DecisionRecord.business_id == x_business_id)
+        stmt = stmt.where(DecisionRecord.business_id.in_(user_biz_ids))
 
     if status_filter:
         stmt = stmt.where(DecisionRecord.status == status_filter.upper())
@@ -319,7 +311,7 @@ def create_decision(
     current_user: UserIdentity | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
-    if current_user and x_business_id:
+    if x_business_id:
         verify_user_business_access(db, current_user, x_business_id, action="create decisions for")
 
     if payload.analysis_id:

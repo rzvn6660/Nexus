@@ -171,6 +171,10 @@ class HybridRetriever:
             stmt = stmt.where(
                 (KnowledgeDocument.business_id == business_id) | (KnowledgeDocument.is_global.is_(True))
             )
+        else:
+            stmt = stmt.where(
+                (KnowledgeDocument.business_id.is_(None)) | (KnowledgeDocument.is_global.is_(True))
+            )
         if domain:
             stmt = stmt.where(KnowledgeChunk.business_domain == domain)
 

@@ -46,12 +46,12 @@ def _resolve_tenant_business_id(
     current_user: Optional[UserIdentity] = None,
     x_business_id: Optional[str] = None,
 ) -> Optional[str]:
+    if x_business_id:
+        biz = verify_user_business_access(
+            db, current_user, x_business_id, action="access analytics for"
+        )
+        return biz.id
     if current_user:
-        if x_business_id:
-            biz = verify_user_business_access(
-                db, current_user, x_business_id, action="access analytics for"
-            )
-            return biz.id
         user_org_ids = db.execute(
             select(OrganizationMembership.organization_id).where(
                 OrganizationMembership.user_id == current_user.id
@@ -62,7 +62,7 @@ def _resolve_tenant_business_id(
         ).scalars().first()
         if biz:
             return biz.id
-    return x_business_id
+    return None
 
 
 def get_analytics_business_id(

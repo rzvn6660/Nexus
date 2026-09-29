@@ -119,6 +119,15 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str | None = None
     MULTI_TENANCY_ENABLED: bool = True
 
+    # Shared Cache / Redis (Phase 23.6 Production Hardening)
+    # Set REDIS_URL to enable shared rate limiting and JWT revocation across workers.
+    # Example: redis://localhost:6379/0  or  rediss://user:pass@host:6380/0
+    REDIS_URL: str | None = None
+    # When True (recommended for production), security-sensitive operations (token
+    # revocation, rate limiting) fail-closed if the shared backend is unavailable.
+    # Set to False only in single-worker development environments.
+    REDIS_FAIL_CLOSED: bool = False
+
     # Operational Boundaries & Timeouts (Phase 10)
     REQUEST_TIMEOUT_SECONDS: int = 60
     METRICS_ENABLED: bool = True

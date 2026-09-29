@@ -33,3 +33,6 @@ pypdf>=4.0.0,<6.0.0
 
 # Decision Engines (Experimental / Optional)
 typesafe-sdk==0.7.1
+
+# Shared Cache / Redis (Phase 23.6 Production Hardening)
+redis>=5.0.0,<6.0.0

@@ -37,29 +37,28 @@ def analyze_business_query(
     db: Session = Depends(get_db),
 ) -> AgentResponse:
     """Entrypoint for agentic analytical requests."""
-    business_id = x_business_id
+    business_id = None
     organization_id = None
     user_id = current_user.id if current_user else None
 
-    if current_user:
-        if x_business_id:
-            biz = verify_user_business_access(
-                db, current_user, x_business_id, action="execute analytical queries for"
+    if x_business_id:
+        biz = verify_user_business_access(
+            db, current_user, x_business_id, action="execute analytical queries for"
+        )
+        business_id = biz.id
+        organization_id = biz.organization_id
+    elif current_user:
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
             )
+        ).scalars().all()
+        biz = db.execute(
+            select(Business).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().first()
+        if biz:
             business_id = biz.id
             organization_id = biz.organization_id
-        else:
-            user_org_ids = db.execute(
-                select(OrganizationMembership.organization_id).where(
-                    OrganizationMembership.user_id == current_user.id
-                )
-            ).scalars().all()
-            biz = db.execute(
-                select(Business).where(Business.organization_id.in_(user_org_ids))
-            ).scalars().first()
-            if biz:
-                business_id = biz.id
-                organization_id = biz.organization_id
 
     # enforce_readiness=True when a business_id is known (tenant context established)
     enforce_readiness = business_id is not None

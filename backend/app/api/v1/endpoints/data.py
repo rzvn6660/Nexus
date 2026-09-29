@@ -2,7 +2,7 @@
 
 import io
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
@@ -118,6 +118,12 @@ async def ingest_csv(
         raise HTTPException(
             status_code=400,
             detail=f"Target dataset '{dataset}' not supported. Supported: {list(MODEL_REGISTRY.keys())}",
+        )
+
+    if persist:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Direct CSV persistence via /api/v1/data/ingest/csv is disabled for tenant security. Use the tenant-isolated /api/v1/gateway/upload endpoint for persistent ingestion.",
         )
 
     # Validate and sanitize file name

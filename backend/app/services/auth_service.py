@@ -33,13 +33,18 @@ from app.models.tenant import (
 logger = get_logger(__name__)
 
 
+# Prefix for revoked-JTI keys in the shared cache
+_REVOKE_PREFIX = "jwt:revoked:"
+
+
 class AuthService:
     """Service handling identity lifecycle, password hashing, and JWT tokens."""
 
     SALT_BYTES = 16
     PBKDF2_ITERATIONS = 100_000
     MAX_PASSWORD_LENGTH = 128
-    _revoked_tokens: set[str] = set()
+    # Local in-process fallback store for revoked JTIs (development / no Redis)
+    _local_revoked_tokens: set[str] = set()
     _dummy_hash: str = "00" * 16 + "$" + "00" * 32
 
     @classmethod
@@ -85,24 +90,91 @@ class AuthService:
 
     @classmethod
     def revoke_token(cls, token_or_jti: str) -> None:
-        """Revoke a token by its jti identifier or raw JWT string."""
+        """Revoke a token by its JTI or raw JWT string.
+
+        The JTI is stored in the shared cache (Redis when available) with a TTL
+        equal to the token's remaining lifetime so it auto-purges on expiry.
+        Falls back to the local in-process store for development.
+
+        SECURITY: raw token strings are NEVER logged.
+        """
+        from app.core.cache import get_cache
+
+        jti: str | None = None
+        ttl_seconds: int = settings.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
         if "." in token_or_jti:
+            # Raw JWT — decode without verification to extract jti and exp
             try:
                 unverified = jwt.decode(token_or_jti, options={"verify_signature": False})
                 jti = unverified.get("jti")
-                if jti:
-                    cls._revoked_tokens.add(jti)
+                exp = unverified.get("exp")
+                if exp:
+                    import time as _time
+                    remaining = int(exp - _time.time())
+                    ttl_seconds = max(60, remaining)  # keep at least 60s
             except Exception:
-                pass
+                pass  # malformed token — nothing to revoke
         else:
-            cls._revoked_tokens.add(token_or_jti)
+            jti = token_or_jti
+
+        if not jti:
+            return
+
+        cache = get_cache()
+        cache_key = f"{_REVOKE_PREFIX}{jti}"
+
+        if cache.is_shared_backend:
+            try:
+                cache.set(cache_key, "1", ttl_seconds=ttl_seconds)
+                logger.info("SECURITY: token JTI revoked in shared cache (ttl=%ds).", ttl_seconds)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "SECURITY: Failed to revoke JTI in shared cache (%s) — falling back to local.",
+                    type(exc).__name__,
+                )
+                # Fall through to local
+
+        # Local fallback
+        cls._local_revoked_tokens.add(jti)
+        logger.info("SECURITY: token JTI revoked in local fallback store.")
 
     @classmethod
     def is_token_revoked(cls, jti: str | None) -> bool:
-        """Check if token jti has been marked revoked."""
+        """Return True if the token JTI has been revoked.
+
+        Checks the shared cache first, then the local fallback store.
+        When ``REDIS_FAIL_CLOSED=True`` and the shared backend is unavailable,
+        raises ``HTTP 503`` so the caller fails closed rather than allowing a
+        potentially revoked token to pass.
+        """
         if not jti:
             return False
-        return jti in cls._revoked_tokens
+
+        from app.core.cache import get_cache
+
+        cache = get_cache()
+        cache_key = f"{_REVOKE_PREFIX}{jti}"
+
+        if cache.is_shared_backend:
+            try:
+                return cache.exists(cache_key)
+            except Exception as exc:
+                logger.warning(
+                    "SECURITY: Redis error checking JTI revocation (%s).",
+                    type(exc).__name__,
+                )
+                # If fail-closed, deny on error
+                if getattr(settings, "REDIS_FAIL_CLOSED", False):
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Authentication service temporarily unavailable.",
+                    )
+                # Graceful degradation: fall through to local store
+
+        # Local fallback check
+        return jti in cls._local_revoked_tokens
 
     @classmethod
     def create_access_token(
