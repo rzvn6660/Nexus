@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ForecastTarget(str, Enum):
@@ -98,22 +98,34 @@ class ModelMetadata(BaseModel):
 class ForecastEvidence(BaseModel):
     """Audit record and provenance for a generated forecast, guaranteeing reproducibility."""
     forecast_id: str
-    source_tables: list[str] = Field(default_factory=lambda: ["sales", "sale_items", "products"])
-    source_columns: list[str] = Field(default_factory=lambda: ["transaction_date", "line_total", "quantity"])
+    source_tables: list[str] = Field(default_factory=lambda: ["sales"])
+    source_columns: list[str] = Field(default_factory=lambda: ["transaction_date", "total_amount", "status", "id"])
+    telemetry_source: str = Field(default="order_level_sales_telemetry", description="Telemetry extraction source: order_level_sales_telemetry or item_level_product_telemetry.")
     target_metric: str
     filters: dict[str, Any] = Field(default_factory=dict)
     training_range: dict[str, str | None]
     forecast_horizon: int
     frequency: str
     model: str
+    selected_model: str = Field(default="", description="Canonical selected model identifier matching model.name.")
+    model_version: str = Field(default="1.0", description="Version of the selected model.")
     model_parameters: dict[str, Any] = Field(default_factory=dict)
     validation_method: str = "expanding_window_backtest"
     validation_metrics: EvaluationMetrics
+    candidate_evaluations: dict[str, Any] = Field(default_factory=dict)
     selected_model_rationale: str
     assumptions: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     data_quality_status: str
     generated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    @model_validator(mode="after")
+    def sync_model_identifiers(self) -> "ForecastEvidence":
+        if not self.selected_model and self.model:
+            self.selected_model = self.model
+        elif not self.model and self.selected_model:
+            self.model = self.selected_model
+        return self
 
 
 class ForecastResult(BaseModel):

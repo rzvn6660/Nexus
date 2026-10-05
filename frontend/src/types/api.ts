@@ -27,19 +27,33 @@ export interface HealthResponse {
 // ==========================================
 
 export interface EvidenceRecord {
-  evidence_id: string;
-  calculation_type: string;
-  source_tables: string[];
-  source_columns: string[];
-  filter_predicates: Record<string, any>;
+  evidence_id?: string;
+  analysis_id?: string;
+  metric?: string;
+  calculation_type?: string;
+  method?: string;
+  source_tables?: string[];
+  source_columns?: string[];
+  supporting_sources?: string[];
+  filter_predicates?: Record<string, any>;
+  filters?: Record<string, any>;
+  parameters_used?: Record<string, any>;
   period_start?: string | null;
   period_end?: string | null;
-  row_count: number;
-  parameters_used: Record<string, any>;
-  mathematical_formula: string;
-  execution_time_ms: number;
-  generated_at: string;
-  checksum: string;
+  date_range?: { start?: string | null; end?: string | null } | null;
+  comparison_period?: { start?: string | null; end?: string | null } | null;
+  row_count?: number | null;
+  sample_size?: number | null;
+  mathematical_formula?: string;
+  calculation?: string;
+  execution_time_ms?: number | null;
+  latency_ms?: number | null;
+  generated_at?: string;
+  checksum?: string | null;
+  assumptions?: string[];
+  limitations?: string[];
+  data_quality_status?: string;
+  result_summary?: Record<string, any>;
 }
 
 export interface RAGEvidence {
@@ -67,20 +81,27 @@ export interface SummaryMetricItem {
 }
 
 export interface SummaryData {
-  gross_revenue: SummaryMetricItem;
-  discounts: SummaryMetricItem;
-  returns: SummaryMetricItem;
-  net_revenue: SummaryMetricItem;
-  cogs: SummaryMetricItem;
-  gross_profit: SummaryMetricItem;
-  operating_expenses: SummaryMetricItem;
-  operating_profit: SummaryMetricItem;
-  orders_count: SummaryMetricItem;
-  average_order_value: SummaryMetricItem;
-  units_sold: SummaryMetricItem;
-  customers_count: SummaryMetricItem;
+  gross_revenue?: SummaryMetricItem;
+  gross_sales?: SummaryMetricItem;
+  discounts?: SummaryMetricItem;
+  returns?: SummaryMetricItem;
+  net_revenue?: SummaryMetricItem;
+  net_sales?: SummaryMetricItem;
+  cogs?: SummaryMetricItem;
+  gross_profit?: SummaryMetricItem;
+  gross_margin?: SummaryMetricItem;
+  operating_expenses?: SummaryMetricItem;
+  operating_profit?: SummaryMetricItem;
+  net_profit?: SummaryMetricItem;
+  net_margin?: SummaryMetricItem;
+  orders_count?: SummaryMetricItem;
+  orders?: SummaryMetricItem;
+  average_order_value?: SummaryMetricItem;
+  units_sold?: SummaryMetricItem;
+  customers_count?: SummaryMetricItem;
   gross_margin_pct?: number | null;
   operating_margin_pct?: number | null;
+  comparison?: Record<string, any> | null;
 }
 
 export interface SummaryResponse {
@@ -135,19 +156,25 @@ export interface ProductRankingItem {
 export interface ProductRankingResponse {
   success: boolean;
   data: {
-    ranking_metric: string;
-    total_products_evaluated: number;
-    items: ProductRankingItem[];
+    ranking_metric?: string;
+    total_products_evaluated?: number;
+    items?: ProductRankingItem[];
   };
   evidence: EvidenceRecord;
 }
 
 export interface BreakdownItem {
-  dimension_value: string;
+  dimension_value?: string;
   metric_value: number;
   percentage_of_total: number;
   order_count?: number;
   unit_count?: number;
+  key?: string;
+  label?: string;
+  value?: number;
+  count?: number;
+  formatted_value?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface BreakdownResponse {
@@ -339,28 +366,32 @@ export interface ForecastModelInfo {
 
 export interface ForecastEvidence {
   forecast_id: string;
-  request_id: string;
+  request_id?: string;
   target_metric: string;
   frequency: string;
   forecast_horizon: number;
-  source_tables: string[];
-  source_columns: string[];
-  filter_predicates: Record<string, any>;
-  training_range_start: string;
-  training_range_end: string;
-  forecast_range_start: string;
-  forecast_range_end: string;
-  selected_model: string;
-  model_version: string;
-  model_parameters: Record<string, any>;
-  validation_method: string;
-  validation_metrics: EvaluationMetrics;
-  candidate_evaluations: Record<string, EvaluationMetrics>;
-  selection_reason: string;
-  assumptions: string[];
-  limitations: string[];
-  data_quality_status: string;
-  generated_at: string;
+  source_tables?: string[];
+  source_columns?: string[];
+  telemetry_source?: string;
+  filter_predicates?: Record<string, any>;
+  training_range?: { from?: string | null; to?: string | null };
+  training_range_start?: string;
+  training_range_end?: string;
+  forecast_range_start?: string;
+  forecast_range_end?: string;
+  model?: string;
+  selected_model?: string;
+  model_version?: string;
+  model_parameters?: Record<string, any>;
+  validation_method?: string;
+  validation_metrics?: EvaluationMetrics;
+  candidate_evaluations?: Record<string, EvaluationMetrics>;
+  selection_reason?: string;
+  selected_model_rationale?: string;
+  assumptions?: string[];
+  limitations?: string[];
+  data_quality_status?: string;
+  generated_at?: string;
 }
 
 export interface ForecastRequest {
@@ -430,9 +461,13 @@ export interface TableSummary {
 export interface ColumnProfile {
   column_name: string;
   data_type: string;
+  inferred_type?: string;
+  total_count?: number;
   null_count: number;
   null_percentage: number;
   distinct_count: number;
+  unique_count?: number;
+  is_unique?: boolean;
   min_value?: any;
   max_value?: any;
 }
@@ -440,28 +475,44 @@ export interface ColumnProfile {
 export interface DatasetProfile {
   table_name: string;
   row_count: number;
+  total_rows?: number;
   column_count: number;
+  total_columns?: number;
   columns: Record<string, ColumnProfile>;
-  generated_at: string;
+  generated_at?: string;
+  profiled_at?: string;
 }
 
 export interface QualityRuleResult {
-  rule_id: string;
-  rule_name: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  status: 'passed' | 'warning' | 'failed';
-  message: string;
-  violation_count: number;
+  rule_id?: string;
+  rule_name?: string;
+  check_name?: string;
+  rule_description?: string;
+  severity: string;
+  status?: string;
+  passed?: boolean;
+  message?: string;
+  violation_count?: number;
+  affected_rows_count?: number;
 }
 
 export interface QualityReport {
-  dataset: string;
-  overall_status: 'passed' | 'warning' | 'failed';
-  total_rules: number;
-  passed_rules: number;
-  failed_rules: number;
-  rule_results: QualityRuleResult[];
-  audited_at: string;
+  dataset?: string;
+  dataset_name?: string;
+  overall_status?: 'passed' | 'warning' | 'failed' | string;
+  status?: 'PASSED' | 'WARNING' | 'FAILED' | string;
+  total_rules?: number;
+  checks_executed?: number;
+  passed_rules?: number;
+  checks_passed?: number;
+  failed_rules?: number;
+  checks_failed?: number;
+  warnings_count?: number;
+  errors_count?: number;
+  rule_results?: QualityRuleResult[];
+  checks?: QualityRuleResult[];
+  audited_at?: string;
+  executed_at?: string;
 }
 
 // ==========================================

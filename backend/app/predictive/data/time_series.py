@@ -56,6 +56,36 @@ class TimeSeriesPreparer:
         return df, quality
 
     @classmethod
+    def resolve_lineage(
+        cls,
+        target_metric: Any,
+        entity_type: str | None = None,
+        entity_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Deterministically resolve source tables and columns for an extraction query."""
+        metric_norm = (target_metric.value if hasattr(target_metric, "value") else str(target_metric)).lower().strip()
+        is_item_level = bool(
+            (entity_type == "product" and entity_id)
+            or (entity_type == "category" and entity_id)
+            or (metric_norm in ("product_demand", "product_sales", "units", "quantity") and entity_id)
+        )
+        if is_item_level:
+            return {
+                "source_tables": ["sales", "sale_items", "products"],
+                "source_columns": ["transaction_date", "line_total", "quantity", "status", "sku", "product_name", "category"],
+                "is_item_level": True,
+                "telemetry_source": "item_level_product_telemetry",
+                "extraction_notes": "Extracted line-item product telemetry joined across sales, sale_items, and catalog products.",
+            }
+        return {
+            "source_tables": ["sales"],
+            "source_columns": ["transaction_date", "total_amount", "status", "id"],
+            "is_item_level": False,
+            "telemetry_source": "order_level_sales_telemetry",
+            "extraction_notes": "Order-level sales telemetry evaluated directly from completed sales orders without line-item decomposition.",
+        }
+
+    @classmethod
     def extract_series(
         cls,
         session: Session,
@@ -71,11 +101,8 @@ class TimeSeriesPreparer:
         Extract transactions, aggregate into continuous frequency buckets, and return DataFrame
         with columns: [period_label, period_start, period_end, value, is_zero].
         """
-        is_item_level = bool(
-            (entity_type == "product" and entity_id)
-            or (entity_type == "category" and entity_id)
-            or (target_metric in ("product_demand", "product_sales", "units", "quantity") and entity_id)
-        )
+        lineage = cls.resolve_lineage(target_metric, entity_type, entity_id)
+        is_item_level = lineage["is_item_level"]
 
         clauses = [Sale.status.in_(["completed", "shipped"])]
         if business_id:
@@ -108,7 +135,12 @@ class TimeSeriesPreparer:
             stmt = stmt.where(and_(*clauses))
             rows = session.execute(stmt).all()
             if not rows:
-                return pd.DataFrame(columns=["period_label", "period_start", "period_end", "value", "is_zero"])
+                empty_df = pd.DataFrame(columns=["period_label", "period_start", "period_end", "value", "is_zero"])
+                empty_df.attrs["lineage"] = lineage
+                empty_df.attrs["source_tables"] = lineage["source_tables"]
+                empty_df.attrs["source_columns"] = lineage["source_columns"]
+                empty_df.attrs["telemetry_source"] = lineage["telemetry_source"]
+                return empty_df
 
             data = []
             for r in rows:
@@ -136,7 +168,12 @@ class TimeSeriesPreparer:
             )
             rows = session.execute(stmt).all()
             if not rows:
-                return pd.DataFrame(columns=["period_label", "period_start", "period_end", "value", "is_zero"])
+                empty_df = pd.DataFrame(columns=["period_label", "period_start", "period_end", "value", "is_zero"])
+                empty_df.attrs["lineage"] = lineage
+                empty_df.attrs["source_tables"] = lineage["source_tables"]
+                empty_df.attrs["source_columns"] = lineage["source_columns"]
+                empty_df.attrs["telemetry_source"] = lineage["telemetry_source"]
+                return empty_df
 
             data = []
             for r in rows:
@@ -223,4 +260,8 @@ class TimeSeriesPreparer:
             })
 
         out_df = pd.DataFrame(results)
+        out_df.attrs["lineage"] = lineage
+        out_df.attrs["source_tables"] = lineage["source_tables"]
+        out_df.attrs["source_columns"] = lineage["source_columns"]
+        out_df.attrs["telemetry_source"] = lineage["telemetry_source"]
         return out_df

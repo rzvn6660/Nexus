@@ -46,6 +46,14 @@ class EvidenceRecord(BaseModel):
     calculation: str = Field(
         description="Exact human-readable mathematical formula or SQL aggregation rule"
     )
+    mathematical_formula: Optional[str] = Field(
+        default=None,
+        description="Formal mathematical formula or SQL aggregation expression"
+    )
+    supporting_sources: List[str] = Field(
+        default_factory=list,
+        description="Ancillary tables probed for data availability but not contributing rows"
+    )
     method: str = Field(
         default="deterministic_sql_aggregation",
         description="Computation engine / method (e.g. 'SQL_SUM', 'WELCH_TTEST', 'RFM_QUANTILES')"
@@ -65,6 +73,18 @@ class EvidenceRecord(BaseModel):
     result_summary: Dict[str, Any] = Field(
         default_factory=dict,
         description="Key output values for quick reference"
+    )
+    row_count: Optional[int] = Field(
+        default=None,
+        description="Number of database rows evaluated during calculation if applicable"
+    )
+    execution_time_ms: Optional[float] = Field(
+        default=None,
+        description="Execution latency in milliseconds if measured"
+    )
+    checksum: Optional[str] = Field(
+        default=None,
+        description="Cryptographic SHA-256 fingerprint of calculation and evidence attributes"
     )
     generated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

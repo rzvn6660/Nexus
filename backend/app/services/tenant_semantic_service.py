@@ -58,8 +58,8 @@ class TenantSemanticService:
             "display_name": "Net Revenue",
             "description": "Total realized commercial sales value after discounts.",
             "source_table": "sales",
-            "source_field": "total_amount",
-            "calculation_formula": "SUM(sales.total_amount)",
+            "source_field": "subtotal - discount_amount",
+            "calculation_formula": "SUM(sales.subtotal - sales.discount_amount)",
             "unit": "currency",
             "business_domain": "finance",
             "analytics_tool": "get_financial_summary",
@@ -80,8 +80,8 @@ class TenantSemanticService:
             "display_name": "Average Order Value (AOV)",
             "description": "Mean commercial value generated per customer order.",
             "source_table": "sales",
-            "source_field": "total_amount",
-            "calculation_formula": "SUM(sales.total_amount) / NULLIF(COUNT(sales.id), 0)",
+            "source_field": "subtotal - discount_amount",
+            "calculation_formula": "SUM(sales.subtotal - sales.discount_amount) / NULLIF(COUNT(sales.id), 0)",
             "unit": "currency",
             "business_domain": "sales",
             "analytics_tool": "get_financial_summary",
@@ -1571,7 +1571,13 @@ class TenantSemanticService:
 
         # 4. If canonical KPI was resolved, evaluate availability against tenant database state
         if matched_canonical and matched_canonical in metrics_dict:
-            m_info = metrics_dict[matched_canonical]
+            m_info = dict(metrics_dict[matched_canonical])
+            canon_spec = cls.CANONICAL_METRIC_SPECS.get(matched_canonical)
+            if canon_spec:
+                if m_info.get("calculation_formula") in ("SUM(sales.total_amount)", None):
+                    m_info["calculation_formula"] = canon_spec["calculation_formula"]
+                if m_info.get("source_field") in ("total_amount", None):
+                    m_info["source_field"] = canon_spec["source_field"]
             status = m_info.get("status", "AVAILABLE")
             unsupp_msg = None
             if status == "REQUIRES_COST_DATA":

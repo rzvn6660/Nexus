@@ -1,7 +1,7 @@
 """Deterministic computation of core financial metrics and period-over-period comparisons."""
 
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, Any
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
 from app.models.customer import Customer
@@ -86,12 +86,17 @@ def calculate_comparison(
     )
 
 
-def _format_value(val: Optional[Decimal], unit: MetricUnit) -> str:
+def _format_value(
+    val: Optional[Decimal],
+    unit: MetricUnit,
+    fallback: str = "N/A",
+    currency_symbol: str = "$",
+) -> str:
     """Format decimal value into human-friendly string."""
     if val is None:
-        return "N/A"
+        return fallback
     if unit == MetricUnit.CURRENCY:
-        return f"${val:,.2f}"
+        return f"{currency_symbol}{val:,.2f}"
     if unit == MetricUnit.PERCENTAGE:
         return f"{val:.2f}%"
     if unit == MetricUnit.COUNT or unit == MetricUnit.UNITS:
@@ -198,28 +203,58 @@ class FinancialMetricsCalculator:
 
     @classmethod
     def compute_units_and_cogs(
-        cls, session: Session, context: AnalysisContext, is_comparison: bool = False
-    ) -> Dict[str, Decimal]:
+        cls,
+        session: Session,
+        context: AnalysisContext,
+        is_comparison: bool = False,
+        net_sales: Optional[Decimal] = None,
+        orders: Optional[Decimal] = None,
+    ) -> Dict[str, Any]:
         """
         Compute total physical Units Sold and COGS (Cost of Goods Sold).
         COGS = sum(quantity * product.unit_cost)
+        
+        If sales exist but required product catalog or unit-cost data is missing,
+        COGS is NOT fabricated as zero; it is returned as None so gross margin/profit
+        metrics are accurately marked incomplete or unavailable.
         """
         d_from = context.comparison_date_from if is_comparison else context.date_from
         d_to = context.comparison_date_to if is_comparison else context.date_to
         temp_ctx = context.model_copy(update={"date_from": d_from, "date_to": d_to})
 
-        stmt = (
+        # 1. Total units from SaleItem (if items exist)
+        units_stmt = (
+            select(func.coalesce(func.sum(SaleItem.quantity), 0))
+            .join(Sale, SaleItem.sale_id == Sale.id)
+        )
+        units_stmt = cls._apply_sale_filters(units_stmt, temp_ctx, Sale.transaction_date)
+        if temp_ctx.product_ids:
+            units_stmt = units_stmt.where(SaleItem.product_id.in_(temp_ctx.product_ids))
+        total_units = session.execute(units_stmt).scalar() or 0
+        units_sold = Decimal(str(total_units))
+
+        # 2. Check if product catalog costs exist
+        prod_cost_stmt = select(func.count(Product.id)).where(Product.unit_cost.isnot(None))
+        if temp_ctx.business_id:
+            prod_cost_stmt = prod_cost_stmt.where(Product.business_id == temp_ctx.business_id)
+        if temp_ctx.product_ids:
+            prod_cost_stmt = prod_cost_stmt.where(Product.id.in_(temp_ctx.product_ids))
+        if temp_ctx.categories:
+            prod_cost_stmt = prod_cost_stmt.where(Product.category.in_(temp_ctx.categories))
+        if temp_ctx.subcategories:
+            prod_cost_stmt = prod_cost_stmt.where(Product.subcategory.in_(temp_ctx.subcategories))
+        products_with_cost_count = session.execute(prod_cost_stmt).scalar() or 0
+
+        # 3. Check costed sale items (SaleItem joined to Product with unit_cost)
+        cogs_stmt = (
             select(
-                func.coalesce(func.sum(SaleItem.quantity), 0).label("units_sold"),
-                func.coalesce(
-                    func.sum(SaleItem.quantity * Product.unit_cost), Decimal("0.00")
-                ).label("cogs"),
+                func.count(SaleItem.id).label("costed_items_count"),
+                func.sum(SaleItem.quantity * Product.unit_cost).label("cogs"),
             )
             .join(Sale, SaleItem.sale_id == Sale.id)
             .join(Product, SaleItem.product_id == Product.id)
         )
-        stmt = cls._apply_sale_filters(stmt, temp_ctx, Sale.transaction_date)
-
+        cogs_stmt = cls._apply_sale_filters(cogs_stmt, temp_ctx, Sale.transaction_date)
         clauses = []
         if temp_ctx.product_ids:
             clauses.append(SaleItem.product_id.in_(temp_ctx.product_ids))
@@ -228,12 +263,32 @@ class FinancialMetricsCalculator:
         if temp_ctx.subcategories:
             clauses.append(Product.subcategory.in_(temp_ctx.subcategories))
         if clauses:
-            stmt = stmt.where(and_(*clauses))
+            cogs_stmt = cogs_stmt.where(and_(*clauses))
+        cogs_row = session.execute(cogs_stmt).one()
+        costed_items_count = cogs_row.costed_items_count or 0
+        raw_cogs = cogs_row.cogs
 
-        row = session.execute(stmt).one()
-        units_sold = Decimal(str(row.units_sold))
-        cogs = Decimal(str(row.cogs)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        return {"units_sold": units_sold, "cogs": cogs}
+        # Resolve sales existence if not provided
+        if net_sales is None and orders is None:
+            s_check = cls.compute_sales_aggregates(session, context, is_comparison=is_comparison)
+            net_sales = s_check["net_sales"]
+            orders = s_check["orders"]
+
+        has_sales = (orders is not None and orders > Decimal("0")) or (
+            net_sales is not None and net_sales > Decimal("0.00")
+        )
+
+        if not has_sales:
+            cogs = Decimal("0.00")
+            cogs_available = True
+        elif products_with_cost_count == 0 or costed_items_count == 0:
+            cogs = None
+            cogs_available = False
+        else:
+            cogs = Decimal(str(raw_cogs or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            cogs_available = True
+
+        return {"units_sold": units_sold, "cogs": cogs, "cogs_available": cogs_available}
 
     @classmethod
     def compute_operating_expenses(
@@ -266,7 +321,9 @@ class FinancialMetricsCalculator:
         """
         # Primary evaluation
         s_agg = cls.compute_sales_aggregates(session, context, is_comparison=False)
-        u_agg = cls.compute_units_and_cogs(session, context, is_comparison=False)
+        u_agg = cls.compute_units_and_cogs(
+            session, context, is_comparison=False, net_sales=s_agg["net_sales"], orders=s_agg["orders"]
+        )
         opex = cls.compute_operating_expenses(session, context, is_comparison=False)
 
         gross_sales = s_agg["gross_sales"]
@@ -277,29 +334,37 @@ class FinancialMetricsCalculator:
         units_sold = u_agg["units_sold"]
         cogs = u_agg["cogs"]
 
-        gross_profit = (net_sales - cogs).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        gross_margin = (
-            ((gross_profit / net_sales) * Decimal("100.0")).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
+        if cogs is not None:
+            gross_profit = (net_sales - cogs).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            gross_margin = (
+                ((gross_profit / net_sales) * Decimal("100.0")).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                if net_sales > 0
+                else Decimal("0.00")
             )
-            if net_sales > 0
-            else Decimal("0.00")
-        )
-
-        net_profit = (gross_profit - opex).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        net_margin = (
-            ((net_profit / net_sales) * Decimal("100.0")).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
+            net_profit = (gross_profit - opex).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            net_margin = (
+                ((net_profit / net_sales) * Decimal("100.0")).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                if net_sales > 0
+                else Decimal("0.00")
             )
-            if net_sales > 0
-            else Decimal("0.00")
-        )
+        else:
+            # Missing product costs / COGS: do NOT fabricate or assume zero COGS
+            gross_profit = None
+            gross_margin = None
+            net_profit = None
+            net_margin = None
 
         # Baseline evaluation if comparison requested
         comparisons: Optional[Dict[str, ComparisonResult]] = None
         if context.has_comparison:
             prev_s = cls.compute_sales_aggregates(session, context, is_comparison=True)
-            prev_u = cls.compute_units_and_cogs(session, context, is_comparison=True)
+            prev_u = cls.compute_units_and_cogs(
+                session, context, is_comparison=True, net_sales=prev_s["net_sales"], orders=prev_s["orders"]
+            )
             prev_opex = cls.compute_operating_expenses(session, context, is_comparison=True)
 
             prev_gs = prev_s["gross_sales"]
@@ -309,22 +374,29 @@ class FinancialMetricsCalculator:
             prev_aov = prev_s["aov"]
             prev_units = prev_u["units_sold"]
             prev_cogs = prev_u["cogs"]
-            prev_gp = (prev_ns - prev_cogs).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            prev_gm = (
-                ((prev_gp / prev_ns) * Decimal("100.0")).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
+
+            if prev_cogs is not None:
+                prev_gp = (prev_ns - prev_cogs).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                prev_gm = (
+                    ((prev_gp / prev_ns) * Decimal("100.0")).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                    if prev_ns > 0
+                    else Decimal("0.00")
                 )
-                if prev_ns > 0
-                else Decimal("0.00")
-            )
-            prev_np = (prev_gp - prev_opex).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            prev_nm = (
-                ((prev_np / prev_ns) * Decimal("100.0")).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                prev_np = (prev_gp - prev_opex).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                prev_nm = (
+                    ((prev_np / prev_ns) * Decimal("100.0")).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                    if prev_ns > 0
+                    else Decimal("0.00")
                 )
-                if prev_ns > 0
-                else Decimal("0.00")
-            )
+            else:
+                prev_gp = None
+                prev_gm = None
+                prev_np = None
+                prev_nm = None
 
             comparisons = {
                 "gross_sales": calculate_comparison(gross_sales, prev_gs, MetricUnit.CURRENCY),
@@ -341,25 +413,29 @@ class FinancialMetricsCalculator:
                 "net_margin": calculate_comparison(net_margin, prev_nm, MetricUnit.PERCENTAGE),
             }
 
+        sym = context.currency_symbol or "$"
+
         return FinancialSummaryResult(
+            currency=context.currency or "USD",
+            currency_symbol=sym,
             gross_sales=MetricValue(
                 name="gross_sales",
                 value=gross_sales,
-                formatted=_format_value(gross_sales, MetricUnit.CURRENCY),
+                formatted=_format_value(gross_sales, MetricUnit.CURRENCY, currency_symbol=sym),
                 unit=MetricUnit.CURRENCY,
                 description="Total pre-discount transaction value",
             ),
             discounts=MetricValue(
                 name="discounts",
                 value=discounts,
-                formatted=_format_value(discounts, MetricUnit.CURRENCY),
+                formatted=_format_value(discounts, MetricUnit.CURRENCY, currency_symbol=sym),
                 unit=MetricUnit.CURRENCY,
                 description="Order-level promotional discount reductions",
             ),
             net_sales=MetricValue(
                 name="net_sales",
                 value=net_sales,
-                formatted=_format_value(net_sales, MetricUnit.CURRENCY),
+                formatted=_format_value(net_sales, MetricUnit.CURRENCY, currency_symbol=sym),
                 unit=MetricUnit.CURRENCY,
                 description="Realized commercial revenue excluding tax",
             ),
@@ -380,51 +456,71 @@ class FinancialMetricsCalculator:
             average_order_value=MetricValue(
                 name="average_order_value",
                 value=aov,
-                formatted=_format_value(aov, MetricUnit.CURRENCY),
+                formatted=_format_value(aov, MetricUnit.CURRENCY, currency_symbol=sym),
                 unit=MetricUnit.CURRENCY,
                 description="Mean revenue per transaction",
             ),
             cogs=MetricValue(
                 name="cogs",
                 value=cogs,
-                formatted=_format_value(cogs, MetricUnit.CURRENCY),
+                formatted=_format_value(cogs, MetricUnit.CURRENCY, fallback="Incomplete", currency_symbol=sym),
                 unit=MetricUnit.CURRENCY,
-                description="Cost of Goods Sold based on unit costs",
+                description=(
+                    "Cost of Goods Sold based on unit costs"
+                    if cogs is not None
+                    else "Cost of Goods Sold unavailable: catalog product unit costs are missing"
+                ),
             ),
             gross_profit=MetricValue(
                 name="gross_profit",
                 value=gross_profit,
-                formatted=_format_value(gross_profit, MetricUnit.CURRENCY),
+                formatted=_format_value(gross_profit, MetricUnit.CURRENCY, fallback="Incomplete", currency_symbol=sym),
                 unit=MetricUnit.CURRENCY,
-                description="Net Sales minus COGS",
+                description=(
+                    "Net Sales minus COGS"
+                    if gross_profit is not None
+                    else "Gross Profit unavailable: missing required product cost data"
+                ),
             ),
             gross_margin=MetricValue(
                 name="gross_margin",
                 value=gross_margin,
-                formatted=_format_value(gross_margin, MetricUnit.PERCENTAGE),
+                formatted=_format_value(gross_margin, MetricUnit.PERCENTAGE, fallback="Incomplete"),
                 unit=MetricUnit.PERCENTAGE,
-                description="Gross Profit as percentage of Net Sales",
+                description=(
+                    "Gross Profit as percentage of Net Sales"
+                    if gross_margin is not None
+                    else "Gross Margin unavailable: missing required product cost data"
+                ),
             ),
             operating_expenses=MetricValue(
                 name="operating_expenses",
                 value=opex,
-                formatted=_format_value(opex, MetricUnit.CURRENCY),
+                formatted=_format_value(opex, MetricUnit.CURRENCY, currency_symbol=sym),
                 unit=MetricUnit.CURRENCY,
                 description="Total operational overhead expenses",
             ),
             net_profit=MetricValue(
                 name="net_profit",
                 value=net_profit,
-                formatted=_format_value(net_profit, MetricUnit.CURRENCY),
+                formatted=_format_value(net_profit, MetricUnit.CURRENCY, fallback="Incomplete", currency_symbol=sym),
                 unit=MetricUnit.CURRENCY,
-                description="Gross Profit minus Operating Expenses",
+                description=(
+                    "Gross Profit minus Operating Expenses"
+                    if net_profit is not None
+                    else "Net Profit unavailable: depends on missing Gross Profit / COGS data"
+                ),
             ),
             net_margin=MetricValue(
                 name="net_margin",
                 value=net_margin,
-                formatted=_format_value(net_margin, MetricUnit.PERCENTAGE),
+                formatted=_format_value(net_margin, MetricUnit.PERCENTAGE, fallback="Incomplete"),
                 unit=MetricUnit.PERCENTAGE,
-                description="Net Profit as percentage of Net Sales",
+                description=(
+                    "Net Profit as percentage of Net Sales"
+                    if net_margin is not None
+                    else "Net Margin unavailable: depends on missing Gross Profit / COGS data"
+                ),
             ),
             comparison=comparisons,
         )

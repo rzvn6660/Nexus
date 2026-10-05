@@ -91,12 +91,31 @@ class AnalyticsService:
         self.business_id = business_id
 
     def _ensure_context(self, context: Optional[AnalysisContext]) -> Optional[AnalysisContext]:
+        biz_currency = None
+        if self.business_id:
+            from app.models.tenant import Business
+            from app.analytics.core.context import resolve_currency_symbol
+            biz_currency = self.session.execute(
+                select(Business.currency).where(Business.id == self.business_id)
+            ).scalar_one_or_none()
+
         if context is None:
             if self.business_id:
-                return AnalysisContext(business_id=self.business_id)
+                ctx_kwargs: Dict[str, Any] = {"business_id": self.business_id}
+                if biz_currency:
+                    ctx_kwargs["currency"] = biz_currency
+                    ctx_kwargs["currency_symbol"] = resolve_currency_symbol(biz_currency)
+                return AnalysisContext(**ctx_kwargs)
             return None
+
+        updates: Dict[str, Any] = {}
         if self.business_id and not context.business_id:
-            return context.model_copy(update={"business_id": self.business_id})
+            updates["business_id"] = self.business_id
+        if biz_currency and (not context.currency or context.currency == "USD"):
+            updates["currency"] = biz_currency
+            updates["currency_symbol"] = resolve_currency_symbol(biz_currency)
+        if updates:
+            return context.model_copy(update=updates)
         return context
 
     def get_financial_summary(
@@ -106,31 +125,72 @@ class AnalyticsService:
         context = self._ensure_context(context)
         summary = FinancialMetricsCalculator.evaluate_summary(self.session, context)
 
+        assumptions = [
+            "Sales tax is excluded from commercial revenue.",
+            "Discounts include promotional order-level reductions.",
+        ]
+        limitations = [
+            "Does not incorporate non-cash depreciation or income taxes.",
+            "Inventory shrinkage is not modeled in the current schema.",
+        ]
+
+        if summary.cogs.value is not None:
+            assumptions.append("COGS calculated using catalog product unit_cost.")
+            data_quality_status = "verified"
+        else:
+            assumptions.append(
+                "Product catalog unit costs are missing; zero COGS is not assumed to prevent fabricated margins."
+            )
+            limitations.append(
+                "Gross Profit, Gross Margin, Net Profit, and Net Margin are marked incomplete because required product unit_cost data is missing from the catalog."
+            )
+            data_quality_status = "incomplete"
+
+        result_summary: Dict[str, Any] = {
+            "net_sales": float(summary.net_sales.value) if summary.net_sales.value is not None else None,
+            "orders": int(summary.orders.value or 0),
+            "currency": summary.currency,
+            "currency_symbol": summary.currency_symbol,
+        }
+        if summary.cogs.value is not None:
+            result_summary["cogs"] = float(summary.cogs.value)
+        if summary.gross_profit.value is not None:
+            result_summary["gross_profit"] = float(summary.gross_profit.value)
+        if summary.gross_margin.value is not None:
+            result_summary["gross_margin"] = float(summary.gross_margin.value)
+        if summary.net_profit.value is not None:
+            result_summary["net_profit"] = float(summary.net_profit.value)
+
+        # Determine actual contributing sources and columns based on execution
+        source_tables = ["sales"]
+        source_columns = ["subtotal", "discount_amount", "id", "status"]
+        if context.business_id:
+            source_columns.append("business_id")
+
+        supporting_sources: List[str] = ["sale_items", "products", "expenses"]
+
+        if context.product_ids or context.categories or context.subcategories:
+            source_tables.extend(["sale_items", "products"])
+            source_columns.extend(["product_id", "category"])
+            supporting_sources = [s for s in supporting_sources if s not in source_tables]
+
         builder = (
             EvidenceBuilder.create("financial_summary", context)
             .with_sources(
-                ["sales", "sale_items", "products", "expenses"],
-                ["subtotal", "discount_amount", "quantity", "unit_cost", "amount", "status"],
+                tables=source_tables,
+                columns=source_columns,
+                supporting_sources=supporting_sources,
             )
             .with_calculation(
-                "Evaluates 12 core GAAP-aligned retail metrics: Gross Sales, Net Sales (Revenue), "
-                "Discounts, Orders, Units, AOV, COGS, Gross Profit, Gross Margin, OPEX, Net Profit, Net Margin."
+                calculation="SUM(sales.subtotal - sales.discount_amount)",
+                method="deterministic_sql_aggregation",
+                mathematical_formula="SUM(subtotal - discount_amount)",
             )
-            .with_assumptions([
-                "Sales tax is excluded from commercial revenue.",
-                "COGS calculated using catalog product unit_cost.",
-                "Discounts include promotional order-level reductions.",
-            ])
-            .with_limitations([
-                "Does not incorporate non-cash depreciation or income taxes.",
-                "Inventory shrinkage is not modeled in the current schema.",
-            ])
-            .with_result_summary({
-                "net_sales": float(summary.net_sales.value or 0),
-                "gross_profit": float(summary.gross_profit.value or 0),
-                "net_profit": float(summary.net_profit.value or 0),
-                "orders": int(summary.orders.value or 0),
-            })
+            .with_assumptions(assumptions)
+            .with_limitations(limitations)
+            .with_data_quality_status(data_quality_status)
+            .with_result_summary(result_summary)
+            .with_row_count(int(summary.orders.value or 0))
         )
         return summary, builder.build()
 
@@ -377,14 +437,23 @@ class AnalyticsService:
         """Aggregate chronological buckets across the evaluated timeframe."""
         context = self._ensure_context(context)
         result = TimeSeriesAnalyzer.evaluate(self.session, context, metric=metric)
+        is_fallback = getattr(result, "is_order_level_fallback", False)
         builder = (
             EvidenceBuilder.create(f"timeseries_{metric}_{context.granularity.value}", context)
             .with_sources(
-                ["sales", "sale_items", "products"],
-                ["transaction_date", "line_total", "quantity", "unit_cost"],
+                ["sales"] if is_fallback else ["sales", "sale_items", "products"],
+                ["transaction_date", "subtotal", "discount_amount"]
+                if is_fallback
+                else ["transaction_date", "line_total", "quantity", "unit_cost"],
             )
             .with_calculation(
                 f"Aggregated {metric} across chronological buckets ({context.granularity.value}) with period-over-period growth."
+                + (" (order-level aggregation fallback)" if is_fallback else "")
+            )
+            .with_assumptions(
+                ["Line-item and product catalog data are not present; aggregated directly from transaction order headers."]
+                if is_fallback
+                else []
             )
             .with_result_summary({
                 "granularity": context.granularity.value,

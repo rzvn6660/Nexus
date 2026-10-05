@@ -105,6 +105,7 @@ class ForecastingService:
         if horizon > max_horizon or horizon < 1:
             err_msg = f"Requested forecast horizon ({horizon}) exceeds maximum allowable limit ({max_horizon})."
             logger.warning(f"Forecasting {forecast_id} rejected: {err_msg}")
+            lineage = TimeSeriesPreparer.resolve_lineage(target, entity_type, entity_id)
             empty_dq = ForecastDataQuality(
                 status=DataQualityStatus.INVALID,
                 observation_count=0,
@@ -115,11 +116,16 @@ class ForecastingService:
             empty_eval = EvaluationMetrics(mae=0.0, rmse=0.0, smape=0.0)
             empty_ev = ForecastEvidence(
                 forecast_id=forecast_id,
+                source_tables=lineage["source_tables"],
+                source_columns=lineage["source_columns"],
+                telemetry_source=lineage["telemetry_source"],
                 target_metric=target,
                 training_range={"from": None, "to": None},
                 forecast_horizon=horizon,
                 frequency=frequency,
                 model="none",
+                selected_model="none",
+                model_version="1.0",
                 validation_metrics=empty_eval,
                 selected_model_rationale=err_msg,
                 data_quality_status=DataQualityStatus.INVALID.value,
@@ -172,15 +178,21 @@ class ForecastingService:
                 f"Series contains {data_quality.observation_count} observations; minimum required is {min_obs}."
             )
             logger.info(f"Forecasting {forecast_id} halted: {reason}")
+            lineage = series_df.attrs.get("lineage") or TimeSeriesPreparer.resolve_lineage(target, entity_type, entity_id)
             empty_meta = ModelMetadata(name="none", model_type="none", is_baseline=True)
             empty_eval = EvaluationMetrics(mae=0.0, rmse=0.0, smape=0.0)
             empty_ev = ForecastEvidence(
                 forecast_id=forecast_id,
+                source_tables=lineage["source_tables"],
+                source_columns=lineage["source_columns"],
+                telemetry_source=lineage["telemetry_source"],
                 target_metric=target,
                 training_range={"from": data_quality.date_from, "to": data_quality.date_to},
                 forecast_horizon=horizon,
                 frequency=frequency,
                 model="none",
+                selected_model="none",
+                model_version="1.0",
                 validation_metrics=empty_eval,
                 selected_model_rationale=reason,
                 data_quality_status=data_quality.status.value,
@@ -269,17 +281,28 @@ class ForecastingService:
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"RAG retrieval skipped in forecasting {forecast_id}: {e}")
 
+        lineage = series_df.attrs.get("lineage") or TimeSeriesPreparer.resolve_lineage(target, entity_type, entity_id)
+        is_item_level = lineage.get("is_item_level", False)
+
         # 9. Formulate Assumptions, Limitations & Provenance Evidence
         assumptions = [
             f"Historical commercial patterns observed between {data_quality.date_from} and {data_quality.date_to} remain stationary.",
             "Transactional data captures completed and shipped operational sales only.",
             f"Prediction intervals are derived under a {int(request.confidence_level * 100)}% coverage distribution assumption.",
         ]
+        if not is_item_level:
+            assumptions.append(
+                "Order-level sales telemetry: Telemetry is derived directly from sales order totals without line-item or product catalog decomposition."
+            )
 
         limitations = [
             "Exogenous macroeconomic shocks, consumer inflation shifts, and unannounced competitor actions are unobserved.",
             f"Forecast extends {horizon} steps into the future; longer horizon intervals exhibit wider error distributions.",
         ]
+        if not is_item_level:
+            limitations.append(
+                "Order-level sales telemetry fallback: Line-item product and category granularity is not evaluated in this aggregate forecast."
+            )
         if data_quality.warnings:
             limitations.extend(data_quality.warnings)
 
@@ -295,13 +318,19 @@ class ForecastingService:
 
         evidence = ForecastEvidence(
             forecast_id=forecast_id,
+            source_tables=lineage["source_tables"],
+            source_columns=lineage["source_columns"],
+            telemetry_source=lineage["telemetry_source"],
             target_metric=target,
             training_range=training_period,
             forecast_horizon=horizon,
             frequency=frequency,
             model=model_meta.name,
+            selected_model=model_meta.name,
+            model_version=model_meta.version,
             model_parameters=model_meta.parameters,
             validation_metrics=eval_metrics,
+            candidate_evaluations={k: v.model_dump() for k, v in _all_candidates.items()} if _all_candidates else {},
             selected_model_rationale=model_meta.selection_reason or "Lowest out-of-sample backtest error.",
             assumptions=assumptions,
             limitations=limitations,
