@@ -41,17 +41,33 @@ class DataProfiler:
     numeric descriptive metrics, date spans, and categorical distributions.
     """
 
-    def __init__(self, db: Optional[Session] = None) -> None:
+    def __init__(self, db: Optional[Session] = None, business_id: Optional[str] = None) -> None:
         self.db = db
+        self.business_id = business_id
 
-    def get_table_summaries(self) -> List[TableSummary]:
-        """Return high-level summary of all registered domain entities."""
+    def get_table_summaries(self, business_id: Optional[str] = None) -> List[TableSummary]:
+        """Return high-level summary of all registered domain entities scoped by tenant workspace."""
         if not self.db:
             raise ValueError("Database session required to inspect table summaries.")
 
+        biz_id = business_id or self.business_id
         summaries = []
         for name, model in MODEL_REGISTRY.items():
-            count = self.db.scalar(select(func.count(model.id))) or 0
+            if biz_id:
+                if name == "sale_items":
+                    stmt = (
+                        select(func.count(SaleItem.id))
+                        .join(Sale, SaleItem.sale_id == Sale.id)
+                        .where(Sale.business_id == biz_id)
+                    )
+                elif hasattr(model, "business_id"):
+                    stmt = select(func.count(model.id)).where(model.business_id == biz_id)
+                else:
+                    stmt = select(func.count(model.id))
+            else:
+                stmt = select(func.count(model.id))
+
+            count = self.db.scalar(stmt) or 0
             cols = [col.name for col in model.__table__.columns]
             summaries.append(
                 TableSummary(
@@ -63,8 +79,8 @@ class DataProfiler:
             )
         return summaries
 
-    def profile_table(self, table_name: str) -> DatasetProfile:
-        """Profile an active database table using SQLAlchemy."""
+    def profile_table(self, table_name: str, business_id: Optional[str] = None) -> DatasetProfile:
+        """Profile an active database table using SQLAlchemy scoped by tenant workspace."""
         if not self.db:
             raise ValueError("Database session required to profile database table.")
 
@@ -72,8 +88,23 @@ class DataProfiler:
         if key not in MODEL_REGISTRY:
             raise ValueError(f"Unknown table '{table_name}'. Supported: {list(MODEL_REGISTRY.keys())}")
 
+        biz_id = business_id or self.business_id
         model = MODEL_REGISTRY[key]
-        records = self.db.scalars(select(model)).all()
+        if biz_id:
+            if key == "sale_items":
+                stmt = (
+                    select(SaleItem)
+                    .join(Sale, SaleItem.sale_id == Sale.id)
+                    .where(Sale.business_id == biz_id)
+                )
+            elif hasattr(model, "business_id"):
+                stmt = select(model).where(model.business_id == biz_id)
+            else:
+                stmt = select(model)
+        else:
+            stmt = select(model)
+
+        records = self.db.scalars(stmt).all()
         # Convert ORM instances to dictionaries
         columns = [c.name for c in model.__table__.columns]
         rows = [{col: getattr(r, col) for col in columns} for r in records]
@@ -105,7 +136,9 @@ class DataProfiler:
         return DatasetProfile(
             table_name=dataset_name,
             total_rows=total_rows,
+            row_count=total_rows,
             total_columns=total_cols,
+            column_count=total_cols,
             duplicate_rows=duplicate_count,
             columns=col_profiles,
         )
@@ -151,10 +184,12 @@ class DataProfiler:
         return ColumnProfile(
             column_name=col_name,
             inferred_type=inferred_type,
+            data_type=inferred_type,
             total_count=total_rows,
             null_count=null_count,
             null_percentage=null_pct,
             unique_count=unique_count,
+            distinct_count=unique_count,
             is_unique=is_unique,
             numeric_stats=num_stats,
             date_stats=date_stats,

@@ -1,11 +1,14 @@
 """Data Layer API endpoints for table management, profiling, quality audits, and CSV ingestion."""
 
 import io
-from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File, Form, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
+from app.core.auth import get_current_user, verify_user_business_access
+from app.models.tenant import Business, OrganizationMembership, UserIdentity
 from app.data.profiling.profiler import DataProfiler, MODEL_REGISTRY
 from app.data.quality.checker import DataQualityChecker
 from app.data.ingestion.csv_ingestion import CSVIngestionService
@@ -16,12 +19,43 @@ from app.schemas.ingestion import IngestionResult
 router = APIRouter()
 
 
+def _resolve_tenant_business_id(
+    db: Session,
+    current_user: UserIdentity,
+    x_business_id: Optional[str] = None,
+) -> Optional[str]:
+    """Resolve and authorize tenant business workspace ID with IDOR protection."""
+    if x_business_id:
+        biz = verify_user_business_access(
+            db, current_user, x_business_id, action="access data of"
+        )
+        return biz.id
+
+    user_org_ids = db.execute(
+        select(OrganizationMembership.organization_id).where(
+            OrganizationMembership.user_id == current_user.id
+        )
+    ).scalars().all()
+    if user_org_ids:
+        biz = db.execute(
+            select(Business).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().first()
+        if biz:
+            return biz.id
+    return None
+
+
 @router.get("/health", summary="Data Layer Readiness Health Check")
-def get_data_health(db: Session = Depends(get_db_session)) -> Dict[str, Any]:
+def get_data_health(
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> Dict[str, Any]:
     """
-    Returns data layer status, registered entities, and database table availability.
+    Returns data layer status, registered entities, and database table availability scoped by tenant.
     """
-    profiler = DataProfiler(db=db)
+    biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    profiler = DataProfiler(db=db, business_id=biz_id or "__none__")
     try:
         summaries = profiler.get_table_summaries()
         total_records = sum(s.row_count for s in summaries)
@@ -42,11 +76,16 @@ def get_data_health(db: Session = Depends(get_db_session)) -> Dict[str, Any]:
 
 
 @router.get("/tables", response_model=List[TableSummary], summary="List Registered Database Tables")
-def list_tables(db: Session = Depends(get_db_session)) -> List[TableSummary]:
+def list_tables(
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> List[TableSummary]:
     """
-    List all business domain tables, their row counts, and structural schemas.
+    List all business domain tables, their row counts, and structural schemas scoped by tenant.
     """
-    profiler = DataProfiler(db=db)
+    biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    profiler = DataProfiler(db=db, business_id=biz_id or "__none__")
     try:
         return profiler.get_table_summaries()
     except Exception as exc:
@@ -56,11 +95,13 @@ def list_tables(db: Session = Depends(get_db_session)) -> List[TableSummary]:
 @router.get("/profile/{dataset}", response_model=DatasetProfile, summary="Profile a Dataset / Table")
 def profile_dataset(
     dataset: str,
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> DatasetProfile:
     """
     Generate comprehensive statistical, null, uniqueness, and distribution profile
-    for a specific business domain table.
+    for a specific business domain table scoped by tenant.
     """
     key = dataset.lower().strip()
     if key not in MODEL_REGISTRY:
@@ -69,7 +110,8 @@ def profile_dataset(
             detail=f"Table '{dataset}' not found. Supported tables: {list(MODEL_REGISTRY.keys())}",
         )
 
-    profiler = DataProfiler(db=db)
+    biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    profiler = DataProfiler(db=db, business_id=biz_id or "__none__")
     try:
         return profiler.profile_table(key)
     except Exception as exc:
@@ -79,11 +121,13 @@ def profile_dataset(
 @router.get("/quality/{dataset}", response_model=QualityReport, summary="Audit Dataset Data Quality")
 def audit_dataset_quality(
     dataset: str,
+    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> QualityReport:
     """
     Execute deterministic business validation rules and referential checks on a dataset,
-    returning an auditable quality scorecard.
+    returning an auditable quality scorecard scoped by tenant.
     """
     key = dataset.lower().strip()
     if key not in MODEL_REGISTRY:
@@ -92,7 +136,8 @@ def audit_dataset_quality(
             detail=f"Table '{dataset}' not found. Supported tables: {list(MODEL_REGISTRY.keys())}",
         )
 
-    checker = DataQualityChecker(db=db)
+    biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    checker = DataQualityChecker(db=db, business_id=biz_id or "__none__")
     try:
         return checker.check_table(key)
     except Exception as exc:
@@ -107,6 +152,7 @@ async def ingest_csv(
     dataset: str = Form(..., description="Target dataset name: customers, products, inventory, expenses"),
     file: UploadFile = File(..., description="CSV file to ingest"),
     persist: bool = Form(False, description="Whether to persist validated records into database"),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> IngestionResult:
     """

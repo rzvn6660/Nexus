@@ -33,13 +33,13 @@ router = APIRouter()
 def analyze_business_query(
     payload: AgentAnalyzeRequest,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AgentResponse:
     """Entrypoint for agentic analytical requests."""
     business_id = None
     organization_id = None
-    user_id = current_user.id if current_user else None
+    user_id = current_user.id
 
     if x_business_id:
         biz = verify_user_business_access(
@@ -47,7 +47,7 @@ def analyze_business_query(
         )
         business_id = biz.id
         organization_id = biz.organization_id
-    elif current_user:
+    else:
         user_org_ids = db.execute(
             select(OrganizationMembership.organization_id).where(
                 OrganizationMembership.user_id == current_user.id
@@ -56,9 +56,13 @@ def analyze_business_query(
         biz = db.execute(
             select(Business).where(Business.organization_id.in_(user_org_ids))
         ).scalars().first()
-        if biz:
-            business_id = biz.id
-            organization_id = biz.organization_id
+        if not biz:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No business workspace configured for user's organization. Please complete onboarding.",
+            )
+        business_id = biz.id
+        organization_id = biz.organization_id
 
     # enforce_readiness=True when a business_id is known (tenant context established)
     enforce_readiness = business_id is not None

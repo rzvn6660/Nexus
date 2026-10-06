@@ -436,7 +436,10 @@ def test_14_cross_tenant_knowledge_access_rejected(client, db_session, seeded_en
     # Tenant A attempts IDOR with spoofed header
     res_idor = client.get(
         f"/api/v1/knowledge/documents/{doc_b.document_id}",
-        headers={"X-Business-ID": seeded_environment["biz_a"].id},
+        headers={
+            "Authorization": f"Bearer {token_a}",
+            "X-Business-ID": seeded_environment["biz_a"].id,
+        },
     )
     assert res_idor.status_code == 403
 

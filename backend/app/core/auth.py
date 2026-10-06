@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db_session
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.security import api_key_header
 from app.models.tenant import (
     Business,
     Organization,
@@ -52,12 +53,56 @@ class TenantContext:
 
 def get_current_user(
     bearer_creds: HTTPAuthorizationCredentials | None = Security(bearer_security),
+    x_api_key: str | None = Security(api_key_header),
     db: Session = Depends(get_db_session),
 ) -> UserIdentity:
     """
-    Authenticate request via JWT Bearer token.
+    Authenticate request via JWT Bearer token or API key (when API_KEY_ENABLED).
     Raises HTTP 401 if token is missing, expired, or invalid.
     """
+    if settings.API_KEY_ENABLED and settings.API_KEY:
+        token = x_api_key or (bearer_creds.credentials if bearer_creds else None)
+        if token == settings.API_KEY:
+            system_user = db.execute(
+                select(UserIdentity).where(UserIdentity.email == "system@nexus.internal")
+            ).scalar_one_or_none()
+            if not system_user:
+                sys_org = db.execute(
+                    select(Organization).where(Organization.id == "org_system_service")
+                ).scalar_one_or_none()
+                if not sys_org:
+                    sys_org = Organization(id="org_system_service", name="System Service Org", slug="system-service-org")
+                    db.add(sys_org)
+                    db.flush()
+                system_user = UserIdentity(
+                    id="usr_system_service",
+                    email="system@nexus.internal",
+                    full_name="NEXUS System Service",
+                    password_hash="N/A",
+                    is_active=True,
+                    is_verified=True,
+                )
+                db.add(system_user)
+                db.flush()
+                sys_mem = OrganizationMembership(
+                    user_id=system_user.id,
+                    organization_id=sys_org.id,
+                    role="owner",
+                )
+                db.add(sys_mem)
+                sys_biz = db.execute(
+                    select(Business).where(Business.id == "biz_system_service")
+                ).scalar_one_or_none()
+                if not sys_biz:
+                    sys_biz = Business(
+                        id="biz_system_service",
+                        organization_id=sys_org.id,
+                        name="System Primary Business",
+                    )
+                    db.add(sys_biz)
+                db.commit()
+                db.refresh(system_user)
+            return system_user
     if not bearer_creds or not bearer_creds.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -282,6 +327,12 @@ def verify_user_document_access(
     requested_business_id: str | None = None,
 ) -> None:
     """Enforce multi-tenant boundary on KnowledgeDocument access."""
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to access knowledge documents.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if is_global:
         return
 
@@ -291,14 +342,7 @@ def verify_user_document_access(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Knowledge document belongs to another business workspace.",
             )
-        if user:
-            verify_user_business_access(db, user, doc_business_id, action="access documents of")
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required to access private tenant knowledge.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        verify_user_business_access(db, user, doc_business_id, action="access documents of")
 
 
 def verify_user_analysis_access(
@@ -308,20 +352,19 @@ def verify_user_analysis_access(
     requested_business_id: str | None = None,
 ) -> None:
     """Enforce multi-tenant boundary on AnalysisRun access."""
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to access analysis runs.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if run_business_id is not None:
         if requested_business_id and requested_business_id != run_business_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Analysis run belongs to another business workspace.",
             )
-        if user:
-            verify_user_business_access(db, user, run_business_id, action="access analysis run of")
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required to access analysis runs.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        verify_user_business_access(db, user, run_business_id, action="access analysis run of")
 
 
 def verify_user_decision_access(
@@ -331,17 +374,16 @@ def verify_user_decision_access(
     requested_business_id: str | None = None,
 ) -> None:
     """Enforce multi-tenant boundary on DecisionRecord access."""
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to access decision records.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if record_business_id is not None:
         if requested_business_id and requested_business_id != record_business_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Decision record belongs to another business workspace.",
             )
-        if user:
-            verify_user_business_access(db, user, record_business_id, action="access decision record of")
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required to access decision records.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        verify_user_business_access(db, user, record_business_id, action="access decision record of")

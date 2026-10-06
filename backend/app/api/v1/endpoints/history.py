@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
 from app.core.auth import (
-    get_optional_current_user,
+    get_current_user,
     verify_user_analysis_access,
     verify_user_business_access,
     verify_user_decision_access,
@@ -48,7 +48,7 @@ def list_analysis_runs(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> List[AnalysisRunSummary]:
     stmt = select(AnalysisRun)
@@ -56,7 +56,7 @@ def list_analysis_runs(
     if x_business_id is not None:
         verify_user_business_access(db, current_user, x_business_id, action="view analysis runs of")
         stmt = stmt.where(AnalysisRun.business_id == x_business_id)
-    elif current_user:
+    else:
         user_org_ids = db.execute(
             select(OrganizationMembership.organization_id).where(
                 OrganizationMembership.user_id == current_user.id
@@ -91,7 +91,7 @@ def list_analysis_runs(
 def get_analysis_run(
     run_id: int,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> AnalysisRunDetail:
     run = db.get(AnalysisRun, run_id)
@@ -122,7 +122,7 @@ def export_analysis_report(
     run_id: int,
     format: str = Query("markdown", pattern="^(markdown|json)$"),
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> ReportExportResponse:
     run = db.get(AnalysisRun, run_id)
@@ -272,7 +272,7 @@ def list_decisions(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> List[DecisionRecordResponse]:
     stmt = select(DecisionRecord)
@@ -280,7 +280,7 @@ def list_decisions(
     if x_business_id is not None:
         verify_user_business_access(db, current_user, x_business_id, action="view decision records of")
         stmt = stmt.where(DecisionRecord.business_id == x_business_id)
-    elif current_user:
+    else:
         user_org_ids = db.execute(
             select(OrganizationMembership.organization_id).where(
                 OrganizationMembership.user_id == current_user.id
@@ -308,11 +308,23 @@ def list_decisions(
 def create_decision(
     payload: DecisionCreateRequest,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
-    if x_business_id:
-        verify_user_business_access(db, current_user, x_business_id, action="create decisions for")
+    target_biz_id = x_business_id
+    if target_biz_id:
+        verify_user_business_access(db, current_user, target_biz_id, action="create decisions for")
+    else:
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        biz = db.execute(
+            select(Business).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().first()
+        if biz:
+            target_biz_id = biz.id
 
     if payload.analysis_id:
         run = db.get(AnalysisRun, payload.analysis_id)
@@ -322,10 +334,12 @@ def create_decision(
                 detail=f"Associated analysis run #{payload.analysis_id} does not exist.",
             )
         # Verify access to the associated analysis run
-        verify_user_analysis_access(db, current_user, run.business_id, x_business_id)
+        verify_user_analysis_access(db, current_user, run.business_id, target_biz_id)
+        if not target_biz_id:
+            target_biz_id = run.business_id
 
     decision = DecisionRecord(
-        business_id=x_business_id,
+        business_id=target_biz_id,
         analysis_id=payload.analysis_id,
         recommendation_text=payload.recommendation_text,
         status="PENDING",
@@ -345,7 +359,7 @@ def create_decision(
 def get_decision(
     decision_id: int,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
     record = db.get(DecisionRecord, decision_id)
@@ -371,7 +385,7 @@ def update_decision(
     decision_id: int,
     payload: DecisionUpdateRequest,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
 ) -> DecisionRecordResponse:
     record = db.get(DecisionRecord, decision_id)

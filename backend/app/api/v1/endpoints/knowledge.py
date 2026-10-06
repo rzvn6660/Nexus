@@ -7,13 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
-    get_optional_current_user,
+    get_current_user,
     verify_user_business_access,
     verify_user_document_access,
 )
 from app.core.database import get_db
 from app.models.knowledge import KnowledgeDocument
-from app.models.tenant import UserIdentity
+from app.models.tenant import Business, OrganizationMembership, UserIdentity
 from app.rag.ingestion.models import DocumentMetadata
 from app.rag.ingestion.service import DocumentIngestionService
 from app.rag.retrieval.retriever import HybridRetriever
@@ -44,12 +44,24 @@ async def upload_document(
     version: str = Form("1.0", description="Document revision version"),
     tags: str | None = Form(None, description="Comma-separated or JSON list of tags"),
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentUploadResponse:
     """Upload and index a business context document file."""
-    if x_business_id:
-        verify_user_business_access(db, current_user, x_business_id, action="upload documents to")
+    target_biz_id = x_business_id
+    if target_biz_id:
+        verify_user_business_access(db, current_user, target_biz_id, action="upload documents to")
+    else:
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        biz = db.execute(
+            select(Business).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().first()
+        if biz:
+            target_biz_id = biz.id
     file_bytes = await file.read()
     from app.security import sanitize_filename
     filename = sanitize_filename(file.filename)
@@ -80,7 +92,7 @@ async def upload_document(
             file_bytes=file_bytes,
             filename=filename,
             metadata=metadata,
-            business_id=x_business_id,
+            business_id=target_biz_id,
         )
         return DocumentUploadResponse.model_validate(result.model_dump())
     except ValueError as ve:
@@ -101,12 +113,24 @@ async def upload_document(
 def ingest_text_document(
     payload: DocumentTextIngestRequest,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentUploadResponse:
     """Directly ingest a markdown or text document payload."""
-    if x_business_id:
-        verify_user_business_access(db, current_user, x_business_id, action="ingest text into")
+    target_biz_id = x_business_id
+    if target_biz_id:
+        verify_user_business_access(db, current_user, target_biz_id, action="ingest text into")
+    else:
+        user_org_ids = db.execute(
+            select(OrganizationMembership.organization_id).where(
+                OrganizationMembership.user_id == current_user.id
+            )
+        ).scalars().all()
+        biz = db.execute(
+            select(Business).where(Business.organization_id.in_(user_org_ids))
+        ).scalars().first()
+        if biz:
+            target_biz_id = biz.id
 
     metadata = DocumentMetadata(
         title=payload.title,
@@ -122,7 +146,7 @@ def ingest_text_document(
             text=payload.content,
             doc_type=payload.document_type,
             metadata=metadata,
-            business_id=x_business_id,
+            business_id=target_biz_id,
         )
         return DocumentUploadResponse.model_validate(result.model_dump())
     except ValueError as ve:
@@ -143,7 +167,7 @@ def ingest_text_document(
 def list_documents(
     domain: str | None = None,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[DocumentSummaryResponse]:
     """Retrieve summaries of all active registered knowledge documents."""
@@ -154,8 +178,7 @@ def list_documents(
         stmt = stmt.where(
             (KnowledgeDocument.business_id == x_business_id) | (KnowledgeDocument.is_global.is_(True))
         )
-    elif current_user:
-        from app.models.tenant import OrganizationMembership, Business
+    else:
         user_org_ids = db.execute(
             select(OrganizationMembership.organization_id).where(
                 OrganizationMembership.user_id == current_user.id
@@ -167,11 +190,6 @@ def list_documents(
         stmt = stmt.where(
             (KnowledgeDocument.business_id.in_(user_biz_ids))
             | (KnowledgeDocument.is_global.is_(True))
-            | (KnowledgeDocument.business_id.is_(None))
-        )
-    else:
-        stmt = stmt.where(
-            (KnowledgeDocument.is_global.is_(True)) | (KnowledgeDocument.business_id.is_(None))
         )
     if domain:
         stmt = stmt.where(KnowledgeDocument.business_domain == domain)
@@ -205,7 +223,7 @@ def list_documents(
 def get_document(
     document_id: str,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentDetailResponse:
     """Retrieve full document metadata and constituent semantic chunks with IDOR defense."""
@@ -261,14 +279,13 @@ def get_document(
 def search_knowledge(
     payload: KnowledgeSearchRequest,
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity | None = Depends(get_optional_current_user),
+    current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> KnowledgeSearchResponse:
     target_biz_id = x_business_id
     if target_biz_id:
         verify_user_business_access(db, current_user, target_biz_id, action="search knowledge in")
-    elif current_user:
-        from app.models.tenant import OrganizationMembership, Business
+    else:
         user_org_ids = db.execute(
             select(OrganizationMembership.organization_id).where(
                 OrganizationMembership.user_id == current_user.id

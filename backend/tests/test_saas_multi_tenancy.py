@@ -383,7 +383,10 @@ def test_10_and_12_cross_tenant_knowledge_and_vector_retrieval_isolated(client, 
     assert "100,000" not in res_b.context_text
 
     # 5. IDOR test: User A requesting doc_b directly is rejected
-    headers_a = {"X-Business-ID": saas_tenants["biz_a"].id}
+    headers_a = {
+        "Authorization": f"Bearer {saas_tenants['token_a']}",
+        "X-Business-ID": saas_tenants["biz_a"].id,
+    }
     res_idor = client.get(f"/api/v1/knowledge/documents/{result_b.document_id}", headers=headers_a)
     assert res_idor.status_code == 403
     assert "Access denied" in res_idor.json()["detail"]
@@ -466,7 +469,10 @@ def test_13_cross_tenant_analysis_history_and_decisions_rejected(client, db_sess
     db_session.commit()
 
     # Biz B attempts to read Run A via IDOR
-    headers_b = {"X-Business-ID": saas_tenants["biz_b"].id}
+    headers_b = {
+        "Authorization": f"Bearer {saas_tenants['token_b']}",
+        "X-Business-ID": saas_tenants["biz_b"].id,
+    }
     res_run = client.get(f"/api/v1/history/runs/{run_a.id}", headers=headers_b)
     assert res_run.status_code == 403
     assert "Access denied" in res_run.json()["detail"]

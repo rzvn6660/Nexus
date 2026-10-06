@@ -345,6 +345,40 @@ def test_02b_unauthenticated_forged_x_business_id_blocked(api_client: TestClient
     assert res_dec.status_code == 401
 
 
+def test_02c_completely_anonymous_requests_blocked_with_401(api_client: TestClient):
+    """Anonymous requests with NO Authorization header and NO X-Business-ID receive 401 across perimeter."""
+    # 1. /api/v1/data/*
+    res_data_health = api_client.get("/api/v1/data/health")
+    assert res_data_health.status_code == 401
+
+    res_data_tables = api_client.get("/api/v1/data/tables")
+    assert res_data_tables.status_code == 401
+
+    # 2. /api/v1/agent/*
+    res_agent = api_client.post("/api/v1/agent/analyze", json={"query": "What was total revenue?"})
+    assert res_agent.status_code == 401
+
+    # 3. /api/v1/knowledge/*
+    res_knowledge_docs = api_client.get("/api/v1/knowledge/documents")
+    assert res_knowledge_docs.status_code == 401
+
+    res_knowledge_search = api_client.post("/api/v1/knowledge/search", json={"query": "return policy"})
+    assert res_knowledge_search.status_code == 401
+
+    # 4. /api/v1/history/*
+    res_history_runs = api_client.get("/api/v1/history/runs")
+    assert res_history_runs.status_code == 401
+
+    res_history_decisions = api_client.get("/api/v1/history/decisions")
+    assert res_history_decisions.status_code == 401
+
+    res_create_dec = api_client.post(
+        "/api/v1/history/decisions",
+        json={"recommendation_text": "Anonymous proposal"},
+    )
+    assert res_create_dec.status_code == 401
+
+
 # ==============================================================================
 # DIMENSION 3: ANALYTICS / AGENT / FORECAST / INVESTIGATION LEAKAGE
 # ==============================================================================
@@ -449,13 +483,15 @@ def test_04c_prohibited_extension_rejected(api_client: TestClient, security_tena
     assert res.status_code == 415
 
 
-def test_04d_raw_csv_direct_persistence_disabled(api_client: TestClient):
+def test_04d_raw_csv_direct_persistence_disabled(api_client: TestClient, security_tenants):
     """Direct unisolated persistence on /api/v1/data/ingest/csv is strictly blocked."""
+    headers = {"Authorization": f"Bearer {security_tenants['token_alpha']}"}
     csv_bytes = b"customer_code,name,email,city,customer_segment,acquisition_date\nC1,Attacker,a@b.com,NY,Tier1,2025-01-01\n"
     res = api_client.post(
         "/api/v1/data/ingest/csv",
         data={"dataset": "customers", "persist": "true"},
         files={"file": ("cust.csv", csv_bytes, "text/csv")},
+        headers=headers,
     )
     assert res.status_code == 400
     assert "Direct CSV persistence via /api/v1/data/ingest/csv is disabled" in res.json()["detail"]
@@ -567,11 +603,9 @@ def test_06a_knowledge_document_listing_isolation(api_client: TestClient, securi
     assert "doc_alpha_secret" not in marcus_doc_ids
     assert "doc_global_standards" in marcus_doc_ids
 
-    # Anonymous user calling GET /api/v1/knowledge/documents sees ONLY global document
-    anon_docs = api_client.get("/api/v1/knowledge/documents").json()
-    anon_doc_ids = [d["document_id"] for d in anon_docs]
-    assert "doc_alpha_secret" not in anon_doc_ids
-    assert "doc_global_standards" in anon_doc_ids
+    # Anonymous user calling GET /api/v1/knowledge/documents receives 401 Unauthorized
+    anon_res = api_client.get("/api/v1/knowledge/documents")
+    assert anon_res.status_code == 401
 
 
 def test_06b_direct_document_detail_idor_blocked(api_client: TestClient, security_tenants):

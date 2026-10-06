@@ -42,11 +42,12 @@ class DataQualityChecker:
     or supplied row collections.
     """
 
-    def __init__(self, db: Optional[Session] = None) -> None:
+    def __init__(self, db: Optional[Session] = None, business_id: Optional[str] = None) -> None:
         self.db = db
+        self.business_id = business_id
 
-    def check_table(self, table_name: str) -> QualityReport:
-        """Run all designated quality checks for a specific database table."""
+    def check_table(self, table_name: str, business_id: Optional[str] = None) -> QualityReport:
+        """Run all designated quality checks for a specific database table scoped by tenant."""
         if not self.db:
             raise ValueError("Database session required to audit table quality.")
 
@@ -54,18 +55,34 @@ class DataQualityChecker:
         if key not in MODEL_REGISTRY:
             raise ValueError(f"Unknown table '{table_name}'. Supported: {list(MODEL_REGISTRY.keys())}")
 
+        biz_id = business_id or self.business_id
         model = MODEL_REGISTRY[key]
-        records = self.db.scalars(select(model)).all()
+        if biz_id:
+            if key == "sale_items":
+                stmt = (
+                    select(SaleItem)
+                    .join(Sale, SaleItem.sale_id == Sale.id)
+                    .where(Sale.business_id == biz_id)
+                )
+            elif hasattr(model, "business_id"):
+                stmt = select(model).where(model.business_id == biz_id)
+            else:
+                stmt = select(model)
+        else:
+            stmt = select(model)
+
+        records = self.db.scalars(stmt).all()
         columns = [c.name for c in model.__table__.columns]
         rows = [{col: getattr(r, col) for col in columns} for r in records]
 
-        return self.check_records(key, rows)
+        return self.check_records(key, rows, business_id=biz_id)
 
     def check_records(
         self,
         dataset_name: str,
         records: List[Dict[str, Any]],
         context_data: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+        business_id: Optional[str] = None,
     ) -> QualityReport:
         """
         Evaluate business validation rules against a collection of records.
@@ -74,25 +91,39 @@ class DataQualityChecker:
             dataset_name: Target dataset ('customers', 'products', 'sales', etc.)
             records: List of record dictionaries to validate
             context_data: Optional related tables needed for referential integrity checks
+            business_id: Optional business workspace ID for tenant scoping
         """
         key = dataset_name.lower().strip()
         checks: List[QualityCheckResult] = []
         context = context_data or {}
+        biz_id = business_id or self.business_id
 
         # Fetch context data from database if not supplied
         if self.db:
             if key == "sales" and "customers" not in context:
-                custs = self.db.scalars(select(Customer)).all()
+                cust_stmt = select(Customer)
+                if biz_id:
+                    cust_stmt = cust_stmt.where(Customer.business_id == biz_id)
+                custs = self.db.scalars(cust_stmt).all()
                 context["customers"] = [{"id": c.id} for c in custs]
             elif key == "sale_items":
                 if "sales" not in context:
-                    sls = self.db.scalars(select(Sale)).all()
+                    sale_stmt = select(Sale)
+                    if biz_id:
+                        sale_stmt = sale_stmt.where(Sale.business_id == biz_id)
+                    sls = self.db.scalars(sale_stmt).all()
                     context["sales"] = [{"id": s.id} for s in sls]
                 if "products" not in context:
-                    prods = self.db.scalars(select(Product)).all()
+                    prod_stmt = select(Product)
+                    if biz_id:
+                        prod_stmt = prod_stmt.where(Product.business_id == biz_id)
+                    prods = self.db.scalars(prod_stmt).all()
                     context["products"] = [{"id": p.id} for p in prods]
             elif key == "inventory" and "products" not in context:
-                prods = self.db.scalars(select(Product)).all()
+                prod_stmt = select(Product)
+                if biz_id:
+                    prod_stmt = prod_stmt.where(Product.business_id == biz_id)
+                prods = self.db.scalars(prod_stmt).all()
                 context["products"] = [{"id": p.id} for p in prods]
 
         if key == "customers":
