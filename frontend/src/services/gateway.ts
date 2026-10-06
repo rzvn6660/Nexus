@@ -32,23 +32,27 @@ export interface GatewayMappingProposal {
 }
 
 export interface GatewayDatasetDetail {
-  dataset_id: string;
-  original_filename: string;
-  file_format: string;
-  file_size_bytes: number;
-  status: string;
-  row_count: number;
-  column_count: number;
-  column_profiles: GatewayColumnProfile[];
-  column_roles: Record<string, string>;
-  quality_score: number;
-  quality_checks: GatewayQualityCheck[];
-  target_entity: string;
-  schema_mappings: GatewayMappingProposal[];
-  readiness_score: number;
-  readiness_status: string;
-  readiness_reasons: string[];
-  created_at: string;
+  id?: string;
+  dataset_id?: string;
+  filename?: string;
+  original_filename?: string;
+  file_type?: string;
+  file_format?: string;
+  file_size_bytes?: number;
+  status?: string;
+  row_count?: number;
+  column_count?: number;
+  column_profiles?: GatewayColumnProfile[];
+  column_roles?: Record<string, string>;
+  quality_score?: number;
+  quality_checks?: GatewayQualityCheck[];
+  target_entity?: string;
+  schema_mappings?: GatewayMappingProposal[];
+  mapping_proposal?: any;
+  readiness_score?: number;
+  readiness_status?: string;
+  readiness_reasons?: string[];
+  created_at?: string;
 }
 
 export interface GatewayPreviewResponse {
@@ -68,9 +72,10 @@ export interface GatewayPreviewResponse {
 export interface GatewayIngestResponse {
   dataset_id: string;
   status: string;
-  target_entity: string;
+  target_entity?: string;
+  entity?: string;
   records_persisted: number;
-  business_id: string;
+  business_id?: string;
   message: string;
 }
 

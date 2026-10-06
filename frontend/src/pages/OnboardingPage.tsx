@@ -68,11 +68,12 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
       const res = await getOnboardingStatus();
       setOnboardingData(res);
       if (res.business) {
+        const b = res.business;
         setBizForm((prev) => ({
           ...prev,
-          name: res.business.name || prev.name,
-          industry: res.business.industry || prev.industry,
-          currency: res.business.currency || prev.currency,
+          name: b.name || prev.name,
+          industry: b.industry || prev.industry,
+          currency: b.currency || prev.currency,
         }));
       }
     } catch (err: any) {

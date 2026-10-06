@@ -25,11 +25,12 @@ import { LoadingState } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { IntelligenceHeader } from '../components/intelligence/IntelligenceHeader';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
 export const DataPage: React.FC = () => {
   const [health, setHealth] = useState<DataHealthResponse | null>(null);
   const [tables, setTables] = useState<TableSummary[]>([]);
-  const [selectedTable, setSelectedTable] = useState<string>('sales');
+  const [selectedTable, setSelectedTable] = useState<string>('');
   const [profile, setProfile] = useState<DatasetProfile | null>(null);
   const [quality, setQuality] = useState<QualityReport | null>(null);
 
@@ -46,33 +47,10 @@ export const DataPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const fetchInitialData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [hRes, tRes, gRes] = await Promise.all([
-        getDataHealth(),
-        listTables(),
-        listGatewayDatasets().catch(() => []),
-      ]);
-      setHealth(hRes);
-      setTables(tRes);
-      setGatewayDatasets(gRes);
-      if (tRes.length > 0) {
-        setSelectedTable(tRes[0].table_name);
-      }
-      if (gRes.length > 0) {
-        setSelectedGatewayDataset(gRes[0]);
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to query data layer metadata.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [errorDetails, setErrorDetails] = useState<any>(null);
 
   const fetchTableDetails = useCallback(async (tableName: string) => {
+    if (!tableName) return;
     setTableLoading(true);
     try {
       const [pRes, qRes] = await Promise.all([
@@ -88,15 +66,66 @@ export const DataPage: React.FC = () => {
     }
   }, []);
 
+  const fetchInitialData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setErrorDetails(null);
+    try {
+      const [hRes, tRes, gRes] = await Promise.all([
+        getDataHealth(),
+        listTables(),
+        listGatewayDatasets().catch(() => []),
+      ]);
+      setHealth(hRes);
+      setTables(tRes);
+      setGatewayDatasets(gRes);
+      if (tRes.length > 0) {
+        setSelectedTable((prev) => prev || tRes[0].table_name);
+      }
+      if (gRes.length > 0) {
+        setSelectedGatewayDataset(gRes[0]);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to query data layer metadata.');
+      setErrorDetails(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
 
   useEffect(() => {
+    let active = true;
     if (selectedTable) {
-      fetchTableDetails(selectedTable);
+      setTableLoading(true);
+      Promise.all([
+        profileDataset(selectedTable),
+        auditQuality(selectedTable),
+      ])
+        .then(([pRes, qRes]) => {
+          if (active) {
+            setProfile(pRes);
+            setQuality(qRes);
+          }
+        })
+        .catch((err) => {
+          if (active) {
+            console.warn(`Could not load detailed audit for ${selectedTable}:`, err);
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setTableLoading(false);
+          }
+        });
     }
-  }, [selectedTable, fetchTableDetails]);
+    return () => {
+      active = false;
+    };
+  }, [selectedTable]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,9 +139,12 @@ export const DataPage: React.FC = () => {
       const uploaded = await uploadGatewayDataset(file);
       setSelectedGatewayDataset(uploaded);
       setGatewayDatasets((prev) => [uploaded, ...prev]);
-      // Also fetch preview automatically
-      const prev = await previewGatewayDataset(uploaded.dataset_id);
-      setGatewayPreview(prev);
+      // Also fetch preview automatically if ID exists
+      const dId = uploaded.dataset_id || uploaded.id;
+      if (dId) {
+        const prev = await previewGatewayDataset(dId);
+        setGatewayPreview(prev);
+      }
     } catch (err: any) {
       setUploadError(err?.data?.detail || err?.message || 'Failed to process file through Data Gateway.');
     } finally {
@@ -123,7 +155,8 @@ export const DataPage: React.FC = () => {
     }
   };
 
-  const handlePreviewDataset = async (datasetId: string) => {
+  const handlePreviewDataset = async (datasetId?: string) => {
+    if (!datasetId) return;
     try {
       const prev = await previewGatewayDataset(datasetId);
       setGatewayPreview(prev);
@@ -134,16 +167,22 @@ export const DataPage: React.FC = () => {
 
   const handleIngestDataset = async () => {
     if (!selectedGatewayDataset) return;
+    const dId = selectedGatewayDataset.dataset_id || selectedGatewayDataset.id;
+    if (!dId) return;
+
     setIngesting(true);
     setUploadError(null);
     setIngestSuccess(null);
 
+    const targetEntity =
+      selectedGatewayDataset.target_entity ||
+      selectedGatewayDataset.mapping_proposal?.target_entity ||
+      'Sale';
+
     try {
-      const res = await ingestGatewayDataset(
-        selectedGatewayDataset.dataset_id,
-        selectedGatewayDataset.target_entity
-      );
-      setIngestSuccess(`Successfully ingested ${res.records_persisted} records into ${res.target_entity} model.`);
+      const res = await ingestGatewayDataset(dId, targetEntity);
+      const entityName = res.target_entity || res.entity || targetEntity;
+      setIngestSuccess(`Successfully ingested ${res.records_persisted} records into ${entityName} model.`);
       // Refresh database tables
       fetchInitialData();
     } catch (err: any) {
@@ -153,16 +192,18 @@ export const DataPage: React.FC = () => {
     }
   };
 
-  // Determine posture status
+  // Determine posture status safely
+  const failedCount = quality?.failed_rules ?? quality?.checks_failed ?? 0;
   const currentPosture: 'READY' | 'READY_WITH_WARNINGS' | 'INSUFFICIENT_DATA' | 'INVALID' =
     health?.status === 'ready'
-      ? (quality?.failed_rules ?? 0) > 0
+      ? failedCount > 0
         ? 'READY_WITH_WARNINGS'
         : 'READY'
       : 'INVALID';
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-200">
+    <ErrorBoundary fallbackTitle="Data Layer Diagnostics" onReset={fetchInitialData}>
+      <div className="space-y-8 animate-in fade-in duration-200">
       {/* Header */}
       <IntelligenceHeader
         eyebrow="DATA TELEMETRY & HEALTH"
@@ -172,7 +213,7 @@ export const DataPage: React.FC = () => {
       />
 
       {loading && <LoadingState message="Loading database schema and quality metrics..." />}
-      {error && <ErrorState message={error} onRetry={fetchInitialData} />}
+      {error && <ErrorState message={error} technicalDetails={errorDetails} onRetry={fetchInitialData} />}
 
       {/* 1. "NEXUS KNOWS WHAT IT KNOWS" STATUS MATRIX */}
       <section className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -211,7 +252,7 @@ export const DataPage: React.FC = () => {
         <div className="rounded-2xl border border-surface-elevated bg-surface/60 p-5 space-y-1">
           <span className="text-[10px] font-mono uppercase text-slate-400">QUALITY SCORECARD</span>
           <p className="text-2xl font-bold font-mono text-emerald-400">
-            {quality ? `${quality.passed_rules}/${quality.total_rules} Passed` : 'Auditing...'}
+            {quality ? `${quality.checks_passed ?? quality.passed_rules ?? 0}/${quality.checks_executed ?? quality.total_rules ?? 0} Passed` : 'Auditing...'}
           </p>
           <span className="text-[11px] text-slate-400 block">Automated rule checks</span>
         </div>
@@ -272,20 +313,24 @@ export const DataPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-surface-elevated pb-3 text-xs">
               <div className="flex items-center gap-2">
                 <FileCheck className="w-4 h-4 text-brand-cyan" />
-                <span className="font-bold text-white font-mono">{selectedGatewayDataset.original_filename}</span>
+                <span className="font-bold text-white font-mono">
+                  {selectedGatewayDataset.original_filename || selectedGatewayDataset.filename || 'dataset.csv'}
+                </span>
                 <span className="px-2 py-0.5 rounded bg-surface border border-surface-elevated font-mono text-[10px] text-slate-400">
-                  {(selectedGatewayDataset.file_size_bytes / 1024).toFixed(1)} KB
+                  {selectedGatewayDataset.file_size_bytes
+                    ? `${(selectedGatewayDataset.file_size_bytes / 1024).toFixed(1)} KB`
+                    : 'Tabular file'}
                 </span>
               </div>
               <div className="flex items-center gap-3 font-mono text-[11px]">
                 <span className="text-slate-400">
-                  Readiness: <strong className="text-brand-cyan">{selectedGatewayDataset.readiness_score}%</strong>
+                  Readiness: <strong className="text-brand-cyan">{selectedGatewayDataset.readiness_score ?? 70}%</strong>
                 </span>
                 <span className="text-slate-400">
-                  Quality: <strong className="text-emerald-400">{selectedGatewayDataset.quality_score}/100</strong>
+                  Quality: <strong className="text-emerald-400">{selectedGatewayDataset.quality_score ?? 100}/100</strong>
                 </span>
                 <span className="text-slate-400">
-                  Rows: <strong className="text-white">{selectedGatewayDataset.row_count}</strong>
+                  Rows: <strong className="text-white">{selectedGatewayDataset.row_count ?? 0}</strong>
                 </span>
               </div>
             </div>
@@ -294,12 +339,16 @@ export const DataPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-mono">
               <div className="space-y-1">
                 <span className="text-slate-500 text-[10px] uppercase">TARGET ENTITY</span>
-                <div className="text-white font-bold">{selectedGatewayDataset.target_entity}</div>
+                <div className="text-white font-bold">
+                  {selectedGatewayDataset.target_entity ||
+                    selectedGatewayDataset.mapping_proposal?.target_entity ||
+                    'Core Model'}
+                </div>
                 <span className="text-[10px] text-slate-400 block">Unified Core Model Target</span>
               </div>
               <div className="space-y-1">
                 <span className="text-slate-500 text-[10px] uppercase">READINESS POSTURE</span>
-                <div className="text-brand-cyan font-bold">{selectedGatewayDataset.readiness_status}</div>
+                <div className="text-brand-cyan font-bold">{selectedGatewayDataset.readiness_status || 'READY'}</div>
                 <span className="text-[10px] text-slate-400 block">
                   {selectedGatewayDataset.readiness_reasons?.[0] || 'Validated for autonomous analysis'}
                 </span>
@@ -307,7 +356,7 @@ export const DataPage: React.FC = () => {
               <div className="flex items-center justify-start sm:justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => handlePreviewDataset(selectedGatewayDataset.dataset_id)}
+                  onClick={() => handlePreviewDataset(selectedGatewayDataset.dataset_id || selectedGatewayDataset.id)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-surface-elevated text-slate-300 text-xs font-medium"
                 >
                   <Eye className="w-3.5 h-3.5 text-brand-cyan" />
@@ -315,7 +364,7 @@ export const DataPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  disabled={ingesting || selectedGatewayDataset.readiness_score < 70}
+                  disabled={ingesting || (selectedGatewayDataset.readiness_score ?? 70) < 70}
                   onClick={handleIngestDataset}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-surface-elevated disabled:text-slate-500 text-white text-xs font-semibold shadow-md transition-all"
                 >
@@ -326,24 +375,43 @@ export const DataPage: React.FC = () => {
             </div>
 
             {/* Schema Mappings Badges */}
-            <div className="pt-2 border-t border-surface-elevated/60 space-y-1.5">
-              <span className="text-[10px] font-mono text-slate-500 uppercase">MAPPED SCHEMA COLUMNS:</span>
-              <div className="flex flex-wrap gap-2">
-                {selectedGatewayDataset.schema_mappings.map((m, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-surface-elevated text-[11px] font-mono text-slate-300"
-                  >
-                    <span>{m.source_column}</span>
-                    <ArrowRight className="w-3 h-3 text-cyan-400" />
-                    <span className="text-emerald-400 font-semibold">{m.mapped_field}</span>
+            {(() => {
+              const rawMappings: any[] = Array.isArray(selectedGatewayDataset.schema_mappings)
+                ? selectedGatewayDataset.schema_mappings
+                : selectedGatewayDataset.mapping_proposal?.field_mappings
+                ? Object.entries(selectedGatewayDataset.mapping_proposal.field_mappings).map(([src, tgt]: any) => ({
+                    source_column: src,
+                    mapped_field: typeof tgt === 'object' ? tgt.target_field || tgt.mapped_field || JSON.stringify(tgt) : String(tgt),
+                  }))
+                : [];
+
+              return (
+                <div className="pt-2 border-t border-surface-elevated/60 space-y-1.5">
+                  <span className="text-[10px] font-mono text-slate-500 uppercase">
+                    MAPPED SCHEMA COLUMNS ({rawMappings.length}):
                   </span>
-                ))}
-              </div>
-            </div>
+                  <div className="flex flex-wrap gap-2">
+                    {rawMappings.length > 0 ? (
+                      rawMappings.map((m, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-surface-elevated text-[11px] font-mono text-slate-300"
+                        >
+                          <span>{m.source_column || m.source || 'Column'}</span>
+                          <ArrowRight className="w-3 h-3 text-cyan-400" />
+                          <span className="text-emerald-400 font-semibold">{m.mapped_field || m.target || 'Field'}</span>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-500 font-mono">No direct column mappings required.</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Data Preview Table (if loaded) */}
-            {gatewayPreview && gatewayPreview.dataset_id === selectedGatewayDataset.dataset_id && (
+            {gatewayPreview && gatewayPreview.dataset_id === (selectedGatewayDataset.dataset_id || selectedGatewayDataset.id) && (
               <div className="pt-3 border-t border-surface-elevated space-y-2">
                 <div className="flex items-center justify-between text-xs font-mono text-slate-400">
                   <span>Sanitized Sample Rows ({gatewayPreview.sample_rows.length} rows previewed)</span>
@@ -407,7 +475,13 @@ export const DataPage: React.FC = () => {
               return (
                 <button
                   key={t.table_name}
-                  onClick={() => setSelectedTable(t.table_name)}
+                  onClick={() => {
+                    if (selectedTable === t.table_name) {
+                      fetchTableDetails(t.table_name);
+                    } else {
+                      setSelectedTable(t.table_name);
+                    }
+                  }}
                   className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between text-xs ${
                     isSelected
                       ? 'bg-cyan-950/70 border-brand-cyan/60 text-white font-semibold'
@@ -447,7 +521,7 @@ export const DataPage: React.FC = () => {
                     CARDINALITY
                   </span>
                   <span className="text-sm font-bold font-mono text-brand-cyan">
-                    {formatNumber(profile?.row_count ?? 0)} records
+                    {formatNumber(profile?.row_count ?? (profile as any)?.total_rows ?? 0)} records
                   </span>
                 </div>
               </div>
@@ -471,7 +545,7 @@ export const DataPage: React.FC = () => {
                       {Object.values(profile?.columns || {}).map((c) => (
                         <tr key={c.column_name} className="hover:bg-surface/60">
                           <td className="p-3 font-semibold text-white">{c.column_name}</td>
-                          <td className="p-3 text-brand-cyan">{c.data_type}</td>
+                          <td className="p-3 text-brand-cyan">{c.data_type || (c as any).inferred_type || '—'}</td>
                           <td className="p-3">
                             <span
                               className={
@@ -483,7 +557,7 @@ export const DataPage: React.FC = () => {
                               {c.null_percentage.toFixed(1)}%
                             </span>
                           </td>
-                          <td className="p-3 text-slate-400">{formatNumber(c.distinct_count)}</td>
+                          <td className="p-3 text-slate-400">{formatNumber(c.distinct_count ?? (c as any).unique_count ?? 0)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -495,11 +569,14 @@ export const DataPage: React.FC = () => {
               {quality && (
                 <div className="space-y-3 pt-2">
                   <span className="text-xs font-mono uppercase text-slate-400 tracking-wider font-semibold block">
-                    Automated Quality Constraints ({quality.passed_rules}/{quality.total_rules} Passed)
+                    Automated Quality Constraints ({quality.passed_rules ?? quality.checks_passed ?? 0}/
+                    {quality.total_rules ?? quality.checks_executed ?? 0} Passed)
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    {quality.rule_results.map((r, idx) => {
-                      const isPassed = r.status === 'passed';
+                    {(quality.rule_results || quality.checks || []).map((r: any, idx: number) => {
+                      const isPassed = r.passed === true || r.status === 'passed' || r.status === 'PASSED';
+                      const ruleName = r.rule_name || r.check_name || r.rule_description || `Constraint #${idx + 1}`;
+                      const statusLabel = r.status ? String(r.status).toUpperCase() : isPassed ? 'PASSED' : 'FAILED';
                       return (
                         <div
                           key={idx}
@@ -515,10 +592,10 @@ export const DataPage: React.FC = () => {
                             ) : (
                               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                             )}
-                            <span className="truncate font-sans">{r.rule_name}</span>
+                            <span className="truncate font-sans">{ruleName}</span>
                           </div>
                           <span className="font-mono text-[10px] uppercase font-bold shrink-0">
-                            {r.status.toUpperCase()}
+                            {statusLabel}
                           </span>
                         </div>
                       );
@@ -531,5 +608,6 @@ export const DataPage: React.FC = () => {
         </div>
       </div>
     </div>
-  );
+  </ErrorBoundary>
+);
 };

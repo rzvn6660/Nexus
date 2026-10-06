@@ -16,6 +16,8 @@ import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { getHealthStatus } from './services/api';
 import { AuthService, UserProfileResponse } from './services/auth';
 import { HealthResponse } from './types/api';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { setGlobalCurrency } from './utils/formatters';
 
 export const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<string>(() => {
@@ -28,13 +30,29 @@ export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => AuthService.isAuthenticated());
   const [userProfile, setUserProfile] = useState<UserProfileResponse | null>(null);
 
-  // Synchronize browser popstate (back/forward)
+  // Synchronize browser popstate (back/forward) and auth events
   useEffect(() => {
     const handlePopState = () => {
       setCurrentRoute(window.location.pathname || '/');
+      setIsAuthenticated(AuthService.isAuthenticated());
+    };
+    const handleAuthChange = () => {
+      const authed = AuthService.isAuthenticated();
+      setIsAuthenticated(authed);
+      if (!authed) {
+        setUserProfile(null);
+        setCurrentRoute('/login');
+        if (window.location.pathname !== '/login') {
+          window.history.pushState({}, '', '/login');
+        }
+      }
     };
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('nexus-auth-changed', handleAuthChange);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('nexus-auth-changed', handleAuthChange);
+    };
   }, []);
 
   const handleNavigate = useCallback((route: string) => {
@@ -81,6 +99,21 @@ export const App: React.FC = () => {
         console.warn('Initial health check notice:', err);
       });
   }, []);
+
+  // Active Business & Role resolution (top-level to ensure hook order stability)
+  const currentOrg = userProfile?.tenants?.[0];
+  const activeBiz = currentOrg?.businesses?.find(
+    (b) => b.id === AuthService.getActiveBusinessId()
+  ) || currentOrg?.businesses?.[0];
+  const activeBusinessName = activeBiz?.name || 'Workspace';
+  const userRole = currentOrg?.role || 'owner';
+
+  // Synchronize tenant's configured currency unconditionally before any early returns
+  useEffect(() => {
+    if (activeBiz?.currency) {
+      setGlobalCurrency(activeBiz.currency);
+    }
+  }, [activeBiz?.currency]);
 
   const handleAuthSuccess = () => {
     setIsAuthenticated(true);
@@ -139,14 +172,6 @@ export const App: React.FC = () => {
       />
     );
   }
-
-  // Active Business & Role resolution
-  const currentOrg = userProfile?.tenants?.[0];
-  const activeBiz = currentOrg?.businesses?.find(
-    (b) => b.id === AuthService.getActiveBusinessId()
-  ) || currentOrg?.businesses?.[0];
-  const activeBusinessName = activeBiz?.name || 'Workspace';
-  const userRole = currentOrg?.role || 'owner';
 
   const renderActivePage = () => {
     switch (currentRoute) {
@@ -213,7 +238,9 @@ export const App: React.FC = () => {
       userRole={userRole}
       onLogout={handleLogout}
     >
-      {renderActivePage()}
+      <ErrorBoundary fallbackTitle="NEXUS Workspace Diagnostic">
+        {renderActivePage()}
+      </ErrorBoundary>
     </AppShell>
   );
 };

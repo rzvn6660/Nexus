@@ -249,9 +249,11 @@ export const InvestigationsPage: React.FC<InvestigationsPageProps> = ({
                 <span>Identified Evidence Gaps & Unmeasured Telemetry</span>
               </span>
               <ul className="list-disc list-inside space-y-1 text-slate-300 text-[11px]">
-                {response.evidence_gaps.map((gap) => (
-                  <li key={gap.gap_id}>
-                    <strong className="text-slate-200">{gap.area}: </strong>
+                {response.evidence_gaps.map((gap, idx) => (
+                  <li key={gap.gap_id || `gap-${idx}`}>
+                    {gap.area && gap.area.trim() ? (
+                      <strong className="text-slate-200">{gap.area}: </strong>
+                    ) : null}
                     {gap.description}
                   </li>
                 ))}

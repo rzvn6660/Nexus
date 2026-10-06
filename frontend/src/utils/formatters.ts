@@ -2,29 +2,69 @@
  * Standardized data formatters for financial, numeric, and temporal values.
  */
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  INR: '₹',
+  CAD: 'CA$',
+  AUD: 'A$',
+  JPY: '¥',
+  CHF: 'CHF',
+  CNY: '¥',
+};
+
+let activeCurrencyCode = 'USD';
+let activeCurrencySymbol = '$';
+
+export function setGlobalCurrency(currencyCodeOrSymbol: string): void {
+  if (!currencyCodeOrSymbol) return;
+  const upper = currencyCodeOrSymbol.toUpperCase().trim();
+  if (CURRENCY_SYMBOLS[upper]) {
+    activeCurrencyCode = upper;
+    activeCurrencySymbol = CURRENCY_SYMBOLS[upper];
+  } else if (upper.length === 1 || ['₹', '$', '€', '£', '¥'].includes(currencyCodeOrSymbol)) {
+    activeCurrencySymbol = currencyCodeOrSymbol;
+  } else {
+    activeCurrencyCode = upper;
+    activeCurrencySymbol = upper + ' ';
+  }
+}
+
+export function getGlobalCurrencySymbol(): string {
+  return activeCurrencySymbol;
+}
+
+export function getGlobalCurrencyCode(): string {
+  return activeCurrencyCode;
+}
+
 export function formatCurrency(
   val?: number | null,
   compact: boolean = false,
-  currencySymbol: string = '₹'
+  currencySymbol?: string,
+  fallback: string = '—'
 ): string {
   if (val === undefined || val === null || isNaN(val)) {
-    return `${currencySymbol}0.00`;
+    return fallback;
   }
+  const symbol = currencySymbol || activeCurrencySymbol;
 
   if (compact) {
     const absVal = Math.abs(val);
     if (absVal >= 1_000_000_000) {
-      return `${currencySymbol}${(val / 1_000_000_000).toFixed(2)}B`;
+      return `${symbol}${(val / 1_000_000_000).toFixed(2)}B`;
     }
     if (absVal >= 1_000_000) {
-      return `${currencySymbol}${(val / 1_000_000).toFixed(2)}M`;
+      return `${symbol}${(val / 1_000_000).toFixed(2)}M`;
     }
     if (absVal >= 1_000) {
-      return `${currencySymbol}${(val / 1_000).toFixed(1)}K`;
+      return `${symbol}${(val / 1_000).toFixed(1)}K`;
     }
   }
 
-  return `${currencySymbol}${val.toLocaleString('en-IN', {
+  const locale = activeCurrencyCode === 'INR' ? 'en-IN' : 'en-US';
+  return `${symbol}${val.toLocaleString(locale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

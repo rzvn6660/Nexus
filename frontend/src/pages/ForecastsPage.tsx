@@ -23,7 +23,7 @@ import {
 import { generateStructuredForecast } from '../services/forecast';
 import { getRevenueTimeSeries } from '../services/analytics';
 import { ForecastResponse, ForecastEvidence, TimeSeriesResponse } from '../types/api';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, getGlobalCurrencySymbol } from '../utils/formatters';
 import { ErrorState } from '../components/common/ErrorState';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { EvidencePanel } from '../components/common/EvidencePanel';
@@ -352,7 +352,7 @@ export const ForecastsPage: React.FC<ForecastsPageProps> = ({
                     fontSize={11}
                     tickLine={false}
                     axisLine={{ stroke: '#334155' }}
-                    tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
+                    tickFormatter={(v) => `${getGlobalCurrencySymbol()}${(v / 1000).toFixed(0)}K`}
                   />
                   <Tooltip
                     content={({ active, payload, label }) => {

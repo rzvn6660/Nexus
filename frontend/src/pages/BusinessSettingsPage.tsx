@@ -56,15 +56,22 @@ export const BusinessSettingsPage: React.FC<BusinessSettingsPageProps> = ({ onNa
       setProfile(userProfile);
       setStatus(onbStatus);
 
-      if (onbStatus.business) {
+      const bizObj =
+        onbStatus.business ||
+        userProfile?.tenants?.[0]?.businesses?.find(
+          (b: any) => b.id === (onbStatus.business_id || AuthService.getActiveBusinessId())
+        ) ||
+        userProfile?.tenants?.[0]?.businesses?.[0];
+
+      if (bizObj || onbStatus.business_name) {
         setFormData({
-          name: onbStatus.business.name || '',
-          industry: onbStatus.business.industry || '',
-          country: (onbStatus.business as any).country || 'United States',
-          currency: onbStatus.business.currency || 'USD',
-          timezone: (onbStatus.business as any).timezone || 'UTC',
-          business_type: (onbStatus.business as any).business_type || 'B2B/B2C Retail',
-          fiscal_year_start: (onbStatus.business as any).fiscal_year_start || 1,
+          name: bizObj?.name || onbStatus.business_name || '',
+          industry: bizObj?.industry || 'Technology',
+          country: (bizObj as any)?.country || 'United States',
+          currency: bizObj?.currency || 'USD',
+          timezone: (bizObj as any)?.timezone || 'UTC',
+          business_type: (bizObj as any)?.business_type || 'B2B/B2C Retail',
+          fiscal_year_start: (bizObj as any)?.fiscal_year_start || 1,
         });
       }
     } catch (err: any) {
@@ -80,14 +87,18 @@ export const BusinessSettingsPage: React.FC<BusinessSettingsPageProps> = ({ onNa
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!status?.business?.id) return;
+    const bizId =
+      status?.business?.id ||
+      status?.business_id ||
+      profile?.tenants?.[0]?.businesses?.[0]?.id;
+    if (!bizId) return;
 
     setSaving(true);
     setError(null);
     setSuccess(null);
 
     try {
-      await updateBusiness(status.business.id, {
+      await updateBusiness(bizId, {
         name: formData.name,
         industry: formData.industry,
         country: formData.country,
@@ -206,18 +217,18 @@ export const BusinessSettingsPage: React.FC<BusinessSettingsPageProps> = ({ onNa
           <div className="flex items-center gap-2">
             <span
               className={`w-2.5 h-2.5 rounded-full ${
-                status?.data_readiness?.status === 'ready'
+                (status?.data_readiness?.status || status?.data_readiness_status || '').toLowerCase() === 'ready'
                   ? 'bg-emerald-400 animate-pulse'
                   : 'bg-amber-400'
               }`}
             />
             <p className="text-base font-bold text-white uppercase font-mono">
-              {status?.data_readiness?.status || 'Active'}
+              {status?.data_readiness?.status || status?.data_readiness_status || 'Active'}
             </p>
           </div>
           <p className="text-[11px] text-slate-400 mt-2 truncate">
-            {status?.data_readiness?.total_datasets || 0} datasets •{' '}
-            {status?.data_readiness?.total_rows || 0} rows ingested
+            {status?.data_readiness?.total_datasets ?? (status as any)?.readiness_report?.total_datasets ?? (status as any)?.readiness_report?.dataset_count ?? 0} datasets •{' '}
+            {status?.data_readiness?.total_rows ?? (status as any)?.readiness_report?.total_rows ?? 0} rows ingested
           </p>
         </div>
       </div>

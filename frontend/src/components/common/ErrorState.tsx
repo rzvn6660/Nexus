@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { AuthService, isSessionExpiredError } from '../../services/auth';
 
 interface ErrorStateProps {
   title?: string;
@@ -17,6 +18,18 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   className = '',
 }) => {
   const [showDetails, setShowDetails] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const isExpired = isSessionExpiredError(message, technicalDetails);
+
+  const handleRetry = async () => {
+    if (isExpired) {
+      setIsRetrying(true);
+      await AuthService.handleSessionExpired();
+      return;
+    }
+    onRetry?.();
+  };
 
   return (
     <div
@@ -35,10 +48,12 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
 
         {onRetry && (
           <button
-            onClick={onRetry}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-900/40 hover:bg-rose-900/60 border border-rose-700/50 text-rose-200 text-xs font-medium transition-all"
+            onClick={handleRetry}
+            disabled={isRetrying}
+            data-testid="error-retry-button"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-900/40 hover:bg-rose-900/60 border border-rose-700/50 text-rose-200 text-xs font-medium transition-all disabled:opacity-50"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
             <span>Retry</span>
           </button>
         )}

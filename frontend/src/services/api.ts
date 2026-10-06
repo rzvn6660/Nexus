@@ -123,17 +123,25 @@ export async function getHealthStatus(): Promise<import('../types/api').HealthRe
  * Phase 15 SaaS Onboarding & Business APIs
  */
 export interface OnboardingStatusResponse {
-  step: string;
-  is_complete: boolean;
-  business: {
+  step?: string;
+  is_complete?: boolean;
+  business_id?: string;
+  business_name?: string;
+  onboarding_step?: string;
+  data_readiness_status?: string;
+  business?: {
     id: string;
     name: string;
-    data_readiness_status: string;
-    onboarding_step: string;
+    data_readiness_status?: string;
+    onboarding_step?: string;
     industry?: string;
+    country?: string;
     currency?: string;
+    timezone?: string;
+    business_type?: string;
+    fiscal_year_start?: number;
   };
-  datasets: Array<{
+  datasets?: Array<{
     id: string;
     filename: string;
     file_type: string;
@@ -143,7 +151,7 @@ export interface OnboardingStatusResponse {
     quality_report?: any;
     schema_info?: any;
   }>;
-  data_readiness: {
+  data_readiness?: {
     status: string;
     total_datasets: number;
     total_rows: number;

@@ -37,6 +37,7 @@ import {
   formatCurrency,
   formatNumber,
   formatPercent,
+  getGlobalCurrencySymbol,
 } from '../utils/formatters';
 import { CardSkeleton } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
@@ -108,19 +109,36 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
 
   const s = summary?.data;
 
+  const netSalesVal = s?.net_sales?.value ?? s?.net_revenue?.value;
+  const netSalesChange =
+    s?.net_sales?.percentage_change ??
+    s?.net_revenue?.percentage_change ??
+    s?.comparison?.net_sales?.percentage_change;
+
+  const grossProfitVal = s?.gross_profit?.value;
+  const grossProfitChange =
+    s?.gross_profit?.percentage_change ??
+    s?.comparison?.gross_profit?.percentage_change;
+
+  const unitsSoldVal = s?.units_sold?.value ?? s?.orders?.value ?? s?.orders_count?.value ?? 0;
+  const unitsSoldChange =
+    s?.units_sold?.percentage_change ??
+    s?.comparison?.units_sold?.percentage_change ??
+    s?.orders?.percentage_change;
+
   const currentMetricValue =
     selectedMetric === 'revenue'
-      ? formatCurrency(s?.net_revenue?.value, true)
+      ? formatCurrency(netSalesVal, true)
       : selectedMetric === 'profit'
-      ? formatCurrency(s?.gross_profit?.value, true)
-      : formatNumber(s?.units_sold?.value ?? 0);
+      ? formatCurrency(grossProfitVal, true)
+      : formatNumber(unitsSoldVal);
 
   const currentMetricChange =
     selectedMetric === 'revenue'
-      ? s?.net_revenue?.percentage_change
+      ? netSalesChange
       : selectedMetric === 'profit'
-      ? s?.gross_profit?.percentage_change
-      : s?.units_sold?.percentage_change;
+      ? grossProfitChange
+      : unitsSoldChange;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
@@ -267,40 +285,56 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
         </div>
 
         <div className="h-72 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={timeSeries?.data?.points?.map((pt) => ({ label: pt.period_label, value: pt.value })) || []}
-              margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: '#334155' }} />
-              <YAxis
-                stroke="#64748b"
-                fontSize={11}
-                tickLine={false}
-                axisLine={{ stroke: '#334155' }}
-                tickFormatter={(v) => (selectedMetric === 'units' ? formatNumber(v) : `₹${(v / 1000).toFixed(0)}K`)}
-              />
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <div className="rounded-xl border border-surface-highlight bg-void-sub p-3 shadow-xl text-xs font-mono">
-                        <p className="text-slate-400">{label}</p>
-                        <p className="text-brand-cyan font-bold text-sm">
-                          {selectedMetric === 'units'
-                            ? `${formatNumber(payload[0].value as number)} units`
-                            : formatCurrency(payload[0].value as number)}
-                        </p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Line type="monotone" dataKey="value" stroke="#00F2FE" strokeWidth={2.5} dot={{ fill: '#00F2FE', r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          {timeSeries?.data?.points && timeSeries.data.points.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={timeSeries.data.points.map((pt) => ({ label: pt.period_label, value: pt.value }))}
+                margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} axisLine={{ stroke: '#334155' }} />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={{ stroke: '#334155' }}
+                  tickFormatter={(v) => (selectedMetric === 'units' ? formatNumber(v) : `${getGlobalCurrencySymbol()}${(v / 1000).toFixed(0)}K`)}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="rounded-xl border border-surface-highlight bg-void-sub p-3 shadow-xl text-xs font-mono">
+                          <p className="text-slate-400">{label}</p>
+                          <p className="text-brand-cyan font-bold text-sm">
+                            {selectedMetric === 'units'
+                              ? `${formatNumber(payload[0].value as number)} units`
+                              : formatCurrency(payload[0].value as number)}
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Line type="monotone" dataKey="value" stroke="#00F2FE" strokeWidth={2.5} dot={{ fill: '#00F2FE', r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full min-h-[16rem] flex flex-col items-center justify-center p-6 text-center rounded-2xl bg-void/40 border border-dashed border-surface-elevated space-y-2">
+              <BarChart3 className="w-8 h-8 text-slate-500" />
+              <p className="text-xs font-semibold text-slate-300">
+                {selectedMetric === 'profit'
+                  ? 'Profit Telemetry Unavailable: Line-Item & Product Cost Data Required'
+                  : 'Telemetry Unavailable: Chronological Data Points Required'}
+              </p>
+              <p className="text-[11px] text-slate-400 max-w-sm">
+                {selectedMetric === 'profit'
+                  ? 'Calculating historical profit trends requires catalog product unit costs and transaction line items.'
+                  : 'No chronological data points found for the active filter. Line-item or sales order timestamps are required.'}
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -317,31 +351,51 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-surface-elevated text-slate-400 font-mono">
-                  <th className="pb-2">SKU / Product</th>
-                  <th className="pb-2 text-right">Metric Value</th>
-                  <th className="pb-2 text-right">Units</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-elevated">
-                {products?.data?.items?.map((p, idx) => (
-                  <tr key={idx} className="hover:bg-surface/60 transition-colors">
-                    <td className="py-2.5 font-medium text-slate-200">
-                      <div className="font-sans font-semibold">{p.product_name}</div>
-                      <div className="font-mono text-[10px] text-slate-500">{p.sku} • {p.category}</div>
-                    </td>
-                    <td className="py-2.5 text-right font-mono font-semibold text-white">
-                      {formatCurrency(p.metric_value, true)}
-                    </td>
-                    <td className="py-2.5 text-right font-mono text-slate-300">
-                      {formatNumber(p.units_sold)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {(() => {
+              const productList = Array.isArray(products?.data)
+                ? products.data
+                : Array.isArray((products?.data as any)?.items)
+                ? (products?.data as any).items
+                : [];
+              if (productList.length > 0) {
+                return (
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-surface-elevated text-slate-400 font-mono">
+                        <th className="pb-2">SKU / Product</th>
+                        <th className="pb-2 text-right">Metric Value</th>
+                        <th className="pb-2 text-right">Units</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-elevated">
+                      {productList.map((p: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-surface/60 transition-colors">
+                          <td className="py-2.5 font-medium text-slate-200">
+                            <div className="font-sans font-semibold">{p.product_name}</div>
+                            <div className="font-mono text-[10px] text-slate-500">{p.sku} • {p.category}</div>
+                          </td>
+                          <td className="py-2.5 text-right font-mono font-semibold text-white">
+                            {formatCurrency(p.metric_value, true)}
+                          </td>
+                          <td className="py-2.5 text-right font-mono text-slate-300">
+                            {formatNumber(p.units_sold)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              }
+              return (
+                <div className="py-8 px-4 text-center rounded-2xl bg-void/40 border border-dashed border-surface-elevated space-y-2">
+                  <Package className="w-8 h-8 text-slate-500 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-300">No Product-Level Telemetry Available</p>
+                  <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                    Product rankings require product catalog items and order line items (SaleItem). Upload product catalog data to unlock SKU-level performance insights.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </section>
 
@@ -356,18 +410,38 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
           </div>
 
           <div className="space-y-3">
-            {customerSegments?.data?.items?.map((seg, idx) => (
-              <div key={idx} className="p-3.5 rounded-2xl bg-void/60 border border-surface-elevated space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-200 font-sans capitalize">{seg.dimension_value}</span>
-                  <span className="font-mono font-bold text-brand-cyan">{formatCurrency(seg.metric_value, true)}</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-                  <span>{formatNumber(seg.order_count || 0)} orders</span>
-                  <span>Share: {seg.percentage_of_total?.toFixed(1)}%</span>
-                </div>
+            {customerSegments?.data?.items && customerSegments.data.items.length > 0 ? (
+              customerSegments.data.items.map((seg, idx) => {
+                const dimName = seg.dimension_value || seg.label || seg.key || 'Unknown';
+                const val = seg.metric_value !== undefined && seg.metric_value !== null
+                  ? seg.metric_value
+                  : seg.value !== undefined && seg.value !== null
+                  ? seg.value
+                  : 0;
+                const orders = seg.order_count ?? seg.count ?? 0;
+                const share = seg.percentage_of_total ?? 0;
+                return (
+                  <div key={idx} className="p-3.5 rounded-2xl bg-void/60 border border-surface-elevated space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-200 font-sans capitalize">{dimName}</span>
+                      <span className="font-mono font-bold text-brand-cyan">{formatCurrency(Number(val), true)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                      <span>{formatNumber(orders)} orders</span>
+                      <span>Share: {typeof share === 'number' ? share.toFixed(1) : share}%</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-8 px-4 text-center rounded-2xl bg-void/40 border border-dashed border-surface-elevated space-y-2">
+                <Users className="w-8 h-8 text-slate-500 mx-auto" />
+                <p className="text-xs font-semibold text-slate-300">No Customer Segments Available</p>
+                <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                  Customer cohort segmentation requires customer records linked to sales orders.
+                </p>
               </div>
-            ))}
+            )}
           </div>
         </section>
       </div>

@@ -173,7 +173,77 @@ export const AuthService = {
     return profile;
   },
 
+  async tryRefreshToken(): Promise<boolean> {
+    try {
+      const token = this.getToken();
+      if (!token) return false;
+      const res = await apiRequest<TokenResponse>('/api/v1/auth/refresh', {
+        method: 'POST',
+      });
+      if (res?.access_token) {
+        this.setToken(res.access_token);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  },
+
+  clearSessionAndRedirect(): void {
+    this.removeToken();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('nexus-auth-changed'));
+      if (window.location.pathname !== '/login') {
+        window.history.pushState({}, '', '/login');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+  },
+
+  async handleSessionExpired(): Promise<void> {
+    let refreshed = false;
+    try {
+      refreshed = await this.tryRefreshToken();
+    } catch {
+      refreshed = false;
+    }
+
+    if (refreshed) {
+      return;
+    }
+
+    this.clearSessionAndRedirect();
+  },
+
   logout(): void {
     this.removeToken();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('nexus-auth-changed'));
+    }
   },
 };
+
+export function isSessionExpiredError(message?: string | null, technicalDetails?: any): boolean {
+  if (technicalDetails?.status === 401 || technicalDetails?.status_code === 401) {
+    return true;
+  }
+  if (typeof message === 'string') {
+    const lower = message.toLowerCase();
+    return (
+      lower.includes('token has expired') ||
+      lower.includes('token has been revoked') ||
+      lower.includes('please log in again') ||
+      lower.includes('session has expired') ||
+      lower.includes('session expired') ||
+      lower.includes('invalid authentication token') ||
+      lower.includes('not authenticated') ||
+      lower.includes('unauthorized') ||
+      lower.includes('jwt expired')
+    );
+  }
+  return false;
+}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Building, CheckCircle2, Lock, Mail, ShieldAlert, User } from 'lucide-react';
+import { ArrowRight, Building, CheckCircle2, Eye, EyeOff, Lock, Mail, ShieldAlert, User } from 'lucide-react';
 import { AuthService } from '../services/auth';
 import { NexusSymbol } from '../components/brand/NexusSymbol';
 
@@ -12,6 +12,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSignupSucc
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,8 +20,12 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSignupSucc
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || password.length < 8) {
-      setError('Please provide a valid email and a password of at least 8 characters.');
+    if (!email) {
+      setError('Please provide a valid work email address.');
+      return;
+    }
+    if (!password || password.length < 8) {
+      setError('Password must be at least 8 characters long.');
       return;
     }
 
@@ -122,22 +127,64 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSignupSucc
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5 font-sans">
-                Password (minimum 8 characters)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-slate-300 font-sans">
+                  Password (minimum 8 characters)
+                </label>
+                {password.length > 0 && (
+                  <span
+                    className={`text-[11px] font-mono ${
+                      password.length >= 8 ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-medium'
+                    }`}
+                  >
+                    {password.length >= 8 ? '✓ Valid (8+ chars)' : `${password.length}/8 characters`}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   minLength={8}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError(null);
+                  }}
                   placeholder="••••••••••••"
-                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-void border border-surface-elevated focus:border-brand-cyan/60 text-sm text-slate-100 placeholder-slate-500 font-sans"
+                  className={`w-full pl-10 pr-10 py-2 rounded-xl bg-void border ${
+                    password.length > 0 && password.length < 8
+                      ? 'border-amber-500/50 focus:border-amber-400'
+                      : password.length >= 8
+                      ? 'border-emerald-500/50 focus:border-emerald-400'
+                      : 'border-surface-elevated focus:border-brand-cyan/60'
+                  } text-sm text-slate-100 placeholder-slate-500 font-sans`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
+                {password.length === 0 ? (
+                  <span className="text-slate-500">Must be at least 8 characters long</span>
+                ) : password.length < 8 ? (
+                  <span className="text-amber-400 font-medium">
+                    Needs at least {8 - password.length} more character{8 - password.length === 1 ? '' : 's'}
+                  </span>
+                ) : (
+                  <span className="text-emerald-400 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 inline" /> Strong password length
+                  </span>
+                )}
               </div>
             </div>
 

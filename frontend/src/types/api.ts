@@ -265,11 +265,15 @@ export interface InvestigationObservation {
 export interface InvestigationHypothesis {
   hypothesis_id: string;
   statement: string;
-  status: 'confirmed' | 'rejected' | 'inconclusive';
-  confidence: number;
-  support_score: number;
-  evidence_summary: string;
-  evidence_ids: string[];
+  status: 'confirmed' | 'rejected' | 'inconclusive' | 'SUPPORTED' | 'NOT_SUPPORTED' | 'PARTIALLY_SUPPORTED' | string;
+  confidence?: number;
+  support_score?: number;
+  evidence_summary?: string;
+  evidence_ids?: string[];
+  evidence_strength?: string;
+  confidence_reason?: string;
+  supporting_evidence?: any[];
+  contradicting_evidence?: any[];
 }
 
 export interface InvestigationConclusion {
