@@ -38,6 +38,7 @@ import {
   formatCurrency,
   formatNumber,
   formatPercent,
+  getGlobalCurrencySymbol,
 } from '../utils/formatters';
 import { CardSkeleton } from '../components/common/LoadingState';
 import { ErrorState } from '../components/common/ErrorState';
@@ -121,8 +122,14 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   const s = summary?.data;
   const invData = inventory?.data;
 
-  // First-use empty workspace state
-  const isWorkspaceEmpty = !summary || (Number(s?.orders_count?.value ?? 0) === 0 && Number(s?.net_revenue?.value ?? 0) === 0);
+  // Resolve net sales and order counts safely from either net_sales/orders or net_revenue/orders_count
+  const netSalesMetric = s?.net_sales || s?.net_revenue;
+  const netSalesValue = Number(netSalesMetric?.value ?? 0);
+  const ordersMetric = s?.orders || s?.orders_count;
+  const ordersValue = Number(ordersMetric?.value ?? 0);
+
+  // First-use empty workspace state: only empty if summary is missing or both orders and sales are 0
+  const isWorkspaceEmpty = !summary || (ordersValue === 0 && netSalesValue === 0);
   if (isWorkspaceEmpty) {
     return (
       <div className="space-y-8 animate-in fade-in duration-200">
@@ -152,26 +159,44 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
     );
   }
 
+  const netSalesPctChange =
+    netSalesMetric?.percentage_change ??
+    s?.comparison?.net_sales?.percentage_change ??
+    s?.comparison?.net_revenue?.percentage_change;
+
+  const grossProfitPctChange =
+    s?.gross_profit?.percentage_change ??
+    s?.comparison?.gross_profit?.percentage_change;
+
+  const grossMarginVal =
+    s?.gross_margin?.value !== undefined && s?.gross_margin?.value !== null
+      ? Number(s.gross_margin.value)
+      : s?.gross_margin_pct !== undefined && s?.gross_margin_pct !== null
+      ? Number(s.gross_margin_pct)
+      : null;
+
   // Build executive business state metric items
   const businessMetrics: MetricItem[] = [
     {
       label: 'NET REVENUE',
-      value: formatCurrency(s?.net_revenue?.value, true),
-      change: s?.net_revenue?.percentage_change !== null && s?.net_revenue?.percentage_change !== undefined
-        ? `${s.net_revenue.percentage_change >= 0 ? '+' : ''}${formatPercent(s.net_revenue.percentage_change)}`
+      value: formatCurrency(netSalesMetric?.value, true),
+      change: netSalesPctChange !== null && netSalesPctChange !== undefined
+        ? `${netSalesPctChange >= 0 ? '+' : ''}${formatPercent(netSalesPctChange)}`
         : undefined,
-      changeType: (s?.net_revenue?.percentage_change ?? 0) >= 0 ? 'positive' : 'negative',
-      annotation: `${formatNumber(s?.orders_count?.value ?? 0)} completed commercial orders`,
+      changeType: (netSalesPctChange ?? 0) >= 0 ? 'positive' : 'negative',
+      annotation: `${formatNumber(ordersValue)} completed commercial orders`,
       onClick: () => onNavigate('/analytics'),
     },
     {
       label: 'GROSS MARGIN',
-      value: s?.gross_margin_pct ? `${s.gross_margin_pct.toFixed(1)}%` : '—',
-      change: s?.gross_profit?.percentage_change !== null && s?.gross_profit?.percentage_change !== undefined
-        ? `${s.gross_profit.percentage_change >= 0 ? '+' : ''}${formatPercent(s.gross_profit.percentage_change)} profit`
+      value: grossMarginVal !== null ? `${grossMarginVal.toFixed(1)}%` : '—',
+      change: grossProfitPctChange !== null && grossProfitPctChange !== undefined && grossMarginVal !== null
+        ? `${grossProfitPctChange >= 0 ? '+' : ''}${formatPercent(grossProfitPctChange)} profit`
         : undefined,
-      changeType: (s?.gross_profit?.percentage_change ?? 0) >= 0 ? 'positive' : 'negative',
-      annotation: `Gross Profit: ${formatCurrency(s?.gross_profit?.value, true)}`,
+      changeType: (grossProfitPctChange ?? 0) >= 0 ? 'positive' : 'negative',
+      annotation: s?.gross_profit?.value !== null && s?.gross_profit?.value !== undefined
+        ? `Gross Profit: ${formatCurrency(s.gross_profit.value, true)}`
+        : 'Gross Profit: Incomplete (No product costs)',
       onClick: () => onAskQuery('Why did gross margin change?'),
     },
     {
@@ -184,37 +209,46 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   ];
 
   // Observed Briefing Signals ("What Changed")
-  const signals: SignalData[] = [
-    {
+  // Invariant: Remove/suppress margin signals that require unavailable COGS
+  const signals: SignalData[] = [];
+
+  if (grossMarginVal !== null && grossMarginVal !== undefined) {
+    signals.push({
       id: 'signal-margin',
       category: 'Margin Variance',
-      severity: (s?.gross_margin_pct ?? 0) < 25 ? 'warning' : 'info',
-      what: `Gross Margin registered at ${s?.gross_margin_pct?.toFixed(1) ?? '21.7'}% with active volume expansion`,
+      severity: grossMarginVal < 25 ? 'warning' : 'info',
+      what: `Gross Margin registered at ${grossMarginVal.toFixed(1)}% with active volume expansion`,
       whyItMatters:
         'Net sales volume increased, but supplier costs and category mix shifts are modulating gross retention.',
       onInvestigate: () => onNavigate('/investigations'),
       onViewEvidence: () => setSelectedEvidence(summary?.evidence || null),
-    },
-    {
+    });
+  }
+
+  if (categoryBreakdown?.data?.items?.length) {
+    signals.push({
       id: 'signal-growth',
       category: 'Commercial Drivers',
       severity: 'positive',
-      what: `Top category "${categoryBreakdown?.data?.items?.[0]?.dimension_value || 'Electronics'}" generated ${formatCurrency(categoryBreakdown?.data?.items?.[0]?.metric_value, true)}`,
+      what: `Top category "${categoryBreakdown.data.items[0].dimension_value}" generated ${formatCurrency(categoryBreakdown.data.items[0].metric_value, true)}`,
       whyItMatters:
         'Category concentration accounts for a significant portion of quarterly volume; monitoring price elasticity is recommended.',
       onInvestigate: () => onNavigate('/investigations'),
-      onViewEvidence: () => setSelectedEvidence(categoryBreakdown?.evidence || null),
-    },
-    {
+      onViewEvidence: () => setSelectedEvidence(categoryBreakdown.evidence || null),
+    });
+  }
+
+  if (invData && (invData.total_skus ?? 0) > 0) {
+    signals.push({
       id: 'signal-inventory',
       category: 'Stock Health',
-      severity: (invData?.low_stock_items_count ?? 0) > 0 ? 'warning' : 'positive',
-      what: `${invData?.low_stock_items_count ?? 0} SKUs flagged near minimum stock reorder threshold`,
+      severity: (invData.low_stock_items_count ?? 0) > 0 ? 'warning' : 'positive',
+      what: `${invData.low_stock_items_count ?? 0} SKUs flagged near minimum stock reorder threshold`,
       whyItMatters:
         'Prevents stockouts across fast-moving product tiers without committing excessive working capital.',
       onInvestigate: () => onAskQuery('Which products are at risk of stockout?'),
-    },
-  ];
+    });
+  }
 
   const chartData = revenueSeries?.data?.points?.map((pt) => ({
     label: pt.period_label,
@@ -225,13 +259,22 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
     <div className="space-y-8 animate-in fade-in duration-200">
       {/* 1. NEXUS INTELLIGENCE EXECUTIVE ANCHOR & EPISTEMIC HERO */}
       <section className="relative rounded-3xl p-6 sm:p-10 overflow-hidden bg-void-sub border border-surface-elevated shadow-2xl">
-        <div className="absolute top-0 right-0 -mr-24 -mt-24 w-96 h-96 rounded-full bg-cyan-500/5 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 -mb-24 w-64 h-64 rounded-full bg-indigo-500/5 blur-3xl pointer-events-none" />
+        {/* Authentic NEXUS Artwork directly integrated into dark canvas */}
         <div
-          className="absolute top-0 right-0 w-2/5 h-full opacity-10 bg-no-repeat bg-right-top bg-contain pointer-events-none hidden lg:block"
-          style={{ backgroundImage: "url('/brand/nexus-hero-nxst3.png')" }}
+          className="absolute top-0 right-0 w-full sm:w-1/2 lg:w-5/12 h-[320px] sm:h-[350px] lg:h-[380px] pointer-events-none select-none overflow-hidden flex items-start justify-end"
           aria-hidden="true"
-        />
+        >
+          <img
+            src="/brand/nexus-logo-bg.png"
+            alt=""
+            className="w-48 h-48 sm:w-[280px] sm:h-[280px] lg:w-[350px] lg:h-[350px] object-contain opacity-15 sm:opacity-25 lg:opacity-35 select-none pointer-events-none -mr-6 sm:-mr-3 lg:mr-2 -mt-4 sm:-mt-2 lg:mt-1"
+            style={{
+              WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 15%, black 35%)',
+              maskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.5) 15%, black 35%)',
+            }}
+            draggable={false}
+          />
+        </div>
 
         <div className="relative z-10 space-y-8">
           {/* Top Brand & Mission Lockup */}
@@ -303,9 +346,15 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
         </div>
 
         <div className="space-y-3">
-          {signals.map((sig) => (
-            <SignalRow key={sig.id} signal={sig} />
-          ))}
+          {signals.length > 0 ? (
+            signals.map((sig) => (
+              <SignalRow key={sig.id} signal={sig} />
+            ))
+          ) : (
+            <p className="text-xs text-slate-400 py-3 italic">
+              No variance signals triggered for this period. Cost and margin signals will activate once product catalog and cost data are ingested.
+            </p>
+          )}
         </div>
       </section>
 
@@ -369,7 +418,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
                   fontSize={11}
                   tickLine={false}
                   axisLine={{ stroke: '#334155' }}
-                  tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}K`}
+                  tickFormatter={(v) => `${getGlobalCurrencySymbol()}${(v / 1000).toFixed(0)}K`}
                 />
                 <Tooltip
                   content={({ active, payload, label }) => {

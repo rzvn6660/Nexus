@@ -104,9 +104,6 @@ export const WorkflowPath: React.FC<WorkflowPathProps> = ({
           <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-pulse" />
           The NEXUS Epistemic Progression
         </span>
-        <span className="font-mono text-[10px] text-slate-500 hidden sm:inline">
-          Continuous Intelligence • Not a Chatbot
-        </span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
