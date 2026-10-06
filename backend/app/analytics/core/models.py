@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from app.analytics.core.types import (
     PeriodGranularity,
     MetricUnit,
@@ -53,6 +53,21 @@ class BreakdownItem(BaseModel):
     secondary_value: Optional[Decimal] = Field(default=None, description="Optional secondary metric (e.g. profit)")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional dimensional attributes")
 
+    # Contract compatibility fields matching frontend expectations
+    dimension_value: Optional[str] = Field(default=None, description="Dimension name / slice value")
+    metric_value: Optional[Decimal] = Field(default=None, description="Primary aggregated metric value")
+    order_count: Optional[int] = Field(default=None, description="Order transaction count")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.dimension_value is None:
+            self.dimension_value = self.label or self.key
+        if self.metric_value is None:
+            self.metric_value = self.value
+        if self.order_count is None and self.count is not None:
+            self.order_count = self.count
+
 
 class BreakdownResult(BaseModel):
     """Aggregate result of slicing a metric across a categorical dimension."""
@@ -83,6 +98,9 @@ class TimeSeriesResult(BaseModel):
     average: Decimal = Field(description="Average per point")
     min_value: Optional[Decimal] = Field(default=None, description="Minimum bucket value")
     max_value: Optional[Decimal] = Field(default=None, description="Maximum bucket value")
+    is_order_level_fallback: bool = Field(
+        default=False, description="True if aggregated from order headers rather than item lines"
+    )
 
 
 class FinancialSummaryResult(BaseModel):
@@ -99,6 +117,8 @@ class FinancialSummaryResult(BaseModel):
     operating_expenses: MetricValue
     net_profit: MetricValue
     net_margin: MetricValue
+    currency: str = Field(default="USD", description="Currency code (e.g. USD, INR)")
+    currency_symbol: str = Field(default="$", description="Currency display symbol (e.g. $, ₹)")
     comparison: Optional[Dict[str, ComparisonResult]] = Field(
         default=None,
         description="Period comparisons if comparison range is provided"

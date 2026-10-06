@@ -85,10 +85,19 @@ def _build_context(
     customer_ids: Optional[List[int]] = None,
     granularity: PeriodGranularity = PeriodGranularity.MONTHLY,
     business_id: Optional[str] = None,
+    db: Optional[Session] = None,
 ) -> AnalysisContext:
+    currency = "USD"
+    if business_id and db:
+        biz_currency = db.execute(
+            select(Business.currency).where(Business.id == business_id)
+        ).scalar_one_or_none()
+        if biz_currency:
+            currency = biz_currency
     try:
         return AnalysisContext(
             business_id=business_id,
+            currency=currency,
             date_from=date_from,
             date_to=date_to,
             comparison_date_from=comparison_date_from,
@@ -123,6 +132,7 @@ def get_summary(
         categories=categories,
         customer_segments=customer_segments,
         business_id=biz_id,
+        db=db,
     )
     service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_financial_summary(ctx)

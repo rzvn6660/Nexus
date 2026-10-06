@@ -66,35 +66,97 @@ class TimeSeriesAnalyzer:
 
         rows = session.execute(stmt).all()
 
+        is_order_fallback = False
         if not rows:
-            return TimeSeriesResult(
-                metric=metric,
-                granularity=context.granularity,
-                points=[],
-                total=Decimal("0.00"),
-                average=Decimal("0.00"),
-            )
+            # Deterministic order-level fallback:
+            # If line-item rows do not exist, but the metric is revenue/orders/sales
+            # and no product-level filters are specified, aggregate directly from `sales` table.
+            # Preserve strict tenant isolation via Sale.business_id == context.business_id.
+            # Note: For profit, COGS is required so we do NOT invent profit points.
+            metric_lower = metric.lower()
+            if (
+                metric_lower in ("revenue", "orders", "order_count", "sales")
+                and not context.product_ids
+                and not context.categories
+                and not context.subcategories
+            ):
+                order_stmt = (
+                    select(
+                        Sale.id.label("sale_id"),
+                        Sale.transaction_date.label("transaction_date"),
+                        Sale.status.label("status"),
+                        (Sale.subtotal - Sale.discount_amount).label("net_revenue"),
+                    )
+                    .where(Sale.status.in_(context.statuses if context.statuses else ["completed", "shipped"]))
+                )
+                order_clauses = []
+                if context.business_id:
+                    order_clauses.append(Sale.business_id == context.business_id)
+                if context.date_from:
+                    order_clauses.append(Sale.transaction_date >= context.date_from)
+                if context.date_to:
+                    order_clauses.append(Sale.transaction_date <= context.date_to)
+                if context.customer_ids:
+                    order_clauses.append(Sale.customer_id.in_(context.customer_ids))
+                if order_clauses:
+                    order_stmt = order_stmt.where(and_(*order_clauses))
 
-        data = []
-        for r in rows:
-            tx: datetime = r.transaction_date
-            if tx.tzinfo is None:
-                tx = tx.replace(tzinfo=timezone.utc)
-            rev = float(Decimal(str(r.line_total)))
-            qty = int(r.quantity)
-            cost = float(Decimal(str(r.unit_cost))) * qty
-            profit = rev - cost
+                order_rows = session.execute(order_stmt).all()
+                if order_rows:
+                    is_order_fallback = True
+                    data = []
+                    for r in order_rows:
+                        tx: datetime = r.transaction_date
+                        if tx.tzinfo is None:
+                            tx = tx.replace(tzinfo=timezone.utc)
+                        rev = float(Decimal(str(r.net_revenue)))
+                        data.append(
+                            {
+                                "sale_id": r.sale_id,
+                                "date": tx,
+                                "revenue": rev,
+                                "units": 0,
+                                "cogs": 0.0,
+                                "profit": 0.0,
+                            }
+                        )
+                else:
+                    return TimeSeriesResult(
+                        metric=metric,
+                        granularity=context.granularity,
+                        points=[],
+                        total=Decimal("0.00"),
+                        average=Decimal("0.00"),
+                    )
+            else:
+                return TimeSeriesResult(
+                    metric=metric,
+                    granularity=context.granularity,
+                    points=[],
+                    total=Decimal("0.00"),
+                    average=Decimal("0.00"),
+                )
+        else:
+            data = []
+            for r in rows:
+                tx: datetime = r.transaction_date
+                if tx.tzinfo is None:
+                    tx = tx.replace(tzinfo=timezone.utc)
+                rev = float(Decimal(str(r.line_total)))
+                qty = int(r.quantity)
+                cost = float(Decimal(str(r.unit_cost))) * qty
+                profit = rev - cost
 
-            data.append(
-                {
-                    "sale_id": r.sale_id,
-                    "date": tx,
-                    "revenue": rev,
-                    "units": qty,
-                    "cogs": cost,
-                    "profit": profit,
-                }
-            )
+                data.append(
+                    {
+                        "sale_id": r.sale_id,
+                        "date": tx,
+                        "revenue": rev,
+                        "units": qty,
+                        "cogs": cost,
+                        "profit": profit,
+                    }
+                )
 
         df = pd.DataFrame(data)
         df["date"] = pd.to_datetime(df["date"], utc=True)
@@ -193,4 +255,6 @@ class TimeSeriesAnalyzer:
             average=avg_val,
             min_value=min_val,
             max_value=max_val,
+            is_order_level_fallback=is_order_fallback,
         )
+

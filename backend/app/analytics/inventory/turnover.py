@@ -13,7 +13,7 @@ from app.analytics.metrics.financial import FinancialMetricsCalculator
 
 class InventoryTurnoverResult(BaseModel):
     """Inventory turnover and Days Sales of Inventory (DSI) analysis."""
-    period_cogs: Decimal
+    period_cogs: Optional[Decimal] = None
     inventory_valuation: Decimal
     turnover_ratio: Optional[float] = Field(
         default=None,
@@ -68,17 +68,17 @@ class InventoryTurnoverCalculator:
         turnover: Optional[float] = None
         dsi: Optional[float] = None
 
-        if inv_val > 0:
+        if cogs is not None and inv_val > 0:
             turnover = round(float(cogs / inv_val), 3)
 
-        if cogs > 0:
+        if cogs is not None and cogs > 0:
             dsi = round(float((inv_val / cogs) * Decimal(str(days))), 1)
 
         interp = (
             f"The business turned over its inventory approximately {turnover:.2f} times during the "
             f"{int(days)}-day period, taking an estimated {dsi:.1f} days to sell current inventory on hand."
             if (turnover is not None and dsi is not None)
-            else "Turnover ratio or DSI could not be computed due to zero COGS or zero inventory valuation."
+            else "Turnover ratio or DSI could not be computed due to missing product costs or zero inventory valuation."
         )
 
         return InventoryTurnoverResult(

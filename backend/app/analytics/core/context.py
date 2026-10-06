@@ -7,6 +7,30 @@ from app.analytics.core.types import PeriodGranularity
 from app.analytics.core.exceptions import InvalidContextError
 
 
+CURRENCY_SYMBOLS: Dict[str, str] = {
+    "USD": "$",
+    "EUR": "€",
+    "GBP": "£",
+    "INR": "₹",
+    "CAD": "CA$",
+    "AUD": "A$",
+    "JPY": "¥",
+    "CHF": "CHF",
+    "CNY": "¥",
+}
+
+
+def resolve_currency_symbol(currency_code_or_symbol: Optional[str]) -> str:
+    if not currency_code_or_symbol:
+        return "$"
+    code = currency_code_or_symbol.strip().upper()
+    if code in CURRENCY_SYMBOLS:
+        return CURRENCY_SYMBOLS[code]
+    if currency_code_or_symbol in ("$", "₹", "€", "£", "¥"):
+        return currency_code_or_symbol
+    return "$"
+
+
 class AnalysisContext(BaseModel):
     """
     Standardized, strongly-typed filter context governing all deterministic calculations.
@@ -17,6 +41,14 @@ class AnalysisContext(BaseModel):
     business_id: Optional[str] = Field(
         default=None,
         description="Tenant business workspace boundary"
+    )
+    currency: Optional[str] = Field(
+        default="USD",
+        description="Operational currency code (e.g. USD, INR, EUR)"
+    )
+    currency_symbol: Optional[str] = Field(
+        default="$",
+        description="Currency display symbol (e.g. $, ₹, €)"
     )
     date_from: Optional[datetime] = Field(
         default=None,
@@ -64,6 +96,12 @@ class AnalysisContext(BaseModel):
     )
 
     @model_validator(mode="after")
+    def sync_currency_symbol(self) -> "AnalysisContext":
+        if self.currency and (not self.currency_symbol or self.currency_symbol == "$" and self.currency.upper() != "USD"):
+            object.__setattr__(self, "currency_symbol", resolve_currency_symbol(self.currency))
+        return self
+
+    @model_validator(mode="after")
     def validate_date_intervals(self) -> "AnalysisContext":
         """Verify that date intervals are chronologically valid."""
         if self.date_from and self.date_to and self.date_from > self.date_to:
@@ -88,6 +126,8 @@ class AnalysisContext(BaseModel):
     def to_filter_dict(self) -> Dict[str, Any]:
         """Produce a clean JSON-serializable dictionary representation of active filters."""
         res: Dict[str, Any] = {}
+        if self.business_id:
+            res["business_id"] = self.business_id
         if self.date_from:
             res["date_from"] = self.date_from.isoformat()
         if self.date_to:
