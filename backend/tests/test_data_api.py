@@ -4,9 +4,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 
-def test_api_data_health(client: TestClient, seeded_db_session: Session) -> None:
-    """Validate GET /api/v1/data/health returns readiness status and table list."""
-    response = client.get("/api/v1/data/health")
+def test_api_data_health(authenticated_client: TestClient, seeded_db_session: Session) -> None:
+    """Validate GET /api/v1/data/health returns readiness status and table list when authenticated."""
+    response = authenticated_client.get("/api/v1/data/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] in ("ready", "degraded")
@@ -16,9 +16,9 @@ def test_api_data_health(client: TestClient, seeded_db_session: Session) -> None
     assert "sales" in data["tables"]
 
 
-def test_api_data_tables(client: TestClient, seeded_db_session: Session) -> None:
-    """Validate GET /api/v1/data/tables returns table summaries."""
-    response = client.get("/api/v1/data/tables")
+def test_api_data_tables(authenticated_client: TestClient, seeded_db_session: Session) -> None:
+    """Validate GET /api/v1/data/tables returns table summaries when authenticated."""
+    response = authenticated_client.get("/api/v1/data/tables")
     assert response.status_code == 200
     tables = response.json()
     assert len(tables) == 6
@@ -31,9 +31,9 @@ def test_api_data_tables(client: TestClient, seeded_db_session: Session) -> None
     assert "expenses" in table_names
 
 
-def test_api_data_profile_endpoint(client: TestClient, seeded_db_session: Session) -> None:
-    """Validate GET /api/v1/data/profile/{dataset} generates statistical profile."""
-    response = client.get("/api/v1/data/profile/customers")
+def test_api_data_profile_endpoint(authenticated_client: TestClient, seeded_db_session: Session) -> None:
+    """Validate GET /api/v1/data/profile/{dataset} generates statistical profile when authenticated."""
+    response = authenticated_client.get("/api/v1/data/profile/customers")
     assert response.status_code == 200
     profile = response.json()
     assert profile["table_name"] == "customers"
@@ -42,15 +42,15 @@ def test_api_data_profile_endpoint(client: TestClient, seeded_db_session: Sessio
     assert "customer_segment" in profile["columns"]
 
 
-def test_api_data_profile_not_found(client: TestClient) -> None:
+def test_api_data_profile_not_found(authenticated_client: TestClient) -> None:
     """Validate 404 response on unknown dataset profile request."""
-    response = client.get("/api/v1/data/profile/unknown_table_xyz")
+    response = authenticated_client.get("/api/v1/data/profile/unknown_table_xyz")
     assert response.status_code == 404
 
 
-def test_api_data_quality_endpoint(client: TestClient, seeded_db_session: Session) -> None:
-    """Validate GET /api/v1/data/quality/{dataset} generates quality scorecard."""
-    response = client.get("/api/v1/data/quality/customers")
+def test_api_data_quality_endpoint(authenticated_client: TestClient, seeded_db_session: Session) -> None:
+    """Validate GET /api/v1/data/quality/{dataset} generates quality scorecard when authenticated."""
+    response = authenticated_client.get("/api/v1/data/quality/customers")
     assert response.status_code == 200
     report = response.json()
     assert report["dataset_name"] == "customers"
@@ -58,8 +58,8 @@ def test_api_data_quality_endpoint(client: TestClient, seeded_db_session: Sessio
     assert report["checks_executed"] > 0
 
 
-def test_api_data_ingest_csv_endpoint(client: TestClient) -> None:
-    """Validate POST /api/v1/data/ingest/csv processes uploaded CSV."""
+def test_api_data_ingest_csv_endpoint(authenticated_client: TestClient) -> None:
+    """Validate POST /api/v1/data/ingest/csv processes uploaded CSV when authenticated."""
     csv_bytes = (
         b"customer_code,name,email,phone,city,customer_segment,acquisition_date\n"
         b"CUST-API-1,Api User,api@nexus.ai,555-9999,San Francisco,Corporate,2023-04-01\n"
@@ -73,10 +73,25 @@ def test_api_data_ingest_csv_endpoint(client: TestClient) -> None:
         "persist": "false",
     }
 
-    response = client.post("/api/v1/data/ingest/csv", data=data, files=files)
+    response = authenticated_client.post("/api/v1/data/ingest/csv", data=data, files=files)
     assert response.status_code == 200
     res = response.json()
     assert res["success"] is True
     assert res["rows_read"] == 1
     assert res["rows_valid"] == 1
     assert res["rows_failed"] == 0
+
+
+def test_api_data_unauthenticated_blocked(client: TestClient) -> None:
+    """Anonymous access without authentication credentials must return 401 Unauthorized."""
+    res_health = client.get("/api/v1/data/health")
+    assert res_health.status_code == 401
+
+    res_tables = client.get("/api/v1/data/tables")
+    assert res_tables.status_code == 401
+
+    res_prof = client.get("/api/v1/data/profile/customers")
+    assert res_prof.status_code == 401
+
+    res_qual = client.get("/api/v1/data/quality/customers")
+    assert res_qual.status_code == 401

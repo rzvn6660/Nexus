@@ -95,7 +95,7 @@ Direct unit acquisition cost evaluated across inventory items.
     assert result2.content_hash == result1.content_hash
 
 
-def test_api_knowledge_endpoints(api_client: TestClient):
+def test_api_knowledge_endpoints(authenticated_client: TestClient):
     """Test Knowledge REST API ingestion, listing, and retrieval."""
     # Ingest text document
     payload = {
@@ -106,20 +106,20 @@ def test_api_knowledge_endpoints(api_client: TestClient):
         "version": "1.1",
         "tags": ["stock", "warehouse"],
     }
-    resp = api_client.post("/api/v1/knowledge/documents/text", json=payload)
+    resp = authenticated_client.post("/api/v1/knowledge/documents/text", json=payload)
     assert resp.status_code == 201
     doc_data = resp.json()
     doc_id = doc_data["document_id"]
     assert doc_data["title"] == "Inventory Management Standard"
 
     # List documents
-    resp_list = api_client.get("/api/v1/knowledge/documents")
+    resp_list = authenticated_client.get("/api/v1/knowledge/documents")
     assert resp_list.status_code == 200
     docs = resp_list.json()
     assert any(d["document_id"] == doc_id for d in docs)
 
     # Get single document with chunks
-    resp_single = api_client.get(f"/api/v1/knowledge/documents/{doc_id}")
+    resp_single = authenticated_client.get(f"/api/v1/knowledge/documents/{doc_id}")
     assert resp_single.status_code == 200
     detail = resp_single.json()
     assert detail["document_id"] == doc_id

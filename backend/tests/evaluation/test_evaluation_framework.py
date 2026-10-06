@@ -310,7 +310,7 @@ def test_runner_execution_deterministic():
         "category": "descriptive",
         "expected_intent": "metric_lookup",
         "expected_tools": ["get_financial_summary"],
-        "expected_tables": ["sales", "sale_items", "products", "expenses"],
+        "expected_tables": ["sales"],
         "expected_behavior": "answer_with_evidence",
         "expected_numeric": {
             "field": "net_sales",
@@ -343,8 +343,8 @@ def test_evaluation_tenant_kpi_and_synonym_resolution():
             "display_name": "Net Revenue",
             "status": "AVAILABLE",
             "source_table": "sales",
-            "source_field": "total_amount",
-            "calculation_formula": "SUM(sales.total_amount)",
+            "source_field": "subtotal - discount_amount",
+            "calculation_formula": "SUM(sales.subtotal - sales.discount_amount)",
         }
     }
     mock_model.synonyms_json = {"client intake": "net_revenue"}
@@ -362,7 +362,7 @@ def test_evaluation_tenant_kpi_and_synonym_resolution():
         assert res.canonical_name == "net_revenue"
         assert res.availability_status == "AVAILABLE"
         assert res.source_table == "sales"
-        assert res.calculation_formula == "SUM(sales.total_amount)"
+        assert res.calculation_formula == "SUM(sales.subtotal - sales.discount_amount)"
     finally:
         TenantSemanticService.get_active_semantic_model = original_get
 
@@ -442,8 +442,8 @@ def test_evaluation_evidence_provenance_structure():
             "display_name": "Net Revenue",
             "status": "AVAILABLE",
             "source_table": "sales",
-            "source_field": "total_amount",
-            "calculation_formula": "SUM(sales.total_amount)",
+            "source_field": "subtotal - discount_amount",
+            "calculation_formula": "SUM(sales.subtotal - sales.discount_amount)",
         }
     }
     mock_model.synonyms_json = {"revenue": "net_revenue"}
@@ -459,8 +459,8 @@ def test_evaluation_evidence_provenance_structure():
         )
         prov = res.evidence_provenance
         assert prov["source_data"] == "sales"
-        assert prov["semantic_definition"] == "sales.total_amount"
-        assert prov["calculation"] == "SUM(sales.total_amount)"
+        assert prov["semantic_definition"] == "sales.subtotal - discount_amount"
+        assert prov["calculation"] == "SUM(sales.subtotal - sales.discount_amount)"
         assert prov["availability"] == "AVAILABLE"
         assert prov["tenant_scoped"] is True
     finally:

@@ -6,7 +6,7 @@ from decimal import Decimal
 from datetime import datetime, date, timezone
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
@@ -26,6 +26,7 @@ from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.inventory import Inventory
 from app.models.expense import Expense
+from app.models.tenant import Business, Organization
 from app.main import create_application
 
 # Dedicated in-memory SQLite engine for unit tests
@@ -101,17 +102,136 @@ def api_client(db_session: Session) -> TestClient:
 
 
 @pytest.fixture(scope="function")
+def auth_headers(db_session: Session) -> dict[str, str]:
+    """Provide authentication headers for a seeded test user and business workspace."""
+    from sqlalchemy import select
+    from app.models.tenant import UserIdentity, Organization, OrganizationMembership, Business, UploadedDataset, TenantSemanticModel
+    from app.services.auth_service import AuthService
+
+    user = db_session.execute(
+        select(UserIdentity).where(UserIdentity.email == "test_auth_user@nexus.internal")
+    ).scalar_one_or_none()
+    if not user:
+        org = Organization(id="org_test_suite", name="Test Suite Org", slug="test-suite-org")
+        db_session.add(org)
+        db_session.flush()
+
+        user = UserIdentity(
+            id="usr_test_suite",
+            email="test_auth_user@nexus.internal",
+            full_name="Test Suite User",
+            password_hash="hashed_pw_test",
+            is_active=True,
+            is_verified=True,
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        mem = OrganizationMembership(
+            user_id=user.id,
+            organization_id=org.id,
+            role="owner",
+        )
+        db_session.add(mem)
+
+        biz = Business(
+            id="biz_test_suite",
+            organization_id=org.id,
+            name="Test Suite Business",
+            status="active",
+        )
+        db_session.add(biz)
+        db_session.flush()
+
+        dataset = UploadedDataset(
+            id="ds_test_suite",
+            organization_id=org.id,
+            business_id=biz.id,
+            filename="retail_test.csv",
+            file_type="csv",
+            storage_key="uploads/test.csv",
+            file_size_bytes=1024,
+            row_count=100,
+            column_count=5,
+            content_hash="test_suite_hash",
+            readiness_status="ready",
+        )
+        db_session.add(dataset)
+        db_session.flush()
+
+        sem = TenantSemanticModel(
+            id="sem_test_suite",
+            organization_id=org.id,
+            business_id=biz.id,
+            version=1,
+            status="ACTIVE",
+            source_dataset_id=dataset.id,
+            entities_json={"Sale": {"record_count": 100}},
+            metrics_json={"net_revenue": {"status": "AVAILABLE"}},
+            dimensions_json={},
+            synonyms_json={},
+            ambiguous_terms_json={},
+            business_summary_json={"total_sales": 100},
+        )
+        db_session.add(sem)
+        db_session.commit()
+    else:
+        biz = db_session.execute(
+            select(Business).where(Business.id == "biz_test_suite")
+        ).scalar_one()
+
+    token = AuthService.create_access_token(
+        user_id=user.id,
+        email=user.email,
+        organization_id=biz.organization_id,
+        business_id=biz.id,
+    )
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-Business-ID": biz.id,
+    }
+
+
+@pytest.fixture(scope="function")
+def authenticated_client(api_client: TestClient, auth_headers: dict[str, str]) -> TestClient:
+    """Provide a TestClient pre-configured with valid Authorization and X-Business-ID headers."""
+    api_client.headers.update(auth_headers)
+    return api_client
+
+
+@pytest.fixture(scope="function")
 def seeded_db_session(db_session: Session) -> Session:
     """Populate test database with a small representative retail dataset."""
-    for table in reversed(Base.metadata.sorted_tables):
-        db_session.execute(table.delete())
+    biz = db_session.execute(
+        select(Business).where(Business.id == "biz_test_suite")
+    ).scalar_one_or_none()
+    if not biz:
+        org = db_session.execute(
+            select(Organization).where(Organization.id == "org_test_suite")
+        ).scalar_one_or_none()
+        if not org:
+            org = Organization(id="org_test_suite", name="Test Suite Org", slug="test-suite-org")
+            db_session.add(org)
+            db_session.flush()
+        biz = Business(
+            id="biz_test_suite",
+            organization_id=org.id,
+            name="Test Suite Business",
+            status="active",
+        )
+        db_session.add(biz)
+        db_session.flush()
+
+    domain_models = [Expense, Inventory, SaleItem, Sale, Product, Customer]
+    for m in domain_models:
+        db_session.execute(m.__table__.delete())
     db_session.commit()
 
     now_utc = datetime.now(timezone.utc)
 
-
     # 1. Customer
     cust1 = Customer(
+        business_id="biz_test_suite",
         customer_code="CUST-00001",
         name="Acme Industrial Corp",
         email="purchasing@acme1.com",
@@ -122,6 +242,7 @@ def seeded_db_session(db_session: Session) -> Session:
         updated_at=now_utc,
     )
     cust2 = Customer(
+        business_id="biz_test_suite",
         customer_code="CUST-00002",
         name="John Retailer",
         email="john@example.com",
@@ -136,6 +257,7 @@ def seeded_db_session(db_session: Session) -> Session:
 
     # 2. Products
     p1 = Product(
+        business_id="biz_test_suite",
         sku="SKU-ELE-0001",
         name="Pro Audio Cable #1",
         category="Electronics",
@@ -147,6 +269,7 @@ def seeded_db_session(db_session: Session) -> Session:
         updated_at=now_utc,
     )
     p2 = Product(
+        business_id="biz_test_suite",
         sku="SKU-OFF-0002",
         name="Desk Organizer Box #2",
         category="Office Supplies",
@@ -162,6 +285,7 @@ def seeded_db_session(db_session: Session) -> Session:
 
     # 3. Inventory
     inv1 = Inventory(
+        business_id="biz_test_suite",
         product_id=p1.id,
         stock_quantity=80,
         reorder_threshold=15,
@@ -170,6 +294,7 @@ def seeded_db_session(db_session: Session) -> Session:
         updated_at=now_utc,
     )
     inv2 = Inventory(
+        business_id="biz_test_suite",
         product_id=p2.id,
         stock_quantity=5,  # Low stock
         reorder_threshold=20,
@@ -182,6 +307,7 @@ def seeded_db_session(db_session: Session) -> Session:
 
     # 4. Sales & SaleItems
     s1 = Sale(
+        business_id="biz_test_suite",
         transaction_number="TXN-202305-000001",
         customer_id=cust1.id,
         transaction_date=datetime(2023, 5, 10, 14, 30, tzinfo=timezone.utc),
@@ -210,6 +336,7 @@ def seeded_db_session(db_session: Session) -> Session:
 
     # 5. Expenses
     exp1 = Expense(
+        business_id="biz_test_suite",
         expense_date=date(2023, 5, 1),
         category="Rent",
         description="Monthly Warehouse Rent",

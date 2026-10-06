@@ -597,12 +597,16 @@ class TestPhase23_5_BusinessOwnerAcceptance:
         assert data["net_sales"]["formatted"].startswith("$")
         assert "." in data["net_sales"]["formatted"]
 
-        # Check absence of NaN / Inf / null crashes
-        for key in ["net_sales", "gross_profit", "average_order_value", "orders"]:
+        # Check absence of NaN / Inf / null crashes on sales metrics
+        for key in ["net_sales", "average_order_value", "orders"]:
             val = data[key]["value"]
             assert val is not None
             assert str(val) != "nan"
             assert str(val) != "inf"
+
+        # Missing product costs: gross profit is explicitly incomplete without fabricating zero COGS
+        assert data["gross_profit"]["value"] is None
+        assert data["gross_profit"]["formatted"] == "Incomplete"
 
         # Check trust: no fabricated precision
         assert data["average_order_value"]["formatted"].count(".") == 1

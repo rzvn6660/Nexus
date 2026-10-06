@@ -26,12 +26,13 @@ Covers:
 import io
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from typing import Any, Generator
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_db_session
@@ -62,7 +63,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 
 @pytest.fixture(scope="module")
-def db_session():
+def db_session() -> Generator[Session, None, None]:
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     try:
@@ -73,8 +74,8 @@ def db_session():
 
 
 @pytest.fixture(scope="module")
-def client(db_session):
-    def override_get_db():
+def client(db_session: Session) -> Generator[TestClient, None, None]:
+    def override_get_db() -> Generator[Session, None, None]:
         try:
             yield db_session
         finally:
@@ -88,7 +89,7 @@ def client(db_session):
 
 
 @pytest.fixture(scope="module")
-def tenant_fixture(db_session):
+def tenant_fixture(db_session: Session) -> dict[str, Any]:
     """Provisions two isolated tenants: Tenant A and Tenant B."""
     user_a, org_a, biz_a = AuthService.signup(
         db=db_session,
@@ -132,7 +133,9 @@ def tenant_fixture(db_session):
     }
 
 
-def test_01_business_understanding_generation(db_session, tenant_fixture):
+def test_01_business_understanding_generation(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """1. Verify business understanding generation correctly audits empty and populated entities."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -195,7 +198,9 @@ def test_01_business_understanding_generation(db_session, tenant_fixture):
     assert updated_model.business_summary_json["sales_date_end"] == "2025-01-20"
 
 
-def test_02_tenant_semantic_persistence(db_session, tenant_fixture):
+def test_02_tenant_semantic_persistence(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """2. Verify TenantSemanticModel persists correctly in database and queries via get_active_semantic_model."""
     biz_a = tenant_fixture["biz_a"]
     active = TenantSemanticService.get_active_semantic_model(biz_a.id, db_session)
@@ -205,7 +210,9 @@ def test_02_tenant_semantic_persistence(db_session, tenant_fixture):
     assert "net_revenue" in active.metrics_json
 
 
-def test_03_kpi_availability_grounding(db_session, tenant_fixture):
+def test_03_kpi_availability_grounding(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """3. Verify metric availability states (AVAILABLE, REQUIRES_COST_DATA, INSUFFICIENT_HISTORY, UNAVAILABLE)."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -256,7 +263,9 @@ def test_03_kpi_availability_grounding(db_session, tenant_fixture):
     assert model.metrics_json["gross_margin"]["status"] == "AVAILABLE"
 
 
-def test_04_synonym_resolution(db_session, tenant_fixture):
+def test_04_synonym_resolution(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """4. Verify tenant custom and canonical synonyms map to canonical concepts."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -286,7 +295,9 @@ def test_04_synonym_resolution(db_session, tenant_fixture):
     assert res_orders.canonical_name == "orders"
 
 
-def test_05_ambiguous_synonym_handling(db_session, tenant_fixture):
+def test_05_ambiguous_synonym_handling(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """5. Ambiguous terms (e.g. standalone 'sales', 'turnover', 'margin') trigger clarification rather than guessing."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -311,7 +322,9 @@ def test_05_ambiguous_synonym_handling(db_session, tenant_fixture):
     assert "turnover" in res_turn.clarification_prompt.lower()
 
 
-def test_06_tenant_isolation(db_session, tenant_fixture):
+def test_06_tenant_isolation(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """6. Ensure Tenant A records and semantic models are strictly isolated from Tenant B."""
     biz_a = tenant_fixture["biz_a"]
     biz_b = tenant_fixture["biz_b"]
@@ -326,7 +339,9 @@ def test_06_tenant_isolation(db_session, tenant_fixture):
     assert "Sale" not in model_b.entities_json
 
 
-def test_07_cross_tenant_semantic_idor(client, tenant_fixture):
+def test_07_cross_tenant_semantic_idor(
+    client: TestClient, tenant_fixture: dict[str, Any]
+) -> None:
     """7. Test IDOR protection: Tenant A cannot view or manipulate Tenant B's understanding."""
     token_a = tenant_fixture["token_a"]
     biz_b = tenant_fixture["biz_b"]
@@ -343,7 +358,9 @@ def test_07_cross_tenant_semantic_idor(client, tenant_fixture):
     assert "Access denied" in resp.json()["detail"] or "Forbidden" in resp.json()["detail"]
 
 
-def test_08_business_context_retrieval_isolation(db_session, tenant_fixture):
+def test_08_business_context_retrieval_isolation(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """8. Custom OKF synonyms for Tenant A do not bleed into Tenant B."""
     biz_a = tenant_fixture["biz_a"]
     biz_b = tenant_fixture["biz_b"]
@@ -401,7 +418,9 @@ def test_08_business_context_retrieval_isolation(db_session, tenant_fixture):
     assert res_b.matched_synonym != "vip top income"
 
 
-def test_09_metric_mapping_traceability(db_session, tenant_fixture):
+def test_09_metric_mapping_traceability(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """9. Verify resolved metrics contain full calculation formula and source table provenance."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -411,13 +430,15 @@ def test_09_metric_mapping_traceability(db_session, tenant_fixture):
         db=db_session,
     )
     assert res.source_table == "sales"
-    assert res.source_field == "total_amount"
-    assert res.calculation_formula == "SUM(sales.total_amount)"
+    assert res.source_field == "subtotal - discount_amount"
+    assert res.calculation_formula == "SUM(sales.subtotal - sales.discount_amount)"
     assert res.evidence_provenance["tenant_scoped"] is True
     assert res.evidence_provenance["source_data"] == "sales"
 
 
-def test_10_unsupported_metric_handling(db_session, tenant_fixture):
+def test_10_unsupported_metric_handling(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """10. Verify explicit unsupported metrics are rejected deterministically."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -431,7 +452,9 @@ def test_10_unsupported_metric_handling(db_session, tenant_fixture):
         assert res.unsupported_message is not None
 
 
-def test_11_semantic_activation_endpoint(client, tenant_fixture):
+def test_11_semantic_activation_endpoint(
+    client: TestClient, tenant_fixture: dict[str, Any]
+) -> None:
     """11. Verify POST /api/v1/semantic/activate triggers activation via API."""
     token_a = tenant_fixture["token_a"]
     biz_a = tenant_fixture["biz_a"]
@@ -451,7 +474,9 @@ def test_11_semantic_activation_endpoint(client, tenant_fixture):
     assert data["understanding"]["synonyms"]["custom earnings"] == "net_revenue"
 
 
-def test_12_activation_failure_handling(client, tenant_fixture):
+def test_12_activation_failure_handling(
+    client: TestClient, tenant_fixture: dict[str, Any]
+) -> None:
     """12. Verify activation fails gracefully on non-existent business."""
     token_a = tenant_fixture["token_a"]
     fake_biz_id = str(uuid4())
@@ -467,7 +492,9 @@ def test_12_activation_failure_handling(client, tenant_fixture):
     assert resp.status_code == 404
 
 
-def test_13_semantic_versioning_and_revisions(client, tenant_fixture):
+def test_13_semantic_versioning_and_revisions(
+    client: TestClient, tenant_fixture: dict[str, Any]
+) -> None:
     """13. Verify GET /api/v1/semantic/revisions returns version history in descending order."""
     token_a = tenant_fixture["token_a"]
     biz_a = tenant_fixture["biz_a"]
@@ -486,7 +513,9 @@ def test_13_semantic_versioning_and_revisions(client, tenant_fixture):
     assert versions == sorted(versions, reverse=True)
 
 
-def test_14_dataset_semantic_update_via_gateway(client, tenant_fixture, db_session):
+def test_14_dataset_semantic_update_via_gateway(
+    client: TestClient, tenant_fixture: dict[str, Any], db_session: Session
+) -> None:
     """14. Ingesting new data updates Business Understanding record counts."""
     token_a = tenant_fixture["token_a"]
     biz_a = tenant_fixture["biz_a"]
@@ -523,7 +552,9 @@ def test_14_dataset_semantic_update_via_gateway(client, tenant_fixture, db_sessi
     assert summary["sales_count"] >= 4
 
 
-def test_15_semantic_conflict_detection(db_session, tenant_fixture):
+def test_15_semantic_conflict_detection(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """15. Conflicting metric formulas flag status as REQUIRES_REVIEW without silent overwriting.
 
     Verifies 8-step conflict safety invariant:
@@ -586,7 +617,9 @@ def test_15_semantic_conflict_detection(db_session, tenant_fixture):
     assert res.calculation_formula != "SUM(sales.total_amount)"
 
 
-def test_16_fiscal_calendar_preservation(client, tenant_fixture):
+def test_16_fiscal_calendar_preservation(
+    client: TestClient, tenant_fixture: dict[str, Any]
+) -> None:
     """16. Verify business profile metadata (currency, timezone, fiscal year) is returned."""
     token_a = tenant_fixture["token_a"]
     biz_a = tenant_fixture["biz_a"]
@@ -602,7 +635,9 @@ def test_16_fiscal_calendar_preservation(client, tenant_fixture):
     assert biz_data["fiscal_year_start"] == 1
 
 
-def test_17_evidence_semantic_provenance(db_session, tenant_fixture):
+def test_17_evidence_semantic_provenance(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """17. Verify AgentService run includes semantic provenance in evidence."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -622,7 +657,9 @@ def test_17_evidence_semantic_provenance(db_session, tenant_fixture):
         assert prov.get("source_data") == "sales"
 
 
-def test_18_agent_semantic_context_integration(db_session, tenant_fixture):
+def test_18_agent_semantic_context_integration(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """18. Verify agent uses tenant semantic context to resolve revenue query."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -637,7 +674,9 @@ def test_18_agent_semantic_context_integration(db_session, tenant_fixture):
     assert response.semantic_context.get("canonical_name") == "net_revenue"
 
 
-def test_19_agent_clarification_on_ambiguous_metric(db_session, tenant_fixture):
+def test_19_agent_clarification_on_ambiguous_metric(
+    db_session: Session, tenant_fixture: dict[str, Any]
+) -> None:
     """19. Ambiguous metric in Agent run stops and returns clarification needed."""
     biz_a = tenant_fixture["biz_a"]
 
@@ -653,7 +692,9 @@ def test_19_agent_clarification_on_ambiguous_metric(db_session, tenant_fixture):
     assert response.clarification_prompt is not None
 
 
-def test_20_end_to_end_customer_semantic_journey(client, db_session):
+def test_20_end_to_end_customer_semantic_journey(
+    client: TestClient, db_session: Session
+) -> None:
     """20. End-to-end customer flow: Signup -> Create Business -> Upload CSV -> Data Ready -> Automatic Business Understanding -> Semantic Resolution."""
     # 1. Signup & Create Business
     user, org, biz = AuthService.signup(
@@ -716,11 +757,11 @@ def test_20_end_to_end_customer_semantic_journey(client, db_session):
     res_data = resolve_res.json()
     assert res_data["canonical_name"] == "net_revenue"
     assert res_data["availability_status"] == "AVAILABLE"
-    assert res_data["calculation_formula"] == "SUM(sales.total_amount)"
+    assert res_data["calculation_formula"] == "SUM(sales.subtotal - sales.discount_amount)"
     assert res_data["evidence_provenance"]["tenant_scoped"] is True
 
 
-def test_21_alembic_migration_007_real_verification():
+def test_21_alembic_migration_007_real_verification() -> None:
     """21. Real migration verification test: checks revision chain 005 -> 006 -> 007,
     schema modifications, foreign keys, unique constraint, index, downgrade, and re-upgrade.
     """
@@ -746,14 +787,20 @@ def test_21_alembic_migration_007_real_verification():
     assert p007.exists(), "Migration 007 must exist"
 
     spec005 = importlib.util.spec_from_file_location("m005", p005)
+    assert spec005 is not None
+    assert spec005.loader is not None
     m005 = importlib.util.module_from_spec(spec005)
     spec005.loader.exec_module(m005)
 
     spec006 = importlib.util.spec_from_file_location("m006", p006)
+    assert spec006 is not None
+    assert spec006.loader is not None
     m006 = importlib.util.module_from_spec(spec006)
     spec006.loader.exec_module(m006)
 
     spec007 = importlib.util.spec_from_file_location("m007", p007)
+    assert spec007 is not None
+    assert spec007.loader is not None
     m007 = importlib.util.module_from_spec(spec007)
     spec007.loader.exec_module(m007)
 
@@ -827,7 +874,7 @@ def test_21_alembic_migration_007_real_verification():
             assert "semantic_status" in biz_cols_re
 
 
-def test_22_semantic_activation_idempotency(db_session):
+def test_22_semantic_activation_idempotency(db_session: Session) -> None:
     """22. Verify semantic activation idempotency:
     - Identical dataset state produces no new version (model reused)
     - Meaningful change produces new version and archives previous
@@ -909,7 +956,7 @@ def test_22_semantic_activation_idempotency(db_session):
     assert v1.status == "ARCHIVED"
 
 
-def test_23_active_semantic_model_count_invariant(db_session):
+def test_23_active_semantic_model_count_invariant(db_session: Session) -> None:
     """23. Invariant: For any business, ACTIVE semantic model count <= 1 at all times.
     If no active model exists, agent does not invent semantic definitions.
     """
@@ -987,7 +1034,9 @@ def test_23_active_semantic_model_count_invariant(db_session):
     assert active_count_2 == 1
 
 
-def test_24_version_history_preservation_and_immutability(db_session):
+def test_24_version_history_preservation_and_immutability(
+    db_session: Session,
+) -> None:
     """24. Verify old revisions are preserved, immutable, and queryable in descending order."""
     user, org, biz = AuthService.signup(
         db=db_session,

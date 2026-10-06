@@ -90,9 +90,9 @@ def test_empty_query_handling(db_session: Session):
     assert len(res.evidence) == 0
 
 
-def test_api_knowledge_search(api_client: TestClient):
+def test_api_knowledge_search(authenticated_client: TestClient):
     """Test POST /api/v1/knowledge/search endpoint."""
-    resp = api_client.post(
+    resp = authenticated_client.post(
         "/api/v1/knowledge/search",
         json={"query": "gross revenue definition", "top_k": 3},
     )
