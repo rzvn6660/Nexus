@@ -308,25 +308,72 @@ class TenantDataService:
         s = session or db
         if not s:
             raise ValueError("Database session must be provided.")
+        if not business_id:
+            return {
+                "business_id": None,
+                "dataset_count": 0,
+                "total_datasets": 0,
+                "total_rows": 0,
+                "total_columns": 0,
+                "status": "not_ready",
+                "domains_covered": [],
+                "summary": "0 datasets • 0 rows ingested.",
+                "datasets": [],
+            }
+
+        # 1. Query uploaded datasets scoped strictly to tenant
         stmt = select(UploadedDataset).where(UploadedDataset.business_id == business_id)
         datasets = s.execute(stmt).scalars().all()
-
-        total_rows = sum(d.row_count or 0 for d in datasets)
+        uploaded_rows = sum(d.row_count or 0 for d in datasets)
         total_cols = sum(d.column_count or 0 for d in datasets)
-        statuses = [d.readiness_status for d in datasets]
+
+        # 2. Query persisted domain tables scoped strictly to tenant via DataProfiler
+        from app.data.profiling.profiler import DataProfiler
+        profiler = DataProfiler(db=s, business_id=business_id)
+        summaries = profiler.get_table_summaries()
+        persisted_rows = sum(item.row_count for item in summaries)
+        tables_with_data = [item.table_name for item in summaries if item.row_count > 0]
+
+        # 3. Reconcile dataset count and total rows
+        dataset_count = len(datasets) if len(datasets) > 0 else len(tables_with_data)
+        total_rows = max(uploaded_rows, persisted_rows)
+
+        # 4. Status determination (case-insensitive check)
+        statuses = [d.readiness_status.lower() for d in datasets if d.readiness_status]
+        biz = s.execute(select(Business).where(Business.id == business_id)).scalar_one_or_none()
+        biz_status = biz.data_readiness_status.lower() if (biz and biz.data_readiness_status) else ""
 
         overall_status = "not_ready"
-        if "ready" in statuses:
+        if total_rows == 0 and dataset_count == 0:
+            overall_status = "not_ready"
+        elif "ready" in statuses or biz_status in ("ready", "ready_with_warnings") or (total_rows > 0 and len(datasets) > 0):
             overall_status = "ready"
         elif "ready_with_warnings" in statuses:
             overall_status = "ready_with_warnings"
+        elif total_rows > 0:
+            overall_status = "ready"
+
+        # Keep business record aligned with current readiness status
+        if biz and overall_status == "ready" and biz_status not in ("ready", "ready_with_warnings"):
+            biz.data_readiness_status = "ready"
+            s.add(biz)
+            s.flush()
+
+        summary = f"{dataset_count} dataset(s) • {total_rows} rows ingested"
+        if tables_with_data:
+            summary += f" across {len(tables_with_data)} domain(s)."
+        else:
+            summary += "."
 
         return {
             "business_id": business_id,
-            "dataset_count": len(datasets),
+            "dataset_count": dataset_count,
+            "total_datasets": dataset_count,
             "total_rows": total_rows,
             "total_columns": total_cols,
             "status": overall_status,
+            "domains_covered": tables_with_data,
+            "summary": summary,
             "datasets": [
                 {
                     "id": d.id,
@@ -334,10 +381,11 @@ class TenantDataService:
                     "file_type": d.file_type,
                     "rows": d.row_count,
                     "columns": d.column_count,
-                    "readiness_status": d.readiness_status,
+                    "readiness_status": d.readiness_status.lower() if d.readiness_status else "ready",
                     "created_at": d.created_at.isoformat() if d.created_at else None,
                 }
                 for d in datasets
             ],
         }
+
 

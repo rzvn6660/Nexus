@@ -279,6 +279,8 @@ def test_08_core_model_ingestion(client, db_session, tenant_fixture):
     )
     assert ingest_res.status_code == 200
     assert ingest_res.json()["records_persisted"] == 2
+    assert ingest_res.json()["target_entity"] == "Sale"
+    assert ingest_res.json()["entity"] == "Sale"
 
     # Verify rows in database
     sales = db_session.execute(
@@ -693,4 +695,60 @@ def test_23_alembic_migration_006_schema_verification():
     assert mod.down_revision == "005_phase15_saas_multi_tenancy"
     assert hasattr(mod, "upgrade") and callable(mod.upgrade)
     assert hasattr(mod, "downgrade") and callable(mod.downgrade)
+
+
+def test_24_alembic_migration_009_schema_verification():
+    """Verify that forward migration 009 exists, chains from 008, and adds timestamps to ingestion_jobs."""
+    from pathlib import Path
+    import importlib.util
+    import sqlalchemy as sa
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    migration_file = Path("backend/alembic/versions/009_phase23_ingestion_job_timestamps.py")
+    if not migration_file.exists():
+        migration_file = Path("alembic/versions/009_phase23_ingestion_job_timestamps.py")
+    assert migration_file.exists(), "Migration 009 file must exist in alembic/versions"
+
+    spec = importlib.util.spec_from_file_location("migration_009", migration_file)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert mod.revision == "009_phase23_ingestion_job_timestamps"
+    assert mod.down_revision == "008_phase19_run_lifecycle_snapshots"
+    assert hasattr(mod, "upgrade") and callable(mod.upgrade)
+    assert hasattr(mod, "downgrade") and callable(mod.downgrade)
+
+    # Real upgrade and downgrade verification on in-memory SQLite
+    engine = sa.create_engine("sqlite:///:memory:")
+    with engine.connect() as conn:
+        conn.execute(sa.text("""
+            CREATE TABLE ingestion_jobs (
+                id VARCHAR(36) PRIMARY KEY,
+                organization_id VARCHAR(36) NOT NULL,
+                business_id VARCHAR(36) NOT NULL,
+                dataset_id VARCHAR(36) NOT NULL,
+                status VARCHAR(32) NOT NULL,
+                started_at TIMESTAMP NOT NULL,
+                rows_processed INTEGER NOT NULL
+            )
+        """))
+        conn.commit()
+
+        ctx = MigrationContext.configure(conn)
+        with Operations.context(ctx):
+            # Test upgrade
+            mod.upgrade()
+            insp = sa.inspect(conn)
+            cols = [c["name"] for c in insp.get_columns("ingestion_jobs")]
+            assert "created_at" in cols, "created_at must be present after upgrade"
+            assert "updated_at" in cols, "updated_at must be present after upgrade"
+
+            # Test downgrade
+            mod.downgrade()
+            insp_after = sa.inspect(conn)
+            cols_after = [c["name"] for c in insp_after.get_columns("ingestion_jobs")]
+            assert "created_at" not in cols_after, "created_at must be removed after downgrade"
+            assert "updated_at" not in cols_after, "updated_at must be removed after downgrade"
+
 

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 
@@ -38,14 +38,30 @@ class ColumnProfile(BaseModel):
 
     column_name: str
     inferred_type: str
+    data_type: Optional[str] = None
     total_count: int
     null_count: int
     null_percentage: float
     unique_count: int
+    distinct_count: Optional[int] = None
     is_unique: bool = False
     numeric_stats: Optional[NumericStats] = None
     date_stats: Optional[DateRangeStats] = None
     top_categories: Optional[List[CategoricalValueCount]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_column_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("data_type") and data.get("inferred_type"):
+                data["data_type"] = data["inferred_type"]
+            elif not data.get("inferred_type") and data.get("data_type"):
+                data["inferred_type"] = data["data_type"]
+            if data.get("distinct_count") is None and data.get("unique_count") is not None:
+                data["distinct_count"] = data["unique_count"]
+            elif data.get("unique_count") is None and data.get("distinct_count") is not None:
+                data["unique_count"] = data["distinct_count"]
+        return data
 
 
 class DatasetProfile(BaseModel):
@@ -53,10 +69,26 @@ class DatasetProfile(BaseModel):
 
     table_name: str
     total_rows: int
+    row_count: Optional[int] = None
     total_columns: int
+    column_count: Optional[int] = None
     duplicate_rows: int
     columns: Dict[str, ColumnProfile]
     profiled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_row_and_column_counts(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("row_count") is None and data.get("total_rows") is not None:
+                data["row_count"] = data["total_rows"]
+            elif data.get("total_rows") is None and data.get("row_count") is not None:
+                data["total_rows"] = data["row_count"]
+            if data.get("column_count") is None and data.get("total_columns") is not None:
+                data["column_count"] = data["total_columns"]
+            elif data.get("total_columns") is None and data.get("column_count") is not None:
+                data["total_columns"] = data["column_count"]
+        return data
 
 
 

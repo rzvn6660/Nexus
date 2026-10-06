@@ -84,6 +84,7 @@ async def upload_dataset(
         "column_count": dataset.column_count,
         "readiness_status": dataset.readiness_status,
         "readiness_score": quality_json.get("readiness_score", 70),
+        "target_entity": schema_json.get("mapping_proposal", {}).get("target_entity", "Sale"),
         "mapping_proposal": schema_json.get("mapping_proposal"),
         "quality_summary": quality_json,
     }

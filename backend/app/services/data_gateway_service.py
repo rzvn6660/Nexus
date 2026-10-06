@@ -171,7 +171,7 @@ class DataGatewayService:
             logger.warning("Upload rejected: empty file (0 bytes) filename='%s'", filename)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Uploaded file is empty (0 bytes).",
+                detail="Uploaded file is empty (0 bytes). Please provide a valid CSV or Excel file containing tabular business data.",
             )
 
         # Check binary magic signatures (MIME spoofing detection)
@@ -270,7 +270,7 @@ class DataGatewayService:
         if df is None or len(df) == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Dataset contains 0 data rows.",
+                detail="The uploaded dataset contains 0 data rows. Please ensure your file includes column headers followed by at least one row of data.",
             )
         if len(df) > cls.MAX_ROWS:
             raise HTTPException(
@@ -821,6 +821,17 @@ class DataGatewayService:
         schema_json = dataset.schema_json or {}
         mapping_info = schema_json.get("mapping_proposal", {})
         entity = target_entity or mapping_info.get("target_entity", "Sale")
+        if entity.lower() in ("sale", "sales"):
+            entity = "Sale"
+        elif entity.lower() in ("product", "products"):
+            entity = "Product"
+        elif entity.lower() in ("customer", "customers"):
+            entity = "Customer"
+        elif entity.lower() in ("inventory", "inventories"):
+            entity = "Inventory"
+        elif entity.lower() in ("expense", "expenses"):
+            entity = "Expense"
+
         field_map = dict(mapping_info.get("field_mappings", {}))
         if column_overrides:
             field_map.update(column_overrides)
@@ -843,6 +854,7 @@ class DataGatewayService:
                 "dataset_id": dataset.id,
                 "job_id": completed_job.id,
                 "entity": entity,
+                "target_entity": entity,
                 "records_persisted": completed_job.rows_processed,
                 "status": "COMPLETED",
                 "message": f"Dataset already ingested into {entity} (idempotent no-op).",
@@ -1135,6 +1147,7 @@ class DataGatewayService:
                 "dataset_id": dataset.id,
                 "job_id": job.id,
                 "entity": entity,
+                "target_entity": entity,
                 "records_persisted": records_inserted,
                 "status": "COMPLETED",
                 "message": f"Successfully ingested {records_inserted} records into {entity} domain.",

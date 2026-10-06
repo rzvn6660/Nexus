@@ -82,7 +82,7 @@ def test_alembic_full_migration_chain() -> None:
         versions_dir = Path("alembic/versions")
 
     files = sorted([f for f in versions_dir.glob("*.py") if f.name != "__init__.py"])
-    assert len(files) >= 8, f"Expected at least 8 migration files, found {len(files)}"
+    assert len(files) >= 9, f"Expected at least 9 migration files, found {len(files)}"
 
     chain: dict[str, str | None] = {}
     for f in files:
@@ -98,7 +98,7 @@ def test_alembic_full_migration_chain() -> None:
     # Verify single head
     heads = [rev for rev, down in chain.items() if rev not in chain.values()]
     assert len(heads) == 1, f"Expected exactly 1 migration head, got: {heads}"
-    assert heads[0] == "008_phase19_run_lifecycle_snapshots"
+    assert heads[0] == "009_phase23_ingestion_job_timestamps"
 
     # Walk from head to base None
     current = heads[0]

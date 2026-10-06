@@ -1,14 +1,39 @@
 import os
 import sys
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+from typing import Any
+from sqlalchemy import Column, MetaData, PrimaryKeyConstraint, String, Table, engine_from_config, pool, text
 from alembic import context
+from alembic.ddl.impl import DefaultImpl
 
 # Ensure backend root is on sys.path so app modules can be imported
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
 from app.models.base import Base
+
+# Allow descriptive migration IDs longer than default 32 chars (e.g. 003_phase11_history_and_decisions)
+def _custom_version_table_impl(
+    self: DefaultImpl,
+    *,
+    version_table: str,
+    version_table_schema: str | None,
+    version_table_pk: bool,
+    **kw: Any,
+) -> Table:
+    vt = Table(
+        version_table,
+        MetaData(),
+        Column("version_num", String(128), nullable=False),
+        schema=version_table_schema,
+    )
+    if version_table_pk:
+        vt.append_constraint(
+            PrimaryKeyConstraint("version_num", name=f"{version_table}_pkc")
+        )
+    return vt
+
+DefaultImpl.version_table_impl = _custom_version_table_impl
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -63,6 +88,17 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Auto-widen existing alembic_version table if already created with default VARCHAR(32)
+        if connection.dialect.name == "postgresql":
+            if connection.dialect.has_table(connection, "alembic_version"):
+                try:
+                    connection.execute(
+                        text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(128);")
+                    )
+                except Exception:
+                    pass
+            connection.commit()
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
@@ -70,6 +106,7 @@ def run_migrations_online() -> None:
 
         with context.begin_transaction():
             context.run_migrations()
+        connection.commit()
 
 
 if context.is_offline_mode():
