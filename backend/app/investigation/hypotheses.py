@@ -56,7 +56,7 @@ class HypothesisEngine:
             cls._eval_category_variance(hyp, results_by_tool)
         elif h_type in ("volume_effect", "volume_driver", "volume_impact"):
             cls._eval_volume_effect(hyp, results_by_tool)
-        elif h_type == "mix_effect":
+        elif h_type in ("mix_effect", "product_mix_shift", "mix_shift"):
             cls._eval_mix_effect(hyp, results_by_tool)
         elif h_type in ("price_effect", "cogs_impact"):
             cls._eval_price_or_cogs(hyp, results_by_tool)
@@ -99,8 +99,8 @@ class HypothesisEngine:
         )
         if not items:
             hyp.status = HypothesisStatus.NOT_SUPPORTED
-            hyp.evidence_strength = EvidenceStrength.DIRECT
-            hyp.confidence_reason = "Category variance breakdown returned zero categorized line items."
+            hyp.evidence_strength = EvidenceStrength.INSUFFICIENT
+            hyp.confidence_reason = "Category variance breakdown returned zero categorized line items; insufficient line-item telemetry to confirm category concentration."
             return
 
         top_item = items[0]
@@ -155,7 +155,16 @@ class HypothesisEngine:
         res = pvm_results[0]
         vol = abs(float(res.get("volume_effect", 0.0)))
         price = abs(float(res.get("price_effect", 0.0)))
-        total = abs(float(res.get("total_variance", 1.0)))
+        total = abs(float(res.get("total_variance", 0.0)))
+
+        if total == 0.0 or (vol == 0.0 and price == 0.0):
+            hyp.status = HypothesisStatus.NOT_SUPPORTED
+            hyp.evidence_strength = EvidenceStrength.INSUFFICIENT
+            hyp.confidence_reason = (
+                "Price/Volume/Mix decomposition evaluated zero line items or zero variance; "
+                "insufficient line-item telemetry to support volume effect."
+            )
+            return
 
         vol_share = (vol / total * 100) if total > 0 else 0.0
         price_share = (price / total * 100) if total > 0 else 0.0
@@ -185,11 +194,16 @@ class HypothesisEngine:
             )
         else:
             hyp.status = HypothesisStatus.NOT_SUPPORTED
-            hyp.evidence_strength = EvidenceStrength.DIRECT
+            hyp.evidence_strength = EvidenceStrength.STRONG
             hyp.contradicting_evidence.append(link)
-            hyp.confidence_reason = (
-                f"Volume Effect explained only {vol_share:.1f}%; Price Effect was the predominant driver ({price_share:.1f}%)."
-            )
+            if price_share > vol_share and price_share >= 40.0:
+                hyp.confidence_reason = (
+                    f"Volume Effect explained only {vol_share:.1f}%; Price Effect was the predominant driver ({price_share:.1f}%)."
+                )
+            else:
+                hyp.confidence_reason = (
+                    f"Volume Effect explained only {vol_share:.1f}% of total variance."
+                )
 
     @classmethod
     def _eval_mix_effect(
@@ -205,7 +219,17 @@ class HypothesisEngine:
 
         res = pvm_results[0]
         mix = abs(float(res.get("mix_effect", 0.0)))
-        total = abs(float(res.get("total_variance", 1.0)))
+        total = abs(float(res.get("total_variance", 0.0)))
+
+        if total == 0.0 or (mix == 0.0 and float(res.get("volume_effect", 0.0)) == 0.0):
+            hyp.status = HypothesisStatus.NOT_SUPPORTED
+            hyp.evidence_strength = EvidenceStrength.INSUFFICIENT
+            hyp.confidence_reason = (
+                "Price/Volume/Mix decomposition evaluated zero line items; "
+                "insufficient line-item telemetry to evaluate product mix shift."
+            )
+            return
+
         mix_share = (mix / total * 100) if total > 0 else 0.0
 
         link = EvidenceLink(
@@ -229,7 +253,7 @@ class HypothesisEngine:
             hyp.confidence_reason = f"Product mix had a moderate {mix_share:.1f}% contribution."
         else:
             hyp.status = HypothesisStatus.NOT_SUPPORTED
-            hyp.evidence_strength = EvidenceStrength.DIRECT
+            hyp.evidence_strength = EvidenceStrength.MODERATE
             hyp.contradicting_evidence.append(link)
             hyp.confidence_reason = f"Mix effect was negligible ({mix_share:.1f}% of total variance)."
 
@@ -313,6 +337,14 @@ class HypothesisEngine:
             notes=f"Observed {out_of_stock} out-of-stock items and {low_stock} items under reorder threshold.",
         )
 
+        total_skus = int(res.get("total_skus", res.get("total_products", 0)))
+
+        if total_skus == 0 and out_of_stock == 0 and low_stock == 0:
+            hyp.status = HypothesisStatus.NOT_SUPPORTED
+            hyp.evidence_strength = EvidenceStrength.INSUFFICIENT
+            hyp.confidence_reason = "Current tenant has no inventory or product records in catalog; stockout constraints cannot be evaluated."
+            return
+
         if out_of_stock > 0 or low_stock > 0:
             hyp.status = HypothesisStatus.PARTIALLY_SUPPORTED
             hyp.evidence_strength = EvidenceStrength.MODERATE
@@ -326,7 +358,7 @@ class HypothesisEngine:
             )
         else:
             hyp.status = HypothesisStatus.NOT_SUPPORTED
-            hyp.evidence_strength = EvidenceStrength.DIRECT
+            hyp.evidence_strength = EvidenceStrength.STRONG
             hyp.contradicting_evidence.append(link)
             hyp.confidence_reason = "Current inventory shows 0 stockouts and 0 items below reorder thresholds."
 
@@ -346,6 +378,11 @@ class HypothesisEngine:
         dormant = int(res.get("dormant_count", 0))
         slow = int(res.get("slow_moving_count", 0))
         total = dormant + slow + int(res.get("medium_velocity_count", 0)) + int(res.get("high_velocity_count", 0))
+        if total == 0:
+            hyp.status = HypothesisStatus.NOT_SUPPORTED
+            hyp.evidence_strength = EvidenceStrength.INSUFFICIENT
+            hyp.confidence_reason = "No inventory SKUs available to calculate inventory velocity."
+            return
         pct = (dormant + slow) / total * 100 if total > 0 else 0.0
 
         link = EvidenceLink(
@@ -446,10 +483,16 @@ class HypothesisEngine:
         hyp: InvestigationHypothesis,
         results_by_tool: dict[str, list[dict[str, Any]]],
     ) -> None:
-        if "run_variance_analysis" in results_by_tool:
+        var_results = results_by_tool.get("run_variance_analysis", [])
+        has_items = any(
+            bool(r.get("top_negative_contributors") or r.get("top_positive_contributors") or r.get("items"))
+            for r in var_results
+        )
+        if var_results and has_items:
             hyp.status = HypothesisStatus.SUPPORTED
             hyp.evidence_strength = EvidenceStrength.MODERATE
             hyp.confidence_reason = "Empirical variance decomposition completed."
         else:
-            hyp.status = HypothesisStatus.INCONCLUSIVE
+            hyp.status = HypothesisStatus.NOT_SUPPORTED
             hyp.evidence_strength = EvidenceStrength.INSUFFICIENT
+            hyp.confidence_reason = "Variance analysis evaluated zero line items; insufficient telemetry to confirm distribution."

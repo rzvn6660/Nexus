@@ -86,6 +86,9 @@ def generate_explanation_node(state: AgentState) -> dict[str, Any]:
     elif "get_inventory_overview" in tools_used:
         follow_ups.append("Would you like to identify slow-moving or dormant inventory items?")
         follow_ups.append("Should we review the inventory turnover ratio and DSI for the period?")
+    elif "get_business_profile" in tools_used:
+        follow_ups.append("Would you like to review our commercial revenue performance?")
+        follow_ups.append("Should we inspect current data health and uploaded datasets?")
     else:
         follow_ups.append("Would you like to compare these figures with the previous period?")
         follow_ups.append("Should we generate a visual timeseries breakdown?")

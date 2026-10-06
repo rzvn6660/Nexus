@@ -53,6 +53,14 @@ def semantic_resolution_node(state: AgentState, config: RunnableConfig | None = 
     Detects tenant metric availability states, ambiguous business terms, and unsupported metrics.
     """
     user_query = state.get("user_query", "").strip()
+    intent_dict = state.get("intent") or {}
+    if intent_dict.get("category") == "business_profile":
+        return {
+            "semantic_context": {"intent": "business_profile"},
+            "is_unsupported": False,
+            "needs_clarification": False,
+        }
+
     business_id = state.get("business_id")
     session = None
     if config:
@@ -170,6 +178,16 @@ def retrieve_context_node(state: AgentState, config: RunnableConfig | None = Non
     Connects RAG evidence to agent state while isolating untrusted document content.
     """
     user_query = state.get("user_query", "").strip()
+    intent_dict = state.get("intent") or {}
+    if intent_dict.get("category") == "business_profile":
+        return {
+            "rag_evidence": [],
+            "business_context_text": None,
+            "is_definitional_only": False,
+            "has_business_context_conflict": False,
+            "business_context_conflict_description": None,
+        }
+
     sem_context = state.get("semantic_context") or {}
     resolved_domain = None
 

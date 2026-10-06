@@ -138,6 +138,11 @@ class ForecastMetricToolInput(BaseToolInput):
     confidence_level: float = Field(default=0.95, ge=0.5, le=0.99, description="Coverage probability for prediction intervals")
 
 
+class BusinessProfileToolInput(BaseModel):
+    """Input for retrieving verified tenant business workspace profile."""
+    business_id: str | None = Field(default=None, description="Active tenant business workspace ID")
+
+
 class ToolExecutionResult(BaseModel):
 
     """Standardized deterministic execution payload returned by every agent tool."""

@@ -16,6 +16,22 @@ from app.agents.state.models import (
 )
 
 
+def _extract_currency_symbol(tool_results: list[dict[str, Any]], default: str = "$") -> str:
+    """Extract currency symbol from tool results if present."""
+    for tr in tool_results:
+        res = tr.get("result", {})
+        if isinstance(res, dict):
+            if res.get("currency_symbol"):
+                return str(res["currency_symbol"])
+            for field in ["net_sales", "gross_sales", "average_order_value"]:
+                val = res.get(field)
+                if isinstance(val, dict):
+                    fmt = str(val.get("formatted", ""))
+                    if fmt and fmt[0] in ("$", "₹", "€", "£", "¥"):
+                        return fmt[0]
+    return default
+
+
 class MockLLMProvider(BaseLLMProvider):
     """
     Deterministic offline LLM provider.
@@ -29,6 +45,15 @@ class MockLLMProvider(BaseLLMProvider):
         self, query: str, supported_intents: list[str]
     ) -> IntentResult:
         q = query.lower()
+
+        # Check for business profile / workspace metadata
+        from app.decisions.taxonomy import is_business_profile_query
+        if is_business_profile_query(query):
+            return IntentResult(
+                category=IntentCategory.BUSINESS_PROFILE,
+                confidence=1.0,
+                reasoning="Query requests active tenant business workspace profile metadata."
+            )
 
         # Check for predictive forecasting (Phase 7)
         forecast_keywords = ["forecast", "predict", "projection", "look like next", "expected revenue", "expected sales", "expected units", "expected order"]
@@ -143,6 +168,21 @@ class MockLLMProvider(BaseLLMProvider):
         c_from = resolved_dates.get("comparison_date_from")
         c_to = resolved_dates.get("comparison_date_to")
         granularity = resolved_dates.get("granularity", "monthly")
+
+        # Business Profile context
+        if intent == IntentCategory.BUSINESS_PROFILE:
+            return AnalysisPlan(
+                goal=f"Retrieve verified tenant business workspace profile for: {query}",
+                steps=[
+                    PlanStep(
+                        step_index=0,
+                        tool_name="get_business_profile",
+                        purpose="Retrieve verified business name, industry, country, reporting currency, timezone, and fiscal year",
+                        arguments={},
+                    )
+                ],
+                context_dates=resolved_dates,
+            )
 
         # 1. Diagnostic analysis (frequently multi-step)
         if intent == IntentCategory.DIAGNOSTIC_ANALYSIS:
@@ -421,6 +461,8 @@ class MockLLMProvider(BaseLLMProvider):
         # Aggregate evidence summaries and find key outputs
         lines = []
 
+        curr_sym = _extract_currency_symbol(tool_results, default="$")
+
         # Check what tools executed
         tools_executed = [r.get("tool") for r in tool_results]
 
@@ -435,13 +477,13 @@ class MockLLMProvider(BaseLLMProvider):
             neg_contribs = var_res.get("top_negative_contributors", [])
 
             pct_str = f"{pct_chg:+.2f}%" if pct_chg is not None else "N/A"
-            lines.append(f"Revenue variance analysis indicates a total {direction} of ${abs(float(tot_var)):,.2f} ({pct_str}) across the analyzed period.")
+            lines.append(f"Revenue variance analysis indicates a total {direction} of {curr_sym}{abs(float(tot_var)):,.2f} ({pct_str}) across the analyzed period.")
             if neg_contribs:
                 top_neg = neg_contribs[0]
-                lines.append(f"The largest negative contribution came from {dim} '{top_neg.get('entity_name')}', with an absolute change of -${abs(float(top_neg.get('absolute_change', 0))):,.2f}.")
+                lines.append(f"The largest negative contribution came from {dim} '{top_neg.get('entity_name')}', with an absolute change of -{curr_sym}{abs(float(top_neg.get('absolute_change', 0))):,.2f}.")
             if pos_contribs:
                 top_pos = pos_contribs[0]
-                lines.append(f"The largest positive offsetting contribution came from {dim} '{top_pos.get('entity_name')}', which grew by +${float(top_pos.get('absolute_change', 0)):,.2f}.")
+                lines.append(f"The largest positive offsetting contribution came from {dim} '{top_pos.get('entity_name')}', which grew by +{curr_sym}{float(top_pos.get('absolute_change', 0)):,.2f}.")
 
             lines.append("\nNote: Contribution analysis measures arithmetic association across dimensions and does not establish causality.")
 
@@ -452,10 +494,10 @@ class MockLLMProvider(BaseLLMProvider):
             vol = pvm.get("volume_effect", 0.0)
             prc = pvm.get("price_effect", 0.0)
             mix = pvm.get("mix_effect", 0.0)
-            lines.append(f"Price / Volume / Mix decomposition reconciles a total variance of ${float(tot):,.2f}:")
-            lines.append(f"- Volume Effect: ${float(vol):,.2f}")
-            lines.append(f"- Price Effect: ${float(prc):,.2f}")
-            lines.append(f"- Mix Effect: ${float(mix):,.2f}")
+            lines.append(f"Price / Volume / Mix decomposition reconciles a total variance of {curr_sym}{float(tot):,.2f}:")
+            lines.append(f"- Volume Effect: {curr_sym}{float(vol):,.2f}")
+            lines.append(f"- Price Effect: {curr_sym}{float(prc):,.2f}")
+            lines.append(f"- Mix Effect: {curr_sym}{float(mix):,.2f}")
 
         # 3. Product Rankings
         elif "get_product_rankings" in tools_executed:
@@ -465,7 +507,7 @@ class MockLLMProvider(BaseLLMProvider):
             lines.append(f"Product rankings by {ranking_metric}:")
             for idx, item in enumerate(items[:5], 1):
                 val = item.get("revenue") if ranking_metric == "revenue" else item.get(ranking_metric)
-                lines.append(f"{idx}. {item.get('name')} (SKU: {item.get('sku')}): ${float(val or 0):,.2f}" if ranking_metric in ("revenue", "profit") else f"{idx}. {item.get('name')} ({ranking_metric}: {val})")
+                lines.append(f"{idx}. {item.get('name')} (SKU: {item.get('sku')}): {curr_sym}{float(val or 0):,.2f}" if ranking_metric in ("revenue", "profit") else f"{idx}. {item.get('name')} ({ranking_metric}: {val})")
 
         # 4. Financial Summary
         elif "get_financial_summary" in tools_executed:
@@ -473,19 +515,37 @@ class MockLLMProvider(BaseLLMProvider):
             net_sales = fin.get("net_sales", {}).get("value")
             gross_profit = fin.get("gross_profit", {}).get("value")
             gross_margin = fin.get("gross_margin", {}).get("value")
+            cogs = fin.get("cogs", {}).get("value")
             orders = fin.get("orders", {}).get("value")
             aov = fin.get("average_order_value", {}).get("value")
             net_profit = fin.get("net_profit", {}).get("value")
             comp = fin.get("net_sales", {}).get("comparison")
 
             sales_val = float(net_sales) if net_sales is not None else 0.0
-            lines.append(f"Net Revenue was ${sales_val:,.2f} across {int(orders or 0):,} orders, with an Average Order Value (AOV) of ${float(aov or 0):,.2f}.")
-            lines.append(f"Gross Profit totaled ${float(gross_profit or 0):,.2f} (Gross Margin: {float(gross_margin or 0):.2f}%), yielding a Net Profit of ${float(net_profit or 0):,.2f}.")
+            aov_val = float(aov) if aov is not None else 0.0
+            lines.append(f"Net Revenue was {curr_sym}{sales_val:,.2f} across {int(orders or 0):,} orders, with an Average Order Value (AOV) of {curr_sym}{aov_val:,.2f}.")
+
+            if gross_profit is not None and gross_margin is not None:
+                lines.append(
+                    f"Gross Profit totaled {curr_sym}{float(gross_profit):,.2f} "
+                    f"(Gross Margin: {float(gross_margin):.2f}%), yielding a Net Profit of {curr_sym}{float(net_profit or 0):,.2f}."
+                )
+            else:
+                lines.append(
+                    "Gross Profit and Gross Margin are currently incomplete / unavailable because catalog product unit costs (COGS) are missing. "
+                    "Zero COGS is not assumed to avoid fabricated margins."
+                )
+                if net_profit is not None:
+                    lines.append(f"Net Profit totaled {curr_sym}{float(net_profit):,.2f}.")
+                else:
+                    lines.append("Net Profit is also marked incomplete as it depends on product cost data.")
 
             if comp:
                 chg = comp.get("percentage_change")
                 chg_str = f"{chg:+.2f}%" if chg is not None else "undefined"
-                lines.append(f"Compared to the preceding baseline, revenue changed by {chg_str} (${float(comp.get('absolute_change', 0)):+,.2f}).")
+                abs_val = comp.get("absolute_change")
+                abs_str = f"{curr_sym}{float(abs_val):+,.2f}" if abs_val is not None else "N/A"
+                lines.append(f"Compared to the preceding baseline, revenue changed by {chg_str} ({abs_str}).")
 
             if plan and plan.context_dates and plan.context_dates.get("is_far_future"):
                 date_str = f"{plan.context_dates.get('date_from')} to {plan.context_dates.get('date_to')}"
@@ -499,7 +559,7 @@ class MockLLMProvider(BaseLLMProvider):
             val = inv.get("total_inventory_valuation", 0.0)
             low = inv.get("low_stock_count", 0)
             out = inv.get("out_of_stock_count", 0)
-            lines.append(f"Total current inventory valuation is ${float(val):,.2f} across {inv.get('total_skus', 0)} SKUs.")
+            lines.append(f"Total current inventory valuation is {curr_sym}{float(val):,.2f} across {inv.get('total_skus', 0)} SKUs.")
             lines.append(f"Inventory alerts: {low} products are below their reorder threshold, and {out} products are completely out of stock.")
 
         # 6. Correlation / Statistics
@@ -512,12 +572,42 @@ class MockLLMProvider(BaseLLMProvider):
             lines.append(f"The {method} correlation coefficient is {coeff:.4f} (p-value: {p_val:.4e}, N={corr.get('sample_size')}), which is {sig} at alpha = 0.05.")
             lines.append(f"\nMethodological constraint: {corr.get('causation_warning')}")
 
-        # 7. Fallback generic summary
+        # 7. Business Profile
+        elif "get_business_profile" in tools_executed:
+            prof = next((r["result"] for r in tool_results if r["tool"] == "get_business_profile"), {})
+            name = prof.get("name")
+            industry = prof.get("industry")
+            country = prof.get("country")
+            currency = prof.get("currency")
+            tz = prof.get("timezone")
+            fy_start = prof.get("fiscal_year_start")
+            fy_month = prof.get("fiscal_year_start_month", f"Month {fy_start}")
+
+            lines.append("Verified Active Business Profile:")
+            lines.append(f"• Business Name: {name}")
+            lines.append(f"• Industry: {industry}")
+            lines.append(f"• Country: {country}")
+            lines.append(f"• Reporting Currency: {currency}")
+            lines.append(f"• Timezone: {tz}")
+            lines.append(f"• Fiscal Year Start: {fy_month} (Month {fy_start})")
+            lines.append("\nSource: Active Business Profile (database verified tenant record).")
+
+        # 8. Fallback generic summary
         else:
             first_res = tool_results[0].get("result", {})
             lines.append(f"Analysis completed successfully using {tools_executed[0]}.")
             if isinstance(first_res, dict):
                 lines.append(f"Key metrics: { {k: v for k, v in list(first_res.items())[:4]} }")
+
+        if "get_business_profile" in tools_executed:
+            if explanation_level in (ExplanationLevel.ANALYST, ExplanationLevel.TECHNICAL):
+                full_text = "\n".join(lines) + "\n\n--- Traceability & Evidence ---"
+                for ev in evidence:
+                    full_text += f"\n• Metric: {ev.get('metric')}"
+                    full_text += f"\n  Source tables: {', '.join(ev.get('source_tables', []))}"
+                    full_text += f"\n  Formula/Rule: {ev.get('calculation')}"
+                return full_text
+            return "\n".join(lines)
 
         if business_context:
             lines.append(f"\nBusiness Context:\n{business_context}")

@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -129,10 +130,26 @@ class InvestigationConclusion(BaseModel):
 
 class EvidenceGap(BaseModel):
     """Explicitly documented missing data or unmeasured factor preventing conclusive evaluation."""
+    gap_id: str = Field(
+        default_factory=lambda: f"GAP-{uuid4().hex[:6].upper()}",
+        description="Unique gap identifier"
+    )
+    area: str = Field(
+        default="External Market Telemetry",
+        description="Operational or domain area of the gap"
+    )
     description: str = Field(description="Description of what could not be established")
     affected_hypothesis: str | None = Field(default=None, description="Related hypothesis identifier")
     missing_data: str = Field(description="Specific data element or historical snapshot not available")
     impact: str = Field(description="Analytical consequence of this gap")
+    impact_assessment: str | None = Field(
+        default=None,
+        description="Compatibility alias matching frontend EvidenceGap.impact_assessment"
+    )
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.impact_assessment:
+            self.impact_assessment = self.impact
 
 
 class InvestigationStep(BaseModel):

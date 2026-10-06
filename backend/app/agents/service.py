@@ -200,6 +200,10 @@ class NexusAgentService:
         # ------------------------------------------------------------------ #
         # Phase 19: Workspace readiness + snapshot capture                    #
         # ------------------------------------------------------------------ #
+        from app.decisions.taxonomy import is_business_profile_query
+        if is_business_profile_query(query):
+            enforce_readiness = False
+
         snapshot: dict[str, Any] = {}
         readiness_error: Optional[str] = None
         readiness_stage: Optional[str] = None

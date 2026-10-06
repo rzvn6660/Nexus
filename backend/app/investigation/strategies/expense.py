@@ -84,9 +84,12 @@ class ExpenseInvestigationStrategy(BaseInvestigationStrategy):
     ) -> list[EvidenceGap]:
         return [
             EvidenceGap(
+                gap_id="GAP-EXP-01",
+                area="Vendor Invoicing & Line Receipts",
                 description="Sub-line vendor invoices and line-item expense receipts are summarized at category level.",
                 affected_hypothesis=None,
                 missing_data="Granular sub-invoice receipt telemetry",
-                impact="Analysis is limited to ledger categories without sub-vendor line scrutiny."
+                impact="Analysis is limited to ledger categories without sub-vendor line scrutiny.",
+                impact_assessment="Analysis is limited to ledger categories without sub-vendor line scrutiny.",
             )
         ]

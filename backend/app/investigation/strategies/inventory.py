@@ -115,9 +115,12 @@ class InventoryInvestigationStrategy(BaseInvestigationStrategy):
     ) -> list[EvidenceGap]:
         return [
             EvidenceGap(
+                gap_id="GAP-INV-01",
+                area="Historical Stock Telemetry",
                 description="Historical daily stock snapshot logs are unavailable in the operational schema.",
                 affected_hypothesis="stockout_constraint",
                 missing_data="Historical daily inventory balance snapshots",
-                impact="Current stock levels represent real-time state; cannot definitively prove past stockouts caused historical revenue drops."
+                impact="Current stock levels represent real-time state; cannot definitively prove past stockouts caused historical revenue drops.",
+                impact_assessment="Current stock levels represent real-time state; cannot definitively prove past stockouts caused historical revenue drops.",
             )
         ]

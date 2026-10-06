@@ -1,10 +1,12 @@
 """Investigation Engine orchestration service coordinating diagnostic analysis."""
 
+import calendar
 import time
 from datetime import date
 from typing import Any
 from uuid import uuid4
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agents.tools.date_interpreter import DateInterpreter
@@ -51,6 +53,102 @@ class InvestigationEngine:
         self.retriever = HybridRetriever(session)
         self.semantic_resolver = semantic_resolver
 
+    def _recalibrate_dates_for_tenant_data(
+        self,
+        resolved_dates: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Guard against investigations landing in a date window with zero tenant data.
+
+        DateInterpreter may resolve "decline / change / growth" queries to *last
+        calendar month relative to today*.  When the tenant's actual sales data
+        predates that window (e.g. seed data from 2024 queried with today=2026),
+        every metric will silently return $0.00.
+
+        Strategy (deterministic, no fabrication):
+        1. Query the tenant's real latest and earliest completed/shipped
+           transaction_date from the DB.
+        2. If the resolved date_to is *after* the tenant's latest transaction date,
+           shift the window to end at the tenant's last available full calendar
+           month and construct the preceding comparison month as baseline.
+        3. If the DB has no data at all, return the resolved dates unchanged so
+           the downstream tools correctly report zero.
+        """
+        from app.models.sale import Sale as SaleModel  # local import avoids circular
+
+        d_from_str = resolved_dates.get("date_from")
+        d_to_str = resolved_dates.get("date_to")
+
+        # Only recalibrate when the resolver produced explicit date bounds
+        if not d_from_str or not d_to_str:
+            return resolved_dates
+
+        try:
+            d_from = date.fromisoformat(str(d_from_str))
+            d_to = date.fromisoformat(str(d_to_str))
+        except (ValueError, TypeError):
+            return resolved_dates
+
+        # Query actual tenant coverage
+        stmt = select(
+            func.max(SaleModel.transaction_date).label("max_dt"),
+            func.min(SaleModel.transaction_date).label("min_dt"),
+        ).where(SaleModel.status.in_(["completed", "shipped"]))
+        if self.business_id:
+            stmt = stmt.where(SaleModel.business_id == self.business_id)
+
+        row = self.session.execute(stmt).one()
+        max_dt = row.max_dt
+        min_dt = row.min_dt
+
+        # No tenant data at all — leave dates unchanged, tools will return 0
+        if max_dt is None:
+            return resolved_dates
+
+        # Normalise to date (SQLite may return datetime)
+        if hasattr(max_dt, "date"):
+            max_dt = max_dt.date()
+        if hasattr(min_dt, "date"):
+            min_dt = min_dt.date()
+
+        # Window is already within or overlapping available data — no recalibration needed.
+        # Only recalibrate when the *start* of the evaluation window is already beyond
+        # the last data point (meaning the entire window is empty).
+        if d_from <= max_dt:
+            return resolved_dates
+
+        # The resolved window is entirely in the future relative to actual data.
+        # Recalibrate: use the last full calendar month that has data.
+        logger.info(
+            "Investigation date window [%s → %s] is beyond tenant data coverage "
+            "(latest: %s). Recalibrating to last available full month.",
+            d_from_str,
+            d_to_str,
+            max_dt,
+        )
+
+        # Last full month whose data we have
+        anchor_month = max_dt.month
+        anchor_year = max_dt.year
+        _, last_day = calendar.monthrange(anchor_year, anchor_month)
+        new_d_from = date(anchor_year, anchor_month, 1)
+        new_d_to = date(anchor_year, anchor_month, last_day)
+
+        # Comparison: preceding calendar month
+        comp_month = anchor_month - 1 if anchor_month > 1 else 12
+        comp_year = anchor_year if anchor_month > 1 else anchor_year - 1
+        _, comp_last_day = calendar.monthrange(comp_year, comp_month)
+        comp_from = date(comp_year, comp_month, 1)
+        comp_to = date(comp_year, comp_month, comp_last_day)
+
+        recalibrated = dict(resolved_dates)
+        recalibrated["date_from"] = new_d_from.isoformat()
+        recalibrated["date_to"] = new_d_to.isoformat()
+        recalibrated["comparison_date_from"] = comp_from.isoformat()
+        recalibrated["comparison_date_to"] = comp_to.isoformat()
+        recalibrated["matched_expression"] = f"recalibrated_to_{anchor_year}-{anchor_month:02d}"
+        return recalibrated
+
     def investigate(
         self,
         query: str,
@@ -65,6 +163,9 @@ class InvestigationEngine:
 
         # 1. Temporal boundary interpretation
         resolved_dates = DateInterpreter.interpret(query, reference_date=reference_date)
+
+        # 1a. Guard against future/empty windows — recalibrate to actual tenant data coverage
+        resolved_dates = self._recalibrate_dates_for_tenant_data(resolved_dates)
 
         # 2. Semantic layer resolution
         semantic_res = self.semantic_resolver.resolve(query)
@@ -300,10 +401,13 @@ class InvestigationEngine:
             comp_val = float(net_sales.get("comparison_value") or 0.0) if net_sales.get("comparison_value") is not None else None
             change_pct = float(net_sales.get("percentage_change") or 0.0) if net_sales.get("percentage_change") is not None else None
 
+            # Use the tenant's actual currency symbol from the result; fall back to $
+            currency_sym = result.get("currency_symbol") or "$"
+
             chg_str = f"{change_pct:+.1f}%" if change_pct is not None else ""
-            statement = f"Net Sales (Revenue) was measured at ${curr_val:,.2f}"
+            statement = f"Net Sales (Revenue) was measured at {currency_sym}{curr_val:,.2f}"
             if comp_val is not None:
-                statement += f" compared to ${comp_val:,.2f} in the baseline comparison period ({chg_str})."
+                statement += f" compared to {currency_sym}{comp_val:,.2f} in the baseline comparison period ({chg_str})."
             else:
                 statement += "."
 
@@ -344,23 +448,50 @@ class InvestigationEngine:
                         value_current=total_var,
                     )
                 )
+            else:
+                obs.append(
+                    InvestigationObservation(
+                        id=f"OBS-{step_num}-VAR-{dimension.upper()}",
+                        statement=f"Variance analysis by {dimension} is unavailable: current tenant lacks required line-item/product telemetry.",
+                        metric=f"variance_{dimension}",
+                        value_current=None,
+                        value_baseline=None,
+                        change_pct=None,
+                    )
+                )
 
         elif tool_name == "run_price_volume_mix":
             vol = float(result.get("volume_effect", 0.0))
             price = float(result.get("price_effect", 0.0))
             mix = float(result.get("mix_effect", 0.0))
-            total = float(result.get("total_variance", 1.0))
-            statement = (
-                f"Price/Volume/Mix decomposition reconciled revenue variance into: "
-                f"Volume Effect = ${vol:,.2f}, Price Effect = ${price:,.2f}, Mix Effect = ${mix:,.2f}."
-            )
-            obs.append(
-                InvestigationObservation(
-                    id=f"OBS-{step_num}-PVM",
-                    statement=statement,
-                    metric="price_volume_mix",
-                    value_current=total,
+            total = float(result.get("total_variance", 0.0))
+            if vol == 0.0 and price == 0.0 and mix == 0.0 and total == 0.0:
+                statement = (
+                    "Price/Volume/Mix decomposition is unavailable: "
+                    "current tenant lacks required line-item/product telemetry."
                 )
-            )
+                obs.append(
+                    InvestigationObservation(
+                        id=f"OBS-{step_num}-PVM",
+                        statement=statement,
+                        metric="price_volume_mix",
+                        value_current=None,
+                        value_baseline=None,
+                        change_pct=None,
+                    )
+                )
+            else:
+                statement = (
+                    f"Price/Volume/Mix decomposition reconciled revenue variance into: "
+                    f"Volume Effect = ${vol:,.2f}, Price Effect = ${price:,.2f}, Mix Effect = ${mix:,.2f}."
+                )
+                obs.append(
+                    InvestigationObservation(
+                        id=f"OBS-{step_num}-PVM",
+                        statement=statement,
+                        metric="price_volume_mix",
+                        value_current=total,
+                    )
+                )
 
         return obs

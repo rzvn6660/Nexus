@@ -48,7 +48,7 @@ def test_agent_with_investigation_flag_executes_diagnostic_flow(multi_period_db:
     assert "### Main contributors" in response.answer
 
 
-def test_agent_api_with_investigation_parameter(client: TestClient, multi_period_db: Session):
+def test_agent_api_with_investigation_parameter(authenticated_client: TestClient, multi_period_db: Session):
     """Verify POST /api/v1/agent/analyze works with is_investigation: true."""
     payload = {
         "query": "Why did gross margin fall in August 2024?",
@@ -57,7 +57,7 @@ def test_agent_api_with_investigation_parameter(client: TestClient, multi_period
         "is_investigation": True,
     }
 
-    res = client.post("/api/v1/agent/analyze", json=payload)
+    res = authenticated_client.post("/api/v1/agent/analyze", json=payload)
     assert res.status_code == 200
 
     data = res.json()

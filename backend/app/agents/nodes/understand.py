@@ -56,9 +56,23 @@ def understand_request_node(state: AgentState) -> dict[str, Any]:
                 "is_unsupported": False,
             }
 
-    # Intent classification via Decision Gateway
-    from app.decisions.taxonomy import get_canonical_intent_ids, resolve_intent
+    # Check for business profile query
+    from app.decisions.taxonomy import get_canonical_intent_ids, is_business_profile_query, resolve_intent
+    if is_business_profile_query(user_query):
+        intent_result = IntentResult(
+            category=IntentCategory.BUSINESS_PROFILE,
+            subtype="business_profile",
+            confidence=1.0,
+            reasoning="Query requests active tenant business workspace profile metadata.",
+        )
+        return {
+            "intent": intent_result.model_dump(),
+            "resolved_dates": resolved_dates,
+            "is_unsupported": False,
+            "evidence_status": "INSUFFICIENT",
+        }
 
+    # Intent classification via Decision Gateway
     gateway = get_decision_gateway()
     supported_intents = get_canonical_intent_ids()
     decision = gateway.route_intent(

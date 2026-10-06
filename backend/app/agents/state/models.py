@@ -20,6 +20,7 @@ class IntentCategory(str, Enum):
     STATISTICAL_ANALYSIS = "statistical_analysis"
     FORECASTING = "forecasting"
     SEMANTIC_RESOLUTION = "semantic_resolution"
+    BUSINESS_PROFILE = "business_profile"
     UNSUPPORTED = "unsupported"
 
 

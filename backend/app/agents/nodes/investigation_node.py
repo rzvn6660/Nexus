@@ -266,10 +266,10 @@ def _extract_observations(
         comp_val = float(net_sales.get("comparison_value") or 0.0) if net_sales.get("comparison_value") is not None else None
         change_pct = float(net_sales.get("percentage_change") or 0.0) if net_sales.get("percentage_change") is not None else None
 
-        chg_str = f"{change_pct:+.1f}%" if change_pct is not None else ""
-        statement = f"Net Sales (Revenue) was measured at ${curr_val:,.2f}"
+        curr_sym = result.get("currency_symbol") or (net_sales.get("formatted", "$")[0] if net_sales.get("formatted") and net_sales.get("formatted")[0] in ("$", "₹", "€", "£", "¥") else "$")
+        statement = f"Net Sales (Revenue) was measured at {curr_sym}{curr_val:,.2f}"
         if comp_val is not None:
-            statement += f" compared to ${comp_val:,.2f} in the baseline comparison period ({chg_str})."
+            statement += f" compared to {curr_sym}{comp_val:,.2f} in the baseline comparison period ({chg_str})."
         else:
             statement += "."
 
@@ -310,23 +310,50 @@ def _extract_observations(
                     value_current=total_var,
                 )
             )
+        else:
+            obs.append(
+                InvestigationObservation(
+                    id=f"OBS-{step_num}-VAR-{dimension.upper()}",
+                    statement=f"Variance analysis by {dimension} is unavailable: current tenant lacks required line-item/product telemetry.",
+                    metric=f"variance_{dimension}",
+                    value_current=None,
+                    value_baseline=None,
+                    change_pct=None,
+                )
+            )
 
     elif tool_name == "run_price_volume_mix":
         vol = float(result.get("volume_effect", 0.0))
         price = float(result.get("price_effect", 0.0))
         mix = float(result.get("mix_effect", 0.0))
-        total = float(result.get("total_variance", 1.0))
-        statement = (
-            f"Price/Volume/Mix decomposition reconciled revenue variance into: "
-            f"Volume Effect = ${vol:,.2f}, Price Effect = ${price:,.2f}, Mix Effect = ${mix:,.2f}."
-        )
-        obs.append(
-            InvestigationObservation(
-                id=f"OBS-{step_num}-PVM",
-                statement=statement,
-                metric="price_volume_mix",
-                value_current=total,
+        total = float(result.get("total_variance", 0.0))
+        if vol == 0.0 and price == 0.0 and mix == 0.0 and total == 0.0:
+            statement = (
+                "Price/Volume/Mix decomposition is unavailable: "
+                "current tenant lacks required line-item/product telemetry."
             )
-        )
+            obs.append(
+                InvestigationObservation(
+                    id=f"OBS-{step_num}-PVM",
+                    statement=statement,
+                    metric="price_volume_mix",
+                    value_current=None,
+                    value_baseline=None,
+                    change_pct=None,
+                )
+            )
+        else:
+            statement = (
+                f"Price/Volume/Mix decomposition reconciled revenue variance into: "
+                f"Volume Effect = ${vol:,.2f}, Price Effect = ${price:,.2f}, Mix Effect = ${mix:,.2f}."
+            )
+            obs.append(
+                InvestigationObservation(
+                    id=f"OBS-{step_num}-PVM",
+                    statement=statement,
+                    metric="price_volume_mix",
+                    value_current=total,
+                )
+            )
 
     return obs

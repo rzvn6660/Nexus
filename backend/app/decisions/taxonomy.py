@@ -266,6 +266,7 @@ LEGACY_INTENT_MAP: dict[str, tuple[str, str]] = {
     CanonicalIntent.FORECASTING.value: (CanonicalIntent.FORECASTING.value, "metric_projection"),
     CanonicalIntent.SEMANTIC_RESOLUTION.value: (CanonicalIntent.SEMANTIC_RESOLUTION.value, "semantic_resolution"),
     CanonicalIntent.UNSUPPORTED.value: (CanonicalIntent.UNSUPPORTED.value, "unsupported"),
+    "business_profile": ("business_profile", "business_profile"),
 }
 
 # Centralized Legacy Evaluation Tool -> Runtime Registered Tool Mapping
@@ -320,3 +321,34 @@ def resolve_tool(tool_name: str) -> str:
 def validate_intent_id(intent_id: str) -> bool:
     """Verify whether an intent ID is part of the canonical taxonomy."""
     return intent_id in CANONICAL_INTENT_DEFINITIONS
+
+
+def is_business_profile_query(query: str) -> bool:
+    """
+    Check if query is asking for active tenant business workspace profile metadata
+    (business name, industry, country, reporting currency, timezone, fiscal year).
+    """
+    if not query:
+        return False
+    q = query.lower().strip()
+
+    exact_phrases = [
+        "business name", "company name", "workspace name",
+        "our industry", "what industry",
+        "our country", "what country",
+        "reporting currency", "what currency", "our currency",
+        "our timezone", "what timezone", "our time zone", "what time zone",
+        "fiscal year", "fiscal year start",
+        "business profile", "workspace profile", "tenant profile",
+    ]
+    if any(p in q for p in exact_phrases):
+        financial_metric_terms = [
+            "revenue", "profit", "margin", "cogs", "expenses",
+            "orders", "inventory", "stock", "forecast", "variance"
+        ]
+        has_profile_fields = sum(1 for f in ["name", "industry", "country", "currency", "timezone", "fiscal"] if f in q)
+        if has_profile_fields >= 2:
+            return True
+        if not any(m in q for m in financial_metric_terms):
+            return True
+    return False

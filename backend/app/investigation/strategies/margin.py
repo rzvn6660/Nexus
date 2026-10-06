@@ -125,9 +125,12 @@ class MarginInvestigationStrategy(BaseInvestigationStrategy):
     ) -> list[EvidenceGap]:
         return [
             EvidenceGap(
+                gap_id="GAP-MARG-01",
+                area="Procurement & Batch Pricing",
                 description="Historical vendor purchase order price changes are not tracked per batch.",
                 affected_hypothesis=None,
                 missing_data="Vendor wholesale purchase order batch pricing",
-                impact="COGS is calculated using current product unit_cost rather than historical FIFO batches."
+                impact="COGS is calculated using current product unit_cost rather than historical FIFO batches.",
+                impact_assessment="COGS is calculated using current product unit_cost rather than historical FIFO batches.",
             )
         ]

@@ -134,9 +134,12 @@ class GenericDiagnosticStrategy(BaseInvestigationStrategy):
     ) -> list[EvidenceGap]:
         return [
             EvidenceGap(
+                gap_id="GAP-GEN-01",
+                area="Macroeconomic Environment",
                 description="Exogenous market conditions and customer behavioral surveys are unobserved.",
                 affected_hypothesis=None,
                 missing_data="Macroeconomic and consumer sentiment indices",
-                impact="Analysis is strictly confined to internal transactional records."
+                impact="Analysis is strictly confined to internal transactional records.",
+                impact_assessment="Analysis is strictly confined to internal transactional records.",
             )
         ]

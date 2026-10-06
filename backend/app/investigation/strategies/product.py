@@ -123,9 +123,12 @@ class ProductInvestigationStrategy(BaseInvestigationStrategy):
     ) -> list[EvidenceGap]:
         return [
             EvidenceGap(
+                gap_id="GAP-PROD-01",
+                area="Marketing & Campaign Attribution",
                 description="Marketing ad spend and promotional campaign tagging per SKU are not tracked.",
                 affected_hypothesis=None,
                 missing_data="Marketing campaign attribution data",
-                impact="Cannot determine whether product slowdown is correlated with reduced promotional ad spend."
+                impact="Cannot determine whether product slowdown is correlated with reduced promotional ad spend.",
+                impact_assessment="Cannot determine whether product slowdown is correlated with reduced promotional ad spend.",
             )
         ]

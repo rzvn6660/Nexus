@@ -114,9 +114,12 @@ class CustomerInvestigationStrategy(BaseInvestigationStrategy):
     ) -> list[EvidenceGap]:
         return [
             EvidenceGap(
+                gap_id="GAP-CUST-01",
+                area="Customer Qualitative Feedback",
                 description="Customer churn surveys, NPS feedback, and direct contact notes are not available.",
                 affected_hypothesis=None,
                 missing_data="Qualitative customer feedback & satisfaction scores",
-                impact="Cannot establish psychological or service-quality reasons behind customer inactivity."
+                impact="Cannot establish psychological or service-quality reasons behind customer inactivity.",
+                impact_assessment="Cannot establish psychological or service-quality reasons behind customer inactivity.",
             )
         ]

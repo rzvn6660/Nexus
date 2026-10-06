@@ -42,12 +42,25 @@ def get_onboarding_status(
 ) -> dict[str, Any]:
     """Get the onboarding status and data readiness for the current business workspace."""
     readiness = TenantDataService.get_data_readiness(db, context.business_id)
+    overall_status = readiness.get("status") or context.business.data_readiness_status
     return {
         "business_id": context.business_id,
         "business_name": context.business.name,
         "onboarding_step": context.business.onboarding_step,
-        "data_readiness_status": context.business.data_readiness_status,
+        "data_readiness_status": overall_status,
         "readiness_report": readiness,
+        "data_readiness": readiness,
+        "datasets": readiness.get("datasets", []),
+        "business": {
+            "id": context.business.id,
+            "name": context.business.name,
+            "industry": context.business.industry,
+            "country": context.business.country,
+            "currency": context.business.currency,
+            "timezone": context.business.timezone,
+            "business_type": context.business.business_type,
+            "fiscal_year_start": context.business.fiscal_year_start,
+        },
     }
 
 

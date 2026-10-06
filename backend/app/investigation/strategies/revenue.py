@@ -165,10 +165,36 @@ class RevenueInvestigationStrategy(BaseInvestigationStrategy):
     ) -> list[EvidenceGap]:
         gaps: list[EvidenceGap] = [
             EvidenceGap(
+                gap_id="GAP-REV-01",
+                area="Competitor & Market Pricing",
                 description="Competitor pricing and macroeconomic market indicators are unobserved.",
                 affected_hypothesis=None,
                 missing_data="External retail market benchmark data",
-                impact="Analysis is limited to internal operational and transactional telemetry."
+                impact="Analysis is limited to internal operational and transactional telemetry.",
+                impact_assessment="Analysis is limited to internal operational and transactional telemetry.",
             )
         ]
+
+        # Check if line-item/product telemetry was unavailable
+        has_items = any(
+            bool(r.get("top_negative_contributors") or r.get("top_positive_contributors") or r.get("items"))
+            for r in results
+            if r.get("dimension") in ("category", "product")
+        )
+        pvm_results = [r for r in results if "volume_effect" in r or "price_effect" in r]
+        pvm_has_variance = any(float(r.get("total_variance", 0.0)) != 0.0 for r in pvm_results)
+
+        if not has_items and pvm_results and not pvm_has_variance:
+            gaps.append(
+                EvidenceGap(
+                    gap_id="GAP-REV-02",
+                    area="Line-Item & Product Telemetry",
+                    description="Current tenant lacks required line-item and product telemetry for itemized driver decomposition.",
+                    affected_hypothesis="product_mix_shift",
+                    missing_data="Granular line items (sale_items, products)",
+                    impact="Price/Volume/Mix decomposition and category concentration cannot be evaluated; analysis relies on aggregate order totals.",
+                    impact_assessment="Price/Volume/Mix decomposition and category concentration cannot be evaluated; analysis relies on aggregate order totals.",
+                )
+            )
+
         return gaps

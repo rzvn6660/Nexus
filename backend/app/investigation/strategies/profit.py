@@ -137,9 +137,12 @@ class ProfitInvestigationStrategy(BaseInvestigationStrategy):
     ) -> list[EvidenceGap]:
         return [
             EvidenceGap(
+                gap_id="GAP-PROF-01",
+                area="Corporate Accounting Scope",
                 description="Capital expenditures, depreciation, debt service, and corporate income taxes are not in scope.",
                 affected_hypothesis=None,
                 missing_data="Non-cash corporate accounting records",
-                impact="Analysis is limited to operational Gross Profit and Operating Income (EBIT)."
+                impact="Analysis is limited to operational Gross Profit and Operating Income (EBIT).",
+                impact_assessment="Analysis is limited to operational Gross Profit and Operating Income (EBIT).",
             )
         ]

@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from app.agents.tools.models import (
+    BusinessProfileToolInput,
     CategoryBreakdownToolInput,
     CohortAnalysisToolInput,
     CorrelationToolInput,
@@ -163,6 +164,7 @@ class ToolRegistry:
         def _exec_financial_summary(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
             service = AnalyticsService(session, business_id=args.get("business_id"))
             context = AnalysisContext(
+                business_id=args.get("business_id"),
                 date_from=args.get("date_from"),
                 date_to=args.get("date_to"),
                 comparison_date_from=args.get("comparison_date_from"),
@@ -757,6 +759,79 @@ class ToolRegistry:
             category="statistics",
             input_schema=MethodRecommendationToolInput,
             handler=_exec_method_rec,
+        ))
+
+        # 22. Business Profile Context
+        def _exec_business_profile(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
+            business_id = args.get("business_id")
+            if not business_id:
+                return ToolExecutionResult(
+                    tool="get_business_profile",
+                    status="error",
+                    result={},
+                    error_message="Tenant authentication required: business_id is missing.",
+                )
+            from sqlalchemy import select
+            from uuid import uuid4
+            from app.models.tenant import Business
+            from app.analytics.evidence.models import EvidenceRecord
+
+            biz = session.execute(
+                select(Business).where(Business.id == business_id)
+            ).scalar_one_or_none()
+
+            if not biz:
+                return ToolExecutionResult(
+                    tool="get_business_profile",
+                    status="error",
+                    result={},
+                    error_message=f"Business workspace '{business_id}' not found.",
+                )
+
+            fiscal_month_names = {
+                1: "January", 2: "February", 3: "March", 4: "April",
+                5: "May", 6: "June", 7: "July", 8: "August",
+                9: "September", 10: "October", 11: "November", 12: "December"
+            }
+            fiscal_str = fiscal_month_names.get(biz.fiscal_year_start, f"Month {biz.fiscal_year_start}")
+
+            profile_data = {
+                "business_id": biz.id,
+                "name": biz.name,
+                "industry": biz.industry,
+                "country": biz.country,
+                "currency": biz.currency,
+                "timezone": biz.timezone,
+                "fiscal_year_start": biz.fiscal_year_start,
+                "fiscal_year_start_month": fiscal_str,
+            }
+
+            evidence = EvidenceRecord(
+                analysis_id=str(uuid4()),
+                metric="business_profile",
+                source_tables=["businesses"],
+                calculation="SELECT name, industry, country, currency, timezone, fiscal_year_start FROM businesses WHERE id = :business_id",
+                assumptions=["Verified tenant workspace profile retrieved directly from database."],
+                limitations=[],
+                data_quality_status="verified",
+                record_count=1,
+            )
+
+            return ToolExecutionResult(
+                tool="get_business_profile",
+                status="success",
+                result=profile_data,
+                evidence=_serialize_obj(evidence),
+                assumptions=evidence.assumptions,
+                limitations=evidence.limitations,
+            )
+
+        self.register(AnalyticsTool(
+            name="get_business_profile",
+            description="Retrieves verified tenant business workspace profile (name, industry, country, currency, timezone, fiscal year) deterministically from the database.",
+            category="context",
+            input_schema=BusinessProfileToolInput,
+            handler=_exec_business_profile,
         ))
 
 
