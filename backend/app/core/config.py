@@ -73,13 +73,31 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
 
     # AI / LLM Layer Configuration
-    DEFAULT_LLM_PROVIDER: str = "openai"
+    DEFAULT_LLM_PROVIDER: str = "mock"
     DEFAULT_LLM_MODEL: str = "gpt-4o"
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
     MAX_AGENT_ITERATIONS: int = 5
     DEFAULT_EXPLANATION_LEVEL: str = "manager"
+
+    # Phase 24 — Intelligence 2.0 & Multi-Tier LLM Architecture
+    LLM_ROUTING_ENABLED: bool = True
+    LLM_DEFAULT_TIER: str = "low_cost"
+    LLM_LOW_COST_PROVIDER: str = "mock"
+    LLM_LOW_COST_MODEL: str = "mock-fast"
+    LLM_STRONG_REASONING_PROVIDER: str = "mock"
+    LLM_STRONG_REASONING_MODEL: str = "mock-reasoning"
+    LLM_FALLBACK_PROVIDER: str = "mock"
+    LLM_FALLBACK_MODEL: str = "mock-deterministic"
+    LLM_ALLOW_EXTERNAL_CALLS: bool = False  # Strict Guard: Prevent accidental external paid LLM calls
+    LLM_REQUEST_TIMEOUT_SECONDS: float = 10.0
+    LLM_MAX_RETRIES: int = 2
+
+    # Phase 24 Hardening — Free-First Quota & Budget Strategy
+    LLM_FREE_TIER_DAILY_REQUEST_LIMIT: int = 1000
+    LLM_FREE_TIER_DAILY_TOKEN_LIMIT: int = 1_000_000
+    LLM_MONTHLY_BUDGET_USD: float = 50.0
 
     # Phase 12 Decision Gateway Configuration
     DECISION_PROVIDER: str = "structured_llm"

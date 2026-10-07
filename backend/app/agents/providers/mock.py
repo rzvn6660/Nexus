@@ -4,9 +4,19 @@ Provides reproducible intent classification, structured analysis planning, and e
 explanations without making external API calls or incurring costs.
 """
 
-from typing import Any
+import json
+import time
+from typing import Any, TypeVar
+from pydantic import BaseModel
 
 from app.agents.providers.base import BaseLLMProvider
+from app.agents.providers.models import (
+    LLMRequest,
+    LLMResponse,
+    LLMTaskCategory,
+    ModelTier,
+    TokenUsage,
+)
 from app.agents.state.models import (
     AnalysisPlan,
     ExplanationLevel,
@@ -14,6 +24,8 @@ from app.agents.state.models import (
     IntentResult,
     PlanStep,
 )
+
+T = TypeVar("T", bound=BaseModel)
 
 
 def _extract_currency_symbol(tool_results: list[dict[str, Any]], default: str = "$") -> str:
@@ -632,3 +644,190 @@ class MockLLMProvider(BaseLLMProvider):
             return full_text
 
         return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Intelligence 2.0 Unified Provider Methods (Phase 24)
+    # ------------------------------------------------------------------
+
+    @property
+    def provider_name(self) -> str:
+        return "mock"
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        """
+        Execute deterministic offline handling for all NEXUS task categories.
+        Zero external API calls, zero cost, completely reproducible.
+        """
+        start = time.perf_counter()
+        q = request.prompt.strip()
+        ctx = request.context or {}
+        cat = request.task_category
+
+        parsed: dict[str, Any] | None = None
+        content = ""
+
+        if cat == LLMTaskCategory.INTENT_UNDERSTANDING:
+            supported = ctx.get("supported_intents", [
+                "metric_lookup", "breakdown", "comparison", "trend",
+                "diagnostic", "forecasting", "business_profile", "unsupported"
+            ])
+            intent_res = self.classify_intent(q, supported)
+            parsed = intent_res.model_dump()
+            content = json.dumps(parsed)
+
+        elif cat == LLMTaskCategory.STRUCTURED_OUTPUT:
+            if request.schema_model == "AnalysisPlan":
+                intent_val = ctx.get("intent")
+                if intent_val:
+                    try:
+                        resolved_intent = IntentCategory(intent_val)
+                    except ValueError:
+                        resolved_intent = IntentCategory.METRIC_LOOKUP
+                else:
+                    classified = self.classify_intent(q, [])
+                    resolved_intent = classified.category
+
+                plan = self.create_plan(
+                    query=q,
+                    intent=resolved_intent,
+                    available_tools=ctx.get("available_tools", []),
+                    resolved_dates=ctx.get("resolved_dates", {}),
+                )
+                parsed = plan.model_dump()
+            elif request.schema_model == "IntentResult":
+                intent_res = self.classify_intent(q, ctx.get("supported_intents", []))
+                parsed = intent_res.model_dump()
+            else:
+                parsed = {
+                    "status": "success",
+                    "task": cat.value,
+                    "query": q,
+                    "extracted_parameters": ctx.get("parameters", {}),
+                }
+            content = json.dumps(parsed)
+
+        elif cat == LLMTaskCategory.TOOL_SELECTION:
+            avail = ctx.get("available_tools", [])
+            avail_names = [t.get("name") if isinstance(t, dict) else str(t) for t in avail]
+            q_lower = q.lower()
+            selected: list[str] = []
+            if "profile" in q_lower or "business" in q_lower:
+                selected.append("get_business_profile")
+            elif "diagnostic" in q_lower or "variance" in q_lower or "why" in q_lower:
+                selected.append("get_diagnostic_tree")
+            elif "inventory" in q_lower or "turnover" in q_lower:
+                selected.append("get_inventory_metrics")
+            elif "forecast" in q_lower:
+                selected.append("get_forecast_metrics")
+            else:
+                selected.append("get_revenue_metrics")
+
+            valid_selected = [s for s in selected if s in avail_names] or (avail_names[:1] if avail_names else ["get_revenue_metrics"])
+            parsed = {
+                "selected_tools": valid_selected,
+                "reasoning": f"Deterministic mock tool selection based on analytical query intent: {valid_selected}",
+            }
+            content = json.dumps(parsed)
+
+        elif cat == LLMTaskCategory.SQL_DATA_PLANNING:
+            parsed = {
+                "plan_type": "analytical_sql",
+                "target_tables": ["orders", "order_items", "products"],
+                "aggregations": ["SUM(net_sales)", "COUNT(DISTINCT order_id)"],
+                "time_grain": ctx.get("time_grain", "daily"),
+                "safe_read_only": True,
+                "rationale": "Read-only analytical aggregation plan adhering to multi-tenant isolation.",
+            }
+            content = json.dumps(parsed)
+
+        elif cat == LLMTaskCategory.AMBIGUITY_RESOLUTION:
+            is_ambiguous = "breakdown" in q.lower() and not any(m in q.lower() for m in ["revenue", "profit", "order", "sales"])
+            if is_ambiguous:
+                parsed = {
+                    "is_ambiguous": True,
+                    "clarification_needed": "metric_and_dimension",
+                    "clarification_question": "Please specify the business metric and dimension you would like to analyze.",
+                    "suggested_options": ["Revenue by Product Category", "Order Volume by Channel", "Gross Margin by Month"],
+                }
+            else:
+                parsed = {
+                    "is_ambiguous": False,
+                    "clarification_needed": None,
+                    "clarification_question": None,
+                }
+            content = json.dumps(parsed)
+
+        elif cat == LLMTaskCategory.COMPLEX_INVESTIGATION_REASONING:
+            parsed = {
+                "investigation_focus": "revenue_variance",
+                "hypotheses_evaluated": [
+                    {"name": "Price elasticity drop", "status": "REJECTED", "confidence": 0.85},
+                    {"name": "Catalog mix shift", "status": "CONFIRMED", "confidence": 0.92},
+                    {"name": "Return volume increase", "status": "INCONCLUSIVE", "confidence": 0.50},
+                ],
+                "correlation_disclaimer": "Observed metric movements represent statistical correlation and do not establish unverified operational causation.",
+            }
+            content = json.dumps(parsed)
+
+        elif cat == LLMTaskCategory.EXPLANATION:
+            exp_lvl = ExplanationLevel(ctx.get("explanation_level", "manager"))
+            content = self.explain_results(
+                query=q,
+                plan=None,
+                tool_results=ctx.get("tool_results", []),
+                evidence=ctx.get("evidence", []),
+                explanation_level=exp_lvl,
+                business_context=ctx.get("business_context"),
+            )
+            parsed = {"explanation": content}
+
+        elif cat == LLMTaskCategory.EVIDENCE_INTERPRETATION:
+            evidence = ctx.get("evidence", [])
+            has_missing_cost = any("cost" in str(e).lower() and "incomplete" in str(e).lower() for e in evidence)
+            lines = [
+                "Evidence Interpretation Summary:",
+                f"- Total evidence items evaluated: {len(evidence)}",
+                "- Deterministic source verification: PASS",
+            ]
+            if has_missing_cost:
+                lines.append("- Cost metrics are incomplete due to unconfigured catalog unit costs.")
+            lines.append("- Statistical association noted; no speculative causal assumptions made.")
+            content = "\n".join(lines)
+            parsed = {
+                "evidence_status": "SUFFICIENT" if evidence else "PARTIAL",
+                "missing_cost_noted": has_missing_cost,
+                "summary": content,
+            }
+
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        p_tokens = max(5, len(q.split()) * 2)
+        c_tokens = max(5, len(content.split()) * 2)
+
+        return LLMResponse(
+            content=content,
+            parsed_data=parsed,
+            task_category=cat,
+            model_name="mock-deterministic",
+            provider_name=self.provider_name,
+            tier=request.preferred_tier or ModelTier.LOCAL_FALLBACK,
+            latency_ms=elapsed_ms,
+            usage=TokenUsage(
+                prompt_tokens=p_tokens,
+                completion_tokens=c_tokens,
+                total_tokens=p_tokens + c_tokens,
+            ),
+            estimated_cost_usd=0.0,
+            is_fallback=False,
+        )
+
+    def generate_structured(
+        self, request: LLMRequest, response_model: type[T]
+    ) -> tuple[T, LLMResponse]:
+        """Generate structured response validated against response_model."""
+        request.schema_model = response_model.__name__
+        resp = self.generate(request)
+        if resp.parsed_data:
+            instance = response_model.model_validate(resp.parsed_data)
+        else:
+            instance = response_model.model_validate(json.loads(resp.content))
+        return instance, resp
