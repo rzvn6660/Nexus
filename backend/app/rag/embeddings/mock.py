@@ -18,12 +18,29 @@ class MockEmbeddingProvider(BaseEmbeddingProvider):
     3. Require zero external API keys or network calls.
     """
 
-    def __init__(self, dimension: int = 1536) -> None:
+    def __init__(self, dimension: int = 1536, version: str = "v1") -> None:
         self._dim = dimension
+        self._version = version
 
     @property
     def dimension(self) -> int:
         return self._dim
+
+    @property
+    def provider_name(self) -> str:
+        return "mock"
+
+    @property
+    def model_name(self) -> str:
+        return "mock-sha256"
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @property
+    def is_mock(self) -> bool:
+        return True
 
     def _hash_token(self, token: str, seed: int = 0) -> int:
         """Produce a deterministic 32-bit integer hash from token string."""

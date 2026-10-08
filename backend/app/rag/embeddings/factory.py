@@ -28,21 +28,39 @@ def get_embedding_provider(
 
     if chosen == "openai":
         if not settings.OPENAI_API_KEY:
-            logger.warning(
-                "OPENAI_API_KEY is not set. Falling back to MockEmbeddingProvider for safe execution."
+            raise ValueError(
+                "EMBEDDING_PROVIDER is configured as 'openai', but OPENAI_API_KEY is missing. "
+                "Configure OPENAI_API_KEY in your environment, or explicitly set EMBEDDING_PROVIDER='mock' "
+                "for offline testing."
             )
-            provider = MockEmbeddingProvider(dimension=settings.EMBEDDING_DIMENSION)
-        else:
-            try:
-                provider = OpenAIEmbeddingProvider()
-            except (ImportError, ValueError, RuntimeError, OSError) as e:
-                logger.error(f"Failed to initialize OpenAIEmbeddingProvider: {e}. Falling back to mock.")
-                provider = MockEmbeddingProvider(dimension=settings.EMBEDDING_DIMENSION)
+        try:
+            provider = OpenAIEmbeddingProvider()
+        except Exception as e:
+            logger.error("Failed to initialize OpenAIEmbeddingProvider: %s", e)
+            raise RuntimeError(
+                f"Failed to initialize configured OpenAIEmbeddingProvider: {e}. "
+                "Silent fallback to mock is prohibited in production."
+            ) from e
+    elif chosen == "local":
+        try:
+            from app.rag.embeddings.local import LocalEmbeddingProvider
+            provider = LocalEmbeddingProvider()
+        except Exception as e:
+            logger.error("Failed to initialize LocalEmbeddingProvider: %s", e)
+            raise RuntimeError(
+                f"Failed to initialize configured LocalEmbeddingProvider: {e}. "
+                "Silent fallback to mock is prohibited in production."
+            ) from e
     elif chosen == "mock":
-        provider = MockEmbeddingProvider(dimension=settings.EMBEDDING_DIMENSION)
+        provider = MockEmbeddingProvider(
+            dimension=settings.EMBEDDING_DIMENSION,
+            version=settings.EMBEDDING_VERSION,
+        )
     else:
-        logger.warning(f"Unknown embedding provider '{chosen}', defaulting to MockEmbeddingProvider.")
-        provider = MockEmbeddingProvider(dimension=settings.EMBEDDING_DIMENSION)
+        raise ValueError(
+            f"Unsupported EMBEDDING_PROVIDER '{chosen}'. "
+            "Supported providers: 'openai', 'local', 'mock'."
+        )
 
     if provider_name is None and not force_new:
         _embedding_provider_instance = provider

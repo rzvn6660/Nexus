@@ -46,3 +46,9 @@ class RetrievedContext(BaseModel):
     has_conflict: bool = False
     conflict_description: str | None = None
     context_text: str = ""
+    embedding_provider: str | None = None
+    embedding_model: str | None = None
+    retrieval_mode: str = "standard"  # "pgvector_native", "sqlite_fallback", "exact_kpi_match"
+    stale_vectors_excluded: int = 0
+    execution_time_ms: float = 0.0
+

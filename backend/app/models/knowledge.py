@@ -70,9 +70,21 @@ class KnowledgeChunk(Base):
     business_domain: Mapped[str] = mapped_column(String(50), nullable=False, default="general", index=True)
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    business_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    chunk_hash: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+    embedding_provider: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+    embedding_dimension: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    embedding_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=datetime.utcnow,
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
         nullable=False,
     )
 

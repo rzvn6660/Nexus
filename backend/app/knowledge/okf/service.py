@@ -191,8 +191,12 @@ class OKFService:
         session.add(doc)
         session.flush()
 
-        for idx, it in enumerate(bundle.items):
-            # Format text explicitly distinguishing business context definition from evidence
+        from app.rag.embeddings.factory import get_embedding_provider
+        embedding_provider = get_embedding_provider()
+
+        # Format texts for all items
+        chunk_texts: list[str] = []
+        for it in bundle.items:
             chunk_content_lines = [
                 f"[Business Context Definition: {it.name}]",
                 f"**Domain**: {it.domain} | **Type**: {it.type.value} | **Status**: {it.status.value}",
@@ -204,12 +208,16 @@ class OKFService:
                 chunk_content_lines.append(f"**Synonyms / Aliases**: {', '.join(it.synonyms)}")
             if it.description:
                 chunk_content_lines.append(f"**Business Meaning / Policy**:\n{it.description}")
+            chunk_texts.append("\n".join(chunk_content_lines))
 
-            content_text = "\n".join(chunk_content_lines)
+        # Batch generate embeddings via active provider (no more zero vectors!)
+        embeddings = embedding_provider.get_embeddings(chunk_texts) if chunk_texts else []
 
-            # Dummy embedding for test/offline environments if not available
-            embedding_val = [0.0] * 1536
+        for idx, it in enumerate(bundle.items):
+            content_text = chunk_texts[idx]
+            chunk_embedding = embeddings[idx] if idx < len(embeddings) else None
             chunk_id = f"chk_okf_{business_id}_{bundle.id}_{it.id}" if business_id else f"chk_okf_{bundle.id}_{it.id}"
+            chunk_hash = hashlib.sha256(content_text.encode("utf-8")).hexdigest()
 
             chunk = KnowledgeChunk(
                 document_id=doc.id,
@@ -217,7 +225,13 @@ class OKFService:
                 chunk_index=idx,
                 title=it.name,
                 content=content_text,
-                embedding=embedding_val,
+                embedding=chunk_embedding,
+                business_id=business_id,
+                chunk_hash=chunk_hash,
+                embedding_provider=embedding_provider.provider_name,
+                embedding_model=embedding_provider.model_name,
+                embedding_dimension=embedding_provider.dimension,
+                embedding_version=embedding_provider.version,
                 business_domain=it.domain if it.domain != "general" else "retail",
                 tags=it.tags,
                 metadata_json={

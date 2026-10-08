@@ -125,9 +125,56 @@ class DocumentIngestionService:
         if not chunks:
             raise ValueError("Document yielded no valid semantic chunks.")
 
-        # Batch generate embeddings
-        chunk_texts = [c.content for c in chunks]
-        embeddings = self.embedding_provider.get_embeddings(chunk_texts)
+        # Differential Ingestion: Look for previous version of document with same source & title in this business scope
+        prev_doc = None
+        if source:
+            prev_doc_stmt = select(KnowledgeDocument).where(
+                KnowledgeDocument.source == source,
+                KnowledgeDocument.title == metadata.title,
+                KnowledgeDocument.status == "active",
+            )
+            if business_id is not None:
+                prev_doc_stmt = prev_doc_stmt.where(KnowledgeDocument.business_id == business_id)
+            else:
+                prev_doc_stmt = prev_doc_stmt.where(KnowledgeDocument.business_id.is_(None))
+            prev_doc = self.session.execute(prev_doc_stmt).scalars().first()
+
+        cached_embeddings: dict[str, list[float]] = {}
+        if prev_doc:
+            for old_c in prev_doc.chunks:
+                if (
+                    old_c.chunk_hash
+                    and old_c.embedding
+                    and old_c.embedding_model == self.embedding_provider.model_name
+                ):
+                    cached_embeddings[old_c.chunk_hash] = old_c.embedding
+
+        # Compute hash for each chunk and identify which chunks need fresh embeddings
+        chunk_hashes: list[str] = [
+            hashlib.sha256(c.content.encode("utf-8")).hexdigest() for c in chunks
+        ]
+        to_embed_indices: list[int] = []
+        to_embed_texts: list[str] = []
+        final_embeddings: list[list[float] | None] = [None] * len(chunks)
+
+        for idx, (chunk_data, chash) in enumerate(zip(chunks, chunk_hashes)):
+            if chash in cached_embeddings:
+                final_embeddings[idx] = cached_embeddings[chash]
+            else:
+                to_embed_indices.append(idx)
+                to_embed_texts.append(chunk_data.content)
+
+        # Batch embed only new or modified chunks
+        if to_embed_texts:
+            fresh_embeddings = self.embedding_provider.get_embeddings(to_embed_texts)
+            for list_idx, emb in enumerate(fresh_embeddings):
+                target_idx = to_embed_indices[list_idx]
+                final_embeddings[target_idx] = emb
+
+        # If a previous document version existed, mark it as superseded
+        if prev_doc:
+            prev_doc.status = "superseded"
+            logger.info("Marked previous document id=%s as superseded by new version", prev_doc.document_id)
 
         # Create KnowledgeDocument record
         doc_id = f"doc_{uuid.uuid4().hex[:12]}"
@@ -149,9 +196,9 @@ class DocumentIngestionService:
         self.session.add(doc_record)
         self.session.flush()  # populate doc_record.id
 
-        # Create KnowledgeChunk records
+        # Create KnowledgeChunk records with full lineage and tenant metadata
         for i, chunk_data in enumerate(chunks):
-            chunk_embedding = embeddings[i] if i < len(embeddings) else None
+            chunk_embedding = final_embeddings[i]
             chunk_record = KnowledgeChunk(
                 document_id=doc_record.id,
                 chunk_id=chunk_data.chunk_id,
@@ -159,6 +206,12 @@ class DocumentIngestionService:
                 title=chunk_data.title,
                 content=chunk_data.content,
                 embedding=chunk_embedding,
+                business_id=business_id,
+                chunk_hash=chunk_hashes[i],
+                embedding_provider=self.embedding_provider.provider_name,
+                embedding_model=self.embedding_provider.model_name,
+                embedding_dimension=self.embedding_provider.dimension,
+                embedding_version=self.embedding_provider.version,
                 business_domain=chunk_data.business_domain,
                 tags=chunk_data.tags,
                 metadata_json=chunk_data.metadata_json,
@@ -166,12 +219,15 @@ class DocumentIngestionService:
             self.session.add(chunk_record)
 
         self.session.commit()
+        reused_count = len(chunks) - len(to_embed_texts)
         logger.info(
-            "Successfully ingested document id=%s, title='%s', chunks=%d, provider=%s",
+            "Successfully ingested document id=%s, title='%s', chunks=%d (reused %d, fresh embedded %d), provider=%s",
             doc_id,
             metadata.title,
             len(chunks),
-            type(self.embedding_provider).__name__,
+            reused_count,
+            len(to_embed_texts),
+            self.embedding_provider.model_name,
         )
 
         return IngestionResult(

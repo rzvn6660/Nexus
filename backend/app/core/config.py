@@ -116,13 +116,22 @@ class Settings(BaseSettings):
     JEV_API_KEY: str | None = None
     JEV_MODEL: str = "jev-latest"
 
-    # RAG / Semantic Layer Configuration
+    # RAG / Semantic Layer Configuration (Phase 25B Production Settings)
     EMBEDDING_PROVIDER: str = "mock"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_DIMENSION: int = 1536
+    EMBEDDING_VERSION: str = "v1"
+    EMBEDDING_BATCH_SIZE: int = 64
+    EMBEDDING_TIMEOUT_SECONDS: float = 15.0
+    EMBEDDING_MAX_RETRIES: int = 3
+    LOCAL_EMBEDDING_BASE_URL: str | None = None
+    LOCAL_EMBEDDING_MODEL: str = "BAAI/bge-m3"
     VECTOR_STORE_TYPE: str = "pgvector"
     RAG_TOP_K: int = 3
     RAG_SIMILARITY_THRESHOLD: float = 0.2
+    RAG_HYBRID_SEARCH_ENABLED: bool = True
+    RAG_HYBRID_SEMANTIC_WEIGHT: float = 0.7
+    RAG_HYBRID_LEXICAL_WEIGHT: float = 0.3
     MAX_DOCUMENT_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB max document size
 
     # Investigation / Diagnostic Intelligence Layer

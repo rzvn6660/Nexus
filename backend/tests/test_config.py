@@ -98,7 +98,7 @@ def test_alembic_full_migration_chain() -> None:
     # Verify single head
     heads = [rev for rev, down in chain.items() if rev not in chain.values()]
     assert len(heads) == 1, f"Expected exactly 1 migration head, got: {heads}"
-    assert heads[0] == "009_phase23_ingestion_job_timestamps"
+    assert heads[0] == "010_phase25b_knowledge_chunk_metadata_and_hnsw"
 
     # Walk from head to base None
     current = heads[0]
