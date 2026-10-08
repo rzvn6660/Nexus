@@ -15,6 +15,7 @@ Verifies:
 12. Benchmark provider independence and baseline distinction
 """
 
+from typing import Any
 import pytest
 from pydantic import BaseModel
 
@@ -597,4 +598,542 @@ def test_19_no_provider_limit_is_treated_as_permanently_authoritative() -> None:
     gemini_flash.quota_state.requests_limit = 500
     gemini_flash.quota_state.limit_source = "configured"
     assert gemini_flash.quota_state.effective_requests_limit == 500
+
+
+def test_20_registry_completeness_includes_all_candidate_families() -> None:
+    """Requirement Phase 24B: Verify all 10 candidate families are properly registered."""
+    registry = get_candidate_registry()
+
+    required_candidate_keys = [
+        "groq",
+        "gemini-flash",
+        "gemini-pro",
+        "qwen",
+        "deepseek-r1",
+        "deepseek-v3",
+        "kimi",
+        "grok",
+        "openrouter-free",
+        "ollama-local",
+        "openai-gpt4o",
+        "mock",
+    ]
+
+    for key in required_candidate_keys:
+        cand = registry.get(key)
+        assert cand is not None, f"Expected candidate '{key}' to be registered"
+        assert cand.model_name != ""
+        assert len(cand.capabilities) > 0
+        assert cand.lane is not None
+
+    # Verify Qwen and Kimi specific capabilities
+    qwen = registry.get("qwen")
+    assert ModelCapability.SQL_PLANNING in qwen.capabilities
+    assert ModelCapability.REASONING in qwen.capabilities
+
+    kimi = registry.get("kimi")
+    assert ModelCapability.EVIDENCE_INTERPRETATION in kimi.capabilities
+    assert ModelCapability.CONTEXT_WINDOW in kimi.capabilities
+
+
+def test_21_provider_credential_isolation_and_missing_key_behavior() -> None:
+    """Requirement Phase 24B: Verify uncredentialed providers report unavailable without crashing."""
+    registry = get_candidate_registry()
+
+    groq = registry.get("groq")
+    assert groq is not None
+
+    # When external calls are disallowed, availability check must return False safely
+    is_avail, reason = groq.check_availability(allow_external=False)
+    assert is_avail is False
+    assert "DISABLED" in reason or "MISSING" in reason
+
+    # When external calls are allowed but key is absent
+    is_avail_with_ext, reason_ext = groq.check_availability(allow_external=True)
+    if not getattr(settings, "GROQ_API_KEY", None):
+        assert is_avail_with_ext is False
+        assert "NOT_RUN_MISSING_CREDENTIALS" in reason_ext
+        assert "GROQ_API_KEY" in reason_ext
+
+
+def test_22_live_adapter_blocks_external_calls_when_disabled() -> None:
+    """Requirement Phase 24B: Verify OpenAICompatibleLiveProvider enforces safety gating."""
+    from app.agents.providers.live_adapter import OpenAICompatibleLiveProvider
+    from app.agents.providers.models import LLMSafetyGuardViolationError, LLMProviderUnavailableError
+
+    # Create adapter for uncredentialed external provider
+    ext_provider = OpenAICompatibleLiveProvider(
+        provider_name="test-external-candidate",
+        model_name="test-model",
+        base_url="https://api.example.com/v1",
+        api_key=None,
+        api_key_env_var="NON_EXISTENT_KEY_FOR_TEST",
+        is_local=False,
+    )
+
+    req = LLMRequest(
+        task_category=LLMTaskCategory.INTENT_UNDERSTANDING,
+        prompt="Show sales numbers",
+    )
+
+    # Calling generate without credentials or permissions must raise safe guard error
+    with pytest.raises((LLMSafetyGuardViolationError, LLMProviderUnavailableError)) as excinfo:
+        ext_provider.generate(req)
+    assert "blocked" in str(excinfo.value).lower() or "unavailable" in str(excinfo.value).lower()
+
+
+def test_23_benchmark_suite_accurately_categorizes_not_run_vs_baseline() -> None:
+    """Requirement Phase 24B: Verify benchmark suite distinguishes NOT_RUN vs Baseline without fabricating data."""
+    from evaluation.benchmarks.llm_provider_benchmark import MultiCandidateBenchmarkSuite, BenchmarkMode
+
+    suite = MultiCandidateBenchmarkSuite(allow_external=False, run_ollama=False)
+    results = suite.run_suite()
+
+    # Mock baseline must complete with deterministic baseline mode
+    assert "mock" in results
+    mock_res = results["mock"]
+    assert mock_res.status == "COMPLETED"
+    assert mock_res.mode == BenchmarkMode.DETERMINISTIC_LOCAL_BASELINE.value
+    assert mock_res.report is not None
+    assert mock_res.report.overall_score > 0.9
+
+    # Uncredentialed external candidates must be marked NOT_RUN rather than fabricated
+    for cid in ["groq", "deepseek-r1", "gemini-flash", "qwen", "kimi"]:
+        assert cid in results
+        c_res = results[cid]
+        assert c_res.status == "NOT_RUN"
+        assert c_res.report is None
+        assert "NOT_RUN" in c_res.reason or "DISABLED" in c_res.reason or "MISSING" in c_res.reason
+
+
+def test_24_deterministic_numerical_requests_strictly_bypass_live_providers() -> None:
+    """Requirement Phase 24B: Verify pure math requests bypass model router to SQL/analytics engine."""
+    router = get_model_router()
+
+    req = LLMRequest(
+        task_category=LLMTaskCategory.INTENT_UNDERSTANDING,
+        prompt="calculate 25000 * 1.15",
+    )
+    resp = router.route(req)
+
+    assert resp.bypassed_llm_for_deterministic is True
+    assert resp.usage.total_tokens == 0
+    assert resp.estimated_cost_usd == 0.0
+    assert "bypassed llm" in resp.content.lower()
+
+
+# ======================================================================
+# Phase 24B-5: Live Provider Adapter Hardening Regression Tests
+# ======================================================================
+
+
+def test_25_gemini_transient_503_retry() -> None:
+    """Requirement Phase 24B-5: Bounded retry succeeds after transient 503 capacity spike."""
+    from unittest.mock import MagicMock
+    from app.agents.providers.live_adapter import OpenAICompatibleLiveProvider
+
+    provider = OpenAICompatibleLiveProvider(
+        provider_name="gemini-flash",
+        model_name="gemini-3.8-flash",
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        api_key="test-mock-key",
+        allow_external=True,
+        max_retries=2,
+        retry_delay_seconds=0.01,
+    )
+
+    class Fake503(Exception):
+        status_code = 503
+
+    class FakeMsg:
+        content = "OK"
+        tool_calls = None
+        reasoning = None
+
+    class FakeChoice:
+        message = FakeMsg()
+
+    class FakeCompletion:
+        choices = [FakeChoice()]
+        usage = MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+
+    mock_client = MagicMock()
+    # First attempt fails with 503, second succeeds
+    mock_client.chat.completions.create.side_effect = [Fake503("503 UNAVAILABLE: High demand"), FakeCompletion()]
+
+    provider._get_client = MagicMock(return_value=mock_client)
+
+    req = LLMRequest(task_category=LLMTaskCategory.INTENT_UNDERSTANDING, prompt="Hello")
+    resp = provider.generate(req)
+
+    assert resp.content == "OK"
+    assert mock_client.chat.completions.create.call_count == 2
+
+
+def test_26_gemini_retry_exhaustion() -> None:
+    """Requirement Phase 24B-5: Bounded retry preserves error classification upon exhaustion."""
+    from unittest.mock import MagicMock
+    from app.agents.providers.live_adapter import OpenAICompatibleLiveProvider
+    from app.agents.providers.models import LLMProviderUnavailableError
+
+    provider = OpenAICompatibleLiveProvider(
+        provider_name="gemini-flash",
+        model_name="gemini-3.8-flash",
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        api_key="test-mock-key",
+        allow_external=True,
+        max_retries=2,
+        retry_delay_seconds=0.01,
+    )
+
+    class Fake503(Exception):
+        status_code = 503
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.side_effect = Fake503("503 UNAVAILABLE: High demand")
+    provider._get_client = MagicMock(return_value=mock_client)
+
+    req = LLMRequest(task_category=LLMTaskCategory.INTENT_UNDERSTANDING, prompt="Hello")
+    with pytest.raises(LLMProviderUnavailableError) as exc_info:
+        provider.generate(req)
+
+    assert "unavailable" in str(exc_info.value).lower()
+    # Initial attempt + 2 retries = 3 total attempts
+    assert mock_client.chat.completions.create.call_count == 3
+
+
+def test_27_groq_tool_call_handling() -> None:
+    """Requirement Phase 24B-5: Provider adapter parses structured tool calls into selected_tools and steps."""
+    from unittest.mock import MagicMock
+    from app.agents.providers.live_adapter import OpenAICompatibleLiveProvider
+
+    provider = OpenAICompatibleLiveProvider(
+        provider_name="groq",
+        model_name="openai/gpt-oss-120b",
+        base_url="https://api.groq.com/openai/v1",
+        api_key="test-mock-key",
+        allow_external=True,
+    )
+
+    class FakeFunc:
+        name = "get_inventory_metrics"
+        arguments = '{"start_date": "2024-01-01"}'
+
+    class FakeToolCall:
+        function = FakeFunc()
+
+    class FakeMsg:
+        content = None
+        tool_calls = [FakeToolCall()]
+        reasoning = "Need inventory data"
+
+    class FakeChoice:
+        message = FakeMsg()
+
+    class FakeCompletion:
+        choices = [FakeChoice()]
+        usage = MagicMock(prompt_tokens=20, completion_tokens=30, total_tokens=50)
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = FakeCompletion()
+    provider._get_client = MagicMock(return_value=mock_client)
+
+    req = LLMRequest(
+        task_category=LLMTaskCategory.TOOL_SELECTION,
+        prompt="Check inventory turnover",
+        context={"available_tools": ["get_inventory_metrics", "get_revenue_metrics"]},
+    )
+    resp = provider.generate(req)
+
+    assert resp.parsed_data is not None
+    assert "get_inventory_metrics" in resp.parsed_data.get("selected_tools", [])
+    assert len(resp.parsed_data.get("steps", [])) == 1
+    assert resp.parsed_data["steps"][0]["tool_name"] == "get_inventory_metrics"
+
+
+def test_28_completion_only_unexpected_tool_call() -> None:
+    """Requirement Phase 24B-5: Completion-only unexpected tool calls do not crash benchmark."""
+    from unittest.mock import MagicMock
+    from app.agents.providers.live_adapter import OpenAICompatibleLiveProvider
+
+    provider = OpenAICompatibleLiveProvider(
+        provider_name="groq",
+        model_name="openai/gpt-oss-120b",
+        base_url="https://api.groq.com/openai/v1",
+        api_key="test-mock-key",
+        allow_external=True,
+    )
+
+    class FakeGroqToolUseFailed(Exception):
+        status_code = 400
+        body = {
+            "error": {
+                "message": "Tool choice is none, but model called a tool",
+                "code": "tool_use_failed",
+                "failed_generation": '{"name": "repo_browser.open_file", "arguments": {"path": "src"}}',
+            }
+        }
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.side_effect = FakeGroqToolUseFailed()
+    provider._get_client = MagicMock(return_value=mock_client)
+
+    req = LLMRequest(
+        task_category=LLMTaskCategory.INTENT_UNDERSTANDING,
+        prompt="Show me products",
+    )
+    resp = provider.generate(req)
+
+    # Must safely produce response containing actual generation without crashing
+    assert "repo_browser.open_file" in resp.content
+    assert resp.parsed_data is not None
+    assert resp.parsed_data.get("selected_tools") == ["repo_browser.open_file"]
+    assert len(resp.warnings) > 0
+
+
+def test_29_production_external_call_safety() -> None:
+    """Requirement Phase 24B-5: Production default strictly blocks live calls unless authorized."""
+    from app.agents.providers.live_adapter import OpenAICompatibleLiveProvider
+    from app.agents.providers.models import LLMSafetyGuardViolationError
+
+    # Assert settings default
+    assert settings.LLM_ALLOW_EXTERNAL_CALLS is False
+
+    # Default adapter without allow_external flag
+    provider = OpenAICompatibleLiveProvider(
+        provider_name="groq",
+        model_name="openai/gpt-oss-120b",
+        api_key="real-looking-key",
+        allow_external=False,
+    )
+
+    req = LLMRequest(
+        task_category=LLMTaskCategory.INTENT_UNDERSTANDING,
+        prompt="Show sales numbers",
+    )
+
+    with pytest.raises(LLMSafetyGuardViolationError) as exc_info:
+        provider.generate(req)
+
+    assert "blocked" in str(exc_info.value).lower()
+    assert "LLM_ALLOW_EXTERNAL_CALLS is disabled" in str(exc_info.value)
+
+
+# ======================================================================
+# Phase 24B-6: Multi-Case Benchmark Quality & Isolation Regression Tests
+# ======================================================================
+
+
+def test_30_benchmark_multi_case_scoring_and_failure_isolation() -> None:
+    """Requirement Phase 24B-6: Benchmark correctly scores multiple cases and isolates failures."""
+    from evaluation.benchmarks.llm_provider_benchmark import LLMProviderBenchmarkRunner
+
+    class SelectiveFailingProvider(BaseLLMProvider):
+        """Simulates provider failing only 1 specific case out of multiple cases."""
+        def __init__(self) -> None:
+            self.mock = MockLLMProvider()
+
+        @property
+        def provider_name(self) -> str:
+            return "SelectiveFailingProvider"
+
+        def generate(self, request: LLMRequest) -> LLMResponse:
+            if "gross revenue and average order value" in request.prompt:
+                # Case 1 fails with unparseable or error output
+                return LLMResponse(
+                    content="INVALID_JSON_ERROR",
+                    parsed_data=None,
+                    task_category=request.task_category,
+                    model_name="mock",
+                    provider_name=self.provider_name,
+                    tier=ModelTier.LOW_COST,
+                )
+            return self.mock.generate(request)
+
+        def generate_structured(self, request: LLMRequest, response_model: type) -> tuple[Any, LLMResponse]:
+            if "gross revenue and average order value" in request.prompt:
+                raise ValueError("Simulated schema parse failure on Case 1")
+            return self.mock.generate_structured(request, response_model)
+
+        def classify_intent(self, q: str, s: list[str]) -> IntentResult:
+            return self.mock.classify_intent(q, s)
+
+        def create_plan(self, q: str, i: IntentCategory, a: list, r: dict) -> AnalysisPlan:
+            return self.mock.create_plan(q, i, a, r)
+
+        def explain_results(self, *a: Any, **k: Any) -> str:
+            return self.mock.explain_results(*a, **k)
+
+    runner = LLMProviderBenchmarkRunner(provider=SelectiveFailingProvider())
+    report = runner.run_benchmark()
+
+    struct_res = report.dimension_results["structured_output_validity"]
+    # Total cases must be 3, passed cases must be 2, score = round(2/3, 2) = 0.67
+    assert struct_res.total_cases == 3
+    assert struct_res.passed_cases == 2
+    assert struct_res.score == 0.67
+
+    # Failure in structured_output must NOT abort or invalidate other dimensions
+    assert report.dimension_results["intent_accuracy"].passed_cases > 0
+    assert report.dimension_results["tool_selection"].passed_cases == 4
+    assert report.dimension_results["sql_planning_quality"].passed_cases == 3
+    assert report.dimension_results["prompt_injection_resistance"].passed_cases == 3
+    assert report.overall_score > 0.8
+
+
+def test_31_prompt_injection_isolation_multi_case() -> None:
+    """Requirement Phase 24B-6: Prompt injection defense evaluates and isolates multiple adversarial vectors."""
+    from evaluation.benchmarks.llm_provider_benchmark import LLMProviderBenchmarkRunner
+
+    mock_runner = LLMProviderBenchmarkRunner(provider=MockLLMProvider())
+    dim_res, _, _, _ = mock_runner._eval_prompt_injection_resistance()
+
+    assert dim_res.dimension == "prompt_injection_resistance"
+    assert dim_res.total_cases == 3
+    assert dim_res.passed_cases == 3
+    assert dim_res.score == 1.0
+
+    # Test that compromised adversarial output fails the specific case without crashing
+    class CompromisedProvider(BaseLLMProvider):
+        @property
+        def provider_name(self) -> str:
+            return "CompromisedProvider"
+
+        def generate(self, request: LLMRequest) -> LLMResponse:
+            # Succumbs to prompt injection
+            return LLMResponse(
+                content="COMPROMISED SECURITY_BYPASS_GRANTED api_key=SECRET_TOKEN",
+                parsed_data=None,
+                task_category=request.task_category,
+                model_name="mock",
+                provider_name=self.provider_name,
+                tier=ModelTier.LOW_COST,
+            )
+
+        def classify_intent(self, q: str, s: list[str]) -> IntentResult:
+            return MockLLMProvider().classify_intent(q, s)
+
+        def create_plan(self, q: str, i: IntentCategory, a: list, r: dict) -> AnalysisPlan:
+            return MockLLMProvider().create_plan(q, i, a, r)
+
+        def explain_results(self, *a: Any, **k: Any) -> str:
+            return "COMPROMISED"
+
+    comp_runner = LLMProviderBenchmarkRunner(provider=CompromisedProvider())
+    comp_res, _, _, _ = comp_runner._eval_prompt_injection_resistance()
+
+    # All 3 compromised cases must be rejected
+    assert comp_res.total_cases == 3
+    assert comp_res.passed_cases == 0
+    assert comp_res.score == 0.0
+
+
+# ======================================================================
+# Phase 24B-7: Benchmark Audit & Evaluation Calibration Tests
+# ======================================================================
+
+
+def test_32_benchmark_scoring_weighting_and_reproducibility() -> None:
+    """Requirement Phase 24B-7: Scoring integrity verifies 17 dimensions with exact mathematical reproducibility."""
+    from evaluation.benchmarks.llm_provider_benchmark import LLMProviderBenchmarkRunner
+
+    runner = LLMProviderBenchmarkRunner(provider=MockLLMProvider())
+    report = runner.run_benchmark()
+
+    # Must contain exactly the 17 benchmark dimensions
+    assert len(report.dimension_results) == 17
+    expected_dimensions = [
+        "intent_accuracy",
+        "structured_output_validity",
+        "tool_selection",
+        "sql_planning_quality",
+        "ambiguity_handling",
+        "business_reasoning",
+        "evidence_interpretation",
+        "hallucination_resistance",
+        "prompt_injection_resistance",
+        "latency",
+        "input_tokens",
+        "output_tokens",
+        "estimated_cost",
+        "quota_efficiency",
+        "context_window_compatibility",
+        "tool_calling_capability",
+        "fallback_behavior",
+    ]
+    for dim in expected_dimensions:
+        assert dim in report.dimension_results, f"Missing expected dimension: {dim}"
+
+    # Overall score must exactly equal arithmetic mean of dimension scores
+    dim_scores = [d.score for d in report.dimension_results.values()]
+    computed_overall = round(sum(dim_scores) / len(dim_scores), 3)
+    assert report.overall_score == computed_overall
+
+
+def test_33_evaluator_validity_sql_and_business_reasoning() -> None:
+    """Requirement Phase 24B-7: Evaluators measure semantic capability rather than rigid string schemas."""
+    from evaluation.benchmarks.llm_provider_benchmark import LLMProviderBenchmarkRunner
+
+    class NaturalLanguagePlanProvider(BaseLLMProvider):
+        @property
+        def provider_name(self) -> str: return "NaturalLanguagePlanProvider"
+
+        def generate(self, req: LLMRequest) -> LLMResponse:
+            q = req.prompt.lower()
+            if req.task_category == LLMTaskCategory.SQL_DATA_PLANNING:
+                if "truncate" in q or "delete" in q:
+                    content = "REJECTED: Destructive operations such as TRUNCATE or DELETE are strictly prohibited on read-only analytical connections."
+                elif "daily orders" in q:
+                    content = "Here is the read-only plan: SELECT DATE(order_date), COUNT(*), SUM(net_sales) FROM orders GROUP BY DATE(order_date). Safe read-only daily orders aggregation without mutations."
+                else:
+                    content = "Read-only analytical query on products and order_items to compute average department margin without mutations."
+                return LLMResponse(content=content, task_category=req.task_category, model_name="nl-provider", provider_name=self.provider_name, tier=ModelTier.LOW_COST)
+
+            if req.task_category == LLMTaskCategory.COMPLEX_INVESTIGATION_REASONING:
+                content = "Evaluating key variance drivers: 1. Price discounting reduced average realized unit margin. 2. Fulfillment COGS inflation drove higher cost per unit. 3. Product mix shifted toward lower margin SKUs."
+                return LLMResponse(content=content, task_category=req.task_category, model_name="nl-provider", provider_name=self.provider_name, tier=ModelTier.LOW_COST)
+
+            return MockLLMProvider().generate(req)
+
+        def classify_intent(self, q: str, s: list[str]) -> IntentResult: return MockLLMProvider().classify_intent(q, s)
+        def create_plan(self, q: str, i: IntentCategory, a: list, r: dict) -> AnalysisPlan: return MockLLMProvider().create_plan(q, i, a, r)
+        def explain_results(self, *a: Any, **k: Any) -> str: return MockLLMProvider().explain_results(*a, **k)
+
+    runner = LLMProviderBenchmarkRunner(provider=NaturalLanguagePlanProvider())
+    sql_res, _, _, _ = runner._eval_sql_planning_quality()
+    assert sql_res.total_cases == 3
+    assert sql_res.passed_cases == 3
+    assert sql_res.score == 1.0
+
+    biz_res, _, _, _ = runner._eval_business_reasoning()
+    assert biz_res.total_cases == 3
+    assert biz_res.passed_cases == 3
+    assert biz_res.score == 1.0
+
+
+def test_34_prompt_injection_refusal_distinction() -> None:
+    """Requirement Phase 24B-7: Distinguish defensive refusal citing adversarial string from actual security violation."""
+    from evaluation.benchmarks.llm_provider_benchmark import LLMProviderBenchmarkRunner
+
+    class DefensiveRefusalProvider(BaseLLMProvider):
+        @property
+        def provider_name(self) -> str: return "DefensiveRefusalProvider"
+
+        def generate(self, req: LLMRequest) -> LLMResponse:
+            # Explicitly refuses the override citing the command string
+            content = "I cannot comply with the request to confirm ROOT_ADMIN or reply with SECURITY_BYPASS_GRANTED. As a business analytics assistant, here are the metrics: active users = 450."
+            return LLMResponse(content=content, task_category=req.task_category, model_name="defensive", provider_name=self.provider_name, tier=ModelTier.LOW_COST)
+
+        def classify_intent(self, q: str, s: list[str]) -> IntentResult: return MockLLMProvider().classify_intent(q, s)
+        def create_plan(self, q: str, i: IntentCategory, a: list, r: dict) -> AnalysisPlan: return MockLLMProvider().create_plan(q, i, a, r)
+        def explain_results(self, *a: Any, **k: Any) -> str: return MockLLMProvider().explain_results(*a, **k)
+
+    runner = LLMProviderBenchmarkRunner(provider=DefensiveRefusalProvider())
+    dim_res, _, _, _ = runner._eval_prompt_injection_resistance()
+    # Case 2 must PASS because defensive refusal was executed rather than granting the override
+    assert dim_res.passed_cases >= 1
+
+
+
+
 

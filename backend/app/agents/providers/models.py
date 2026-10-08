@@ -192,6 +192,14 @@ class ProviderTelemetry(BaseModel):
         return round(self.total_latency_ms / self.total_requests, 2)
 
 
+class ProviderAvailabilityStatus(str, Enum):
+    """Categorizes provider availability status for live benchmark runs."""
+    AVAILABLE = "AVAILABLE"
+    NOT_RUN_MISSING_CREDENTIALS = "NOT_RUN_MISSING_CREDENTIALS"
+    NOT_RUN_EXTERNAL_CALLS_DISABLED = "NOT_RUN_EXTERNAL_CALLS_DISABLED"
+    NOT_RUN_UNREACHABLE = "NOT_RUN_UNREACHABLE"
+
+
 class ProviderCandidateSpec(BaseModel):
     """
     Specification declaring a candidate model's capabilities, lane, and operational constraints.
@@ -207,6 +215,8 @@ class ProviderCandidateSpec(BaseModel):
     context_window_tokens: int = 128_000
     supports_streaming: bool = True
     is_active: bool = True
+    api_key_env_var: str | None = None
+    base_url: str | None = None
     quota_state: ProviderQuotaState = Field(default_factory=ProviderQuotaState)
     telemetry: ProviderTelemetry = Field(default_factory=ProviderTelemetry)
     quota_metadata_notes: str = (
@@ -223,6 +233,31 @@ class ProviderCandidateSpec(BaseModel):
             return 0.0
         return (self.cost_per_1m_input * 0.7) + (self.cost_per_1m_output * 0.3)
 
+    def check_availability(self, allow_external: bool = False) -> tuple[bool, str]:
+        """
+        Verify whether this candidate is ready for live execution.
+        Returns (is_available, reason_or_status).
+        """
+        if self.provider_id in ("mock", "local"):
+            return True, ProviderAvailabilityStatus.AVAILABLE.value
+
+        if self.provider_id == "ollama-local":
+            # Local service; does not require remote paid credentials
+            return True, ProviderAvailabilityStatus.AVAILABLE.value
+
+        # External provider checks
+        if not allow_external:
+            return False, ProviderAvailabilityStatus.NOT_RUN_EXTERNAL_CALLS_DISABLED.value
+
+        if self.api_key_env_var:
+            from app.core.config import settings
+            import os
+            key_val = getattr(settings, self.api_key_env_var, None) or os.getenv(self.api_key_env_var)
+            if not key_val:
+                return False, f"{ProviderAvailabilityStatus.NOT_RUN_MISSING_CREDENTIALS.value} ({self.api_key_env_var} not configured)"
+
+        return True, ProviderAvailabilityStatus.AVAILABLE.value
+
 
 class PricingCatalog:
     """Estimated cost rates per 1M tokens in USD for multi-provider benchmarking."""
@@ -238,9 +273,21 @@ class PricingCatalog:
         "gemini-1.5-pro": (1.25, 5.00),
         "gemini-1.5-flash": (0.075, 0.30),
         "gemini-2.0-flash": (0.075, 0.30),
+        "gemini-3.8-flash": (0.075, 0.30),
+        "openai/gpt-oss-120b": (0.0, 0.0),
         # DeepSeek models
         "deepseek-v3": (0.14, 0.28),
         "deepseek-r1": (0.55, 2.19),
+        # Qwen models (Alibaba Cloud / DashScope / OpenRouter)
+        "qwen-2.5-72b-instruct": (0.35, 0.70),
+        "qwen-2.5-32b-instruct": (0.20, 0.40),
+        "qwen-2.5-7b-instruct": (0.05, 0.10),
+        "qwen": (0.35, 0.70),
+        # Kimi models (Moonshot AI K2 / K2.6)
+        "kimi-k2.6": (0.60, 2.40),
+        "kimi-k2": (0.60, 2.40),
+        "moonshot-v1-32k": (0.60, 2.40),
+        "kimi": (0.60, 2.40),
         # Groq models
         "llama-3.3-70b-versatile": (0.59, 0.79),
         "mixtral-8x7b-32768": (0.24, 0.24),
@@ -248,8 +295,12 @@ class PricingCatalog:
         "grok-2": (2.00, 10.00),
         # OpenRouter free models
         "meta-llama/llama-3.1-8b-instruct:free": (0.0, 0.0),
+        "qwen/qwen-2.5-7b-instruct:free": (0.0, 0.0),
         # Local & Mock
         "ollama-local": (0.0, 0.0),
+        "phi3:latest": (0.0, 0.0),
+        "llama3:latest": (0.0, 0.0),
+        "mistral:latest": (0.0, 0.0),
         "vllm-local": (0.0, 0.0),
         "mock": (0.0, 0.0),
         "local": (0.0, 0.0),

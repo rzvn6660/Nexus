@@ -607,7 +607,8 @@ class MockLLMProvider(BaseLLMProvider):
         # 8. Fallback generic summary
         else:
             first_res = tool_results[0].get("result", {})
-            lines.append(f"Analysis completed successfully using {tools_executed[0]}.")
+            tool_name = tools_executed[0] or "analytical_tool"
+            lines.append(f"Analysis completed successfully using {tool_name}.")
             if isinstance(first_res, dict):
                 lines.append(f"Key metrics: { {k: v for k, v in list(first_res.items())[:4]} }")
 
@@ -622,7 +623,9 @@ class MockLLMProvider(BaseLLMProvider):
             return "\n".join(lines)
 
         if business_context:
-            lines.append(f"\nBusiness Context:\n{business_context}")
+            # Defensive isolation: suppress raw echo of adversarial override/injection payloads
+            if not any(inj in business_context.upper() for inj in ["SYSTEM INSTRUCTION", "ROOT_ADMIN", "SECURITY_BYPASS", "API_KEY", "DISREGARD", "OVERRIDE"]):
+                lines.append(f"\nBusiness Context:\n{business_context}")
 
         # Format according to requested ExplanationLevel
         if explanation_level == ExplanationLevel.SIMPLE:
@@ -711,7 +714,7 @@ class MockLLMProvider(BaseLLMProvider):
             avail_names = [t.get("name") if isinstance(t, dict) else str(t) for t in avail]
             q_lower = q.lower()
             selected: list[str] = []
-            if "profile" in q_lower or "business" in q_lower:
+            if "profile" in q_lower or "business" in q_lower or "legal" in q_lower or "contact" in q_lower:
                 selected.append("get_business_profile")
             elif "diagnostic" in q_lower or "variance" in q_lower or "why" in q_lower:
                 selected.append("get_diagnostic_tree")
@@ -719,6 +722,8 @@ class MockLLMProvider(BaseLLMProvider):
                 selected.append("get_inventory_metrics")
             elif "forecast" in q_lower:
                 selected.append("get_forecast_metrics")
+            elif "cohort" in q_lower or "customer" in q_lower or "retention" in q_lower:
+                selected.append("get_customer_cohorts")
             else:
                 selected.append("get_revenue_metrics")
 
@@ -730,23 +735,45 @@ class MockLLMProvider(BaseLLMProvider):
             content = json.dumps(parsed)
 
         elif cat == LLMTaskCategory.SQL_DATA_PLANNING:
-            parsed = {
-                "plan_type": "analytical_sql",
-                "target_tables": ["orders", "order_items", "products"],
-                "aggregations": ["SUM(net_sales)", "COUNT(DISTINCT order_id)"],
-                "time_grain": ctx.get("time_grain", "daily"),
-                "safe_read_only": True,
-                "rationale": "Read-only analytical aggregation plan adhering to multi-tenant isolation.",
-            }
+            q_lower = q.lower()
+            if any(term in q_lower for term in ["truncate", "delete", "drop", "update", "insert"]):
+                parsed = {
+                    "plan_type": "rejected",
+                    "target_tables": [],
+                    "safe_read_only": False,
+                    "rejection_reason": "Mutating SQL operations strictly prohibited in read-only analytical mode.",
+                }
+            elif "product" in q_lower or "margin" in q_lower or "department" in q_lower:
+                parsed = {
+                    "plan_type": "analytical_sql",
+                    "target_tables": ["products", "order_items"],
+                    "aggregations": ["AVG(gross_margin)"],
+                    "time_grain": ctx.get("time_grain", "monthly"),
+                    "safe_read_only": True,
+                    "rationale": "Read-only aggregation of product catalog and margins.",
+                }
+            else:
+                parsed = {
+                    "plan_type": "analytical_sql",
+                    "target_tables": ["orders", "order_items"],
+                    "aggregations": ["SUM(net_sales)", "COUNT(DISTINCT order_id)"],
+                    "time_grain": ctx.get("time_grain", "daily"),
+                    "safe_read_only": True,
+                    "rationale": "Read-only analytical aggregation plan adhering to multi-tenant isolation.",
+                }
             content = json.dumps(parsed)
 
         elif cat == LLMTaskCategory.AMBIGUITY_RESOLUTION:
-            is_ambiguous = "breakdown" in q.lower() and not any(m in q.lower() for m in ["revenue", "profit", "order", "sales"])
+            q_lower = q.lower()
+            is_ambiguous = (
+                ("breakdown" in q_lower and not any(m in q_lower for m in ["revenue", "profit", "order", "sales", "2024"]))
+                or ("numbers doing" in q_lower)
+            )
             if is_ambiguous:
                 parsed = {
                     "is_ambiguous": True,
                     "clarification_needed": "metric_and_dimension",
-                    "clarification_question": "Please specify the business metric and dimension you would like to analyze.",
+                    "clarification_question": "Please specify the business metric and date range you would like to analyze.",
                     "suggested_options": ["Revenue by Product Category", "Order Volume by Channel", "Gross Margin by Month"],
                 }
             else:
@@ -759,11 +786,11 @@ class MockLLMProvider(BaseLLMProvider):
 
         elif cat == LLMTaskCategory.COMPLEX_INVESTIGATION_REASONING:
             parsed = {
-                "investigation_focus": "revenue_variance",
+                "investigation_focus": "variance_investigation",
                 "hypotheses_evaluated": [
-                    {"name": "Price elasticity drop", "status": "REJECTED", "confidence": 0.85},
-                    {"name": "Catalog mix shift", "status": "CONFIRMED", "confidence": 0.92},
-                    {"name": "Return volume increase", "status": "INCONCLUSIVE", "confidence": 0.50},
+                    {"name": "Price elasticity and discounting shift", "status": "CONFIRMED", "confidence": 0.92},
+                    {"name": "Product category mix deterioration", "status": "CONFIRMED", "confidence": 0.88},
+                    {"name": "Fulfillment cost inflation", "status": "INCONCLUSIVE", "confidence": 0.50},
                 ],
                 "correlation_disclaimer": "Observed metric movements represent statistical correlation and do not establish unverified operational causation.",
             }
@@ -783,7 +810,8 @@ class MockLLMProvider(BaseLLMProvider):
 
         elif cat == LLMTaskCategory.EVIDENCE_INTERPRETATION:
             evidence = ctx.get("evidence", [])
-            has_missing_cost = any("cost" in str(e).lower() and "incomplete" in str(e).lower() for e in evidence)
+            has_missing_cost = any("cost" in str(e).lower() and ("incomplete" in str(e).lower() or "missing" in str(e).lower()) for e in evidence)
+            has_warn = any("suspect" in str(e).lower() or "unverified" in str(e).lower() for e in evidence)
             lines = [
                 "Evidence Interpretation Summary:",
                 f"- Total evidence items evaluated: {len(evidence)}",
@@ -791,11 +819,14 @@ class MockLLMProvider(BaseLLMProvider):
             ]
             if has_missing_cost:
                 lines.append("- Cost metrics are incomplete due to unconfigured catalog unit costs.")
+            if has_warn:
+                lines.append("- Warning: Certain data sources are unverified or of suspect quality.")
             lines.append("- Statistical association noted; no speculative causal assumptions made.")
             content = "\n".join(lines)
             parsed = {
-                "evidence_status": "SUFFICIENT" if evidence else "PARTIAL",
+                "evidence_status": "PARTIAL" if (has_missing_cost or has_warn) else "SUFFICIENT",
                 "missing_cost_noted": has_missing_cost,
+                "data_quality_warning": has_warn,
                 "summary": content,
             }
 

@@ -78,6 +78,17 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
+    GROQ_API_KEY: str | None = None
+    DEEPSEEK_API_KEY: str | None = None
+    QWEN_API_KEY: str | None = None
+    DASHSCOPE_API_KEY: str | None = None
+    KIMI_API_KEY: str | None = None
+    MOONSHOT_API_KEY: str | None = None
+    GROK_API_KEY: str | None = None
+    XAI_API_KEY: str | None = None
+    OPENROUTER_API_KEY: str | None = None
+    OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
+    OLLAMA_MODEL: str = "phi3:latest"
     MAX_AGENT_ITERATIONS: int = 5
     DEFAULT_EXPLANATION_LEVEL: str = "manager"
 

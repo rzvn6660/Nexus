@@ -1,0 +1,370 @@
+{
+  "groq": {
+    "provider_id": "groq",
+    "model_name": "openai/gpt-oss-120b",
+    "lane": "lane_1_free_high_volume",
+    "mode": "MEASURED_LIVE_PROVIDER",
+    "status": "NOT_RUN",
+    "reason": "NOT_RUN_EXTERNAL_CALLS_DISABLED",
+    "report": null
+  },
+  "gemini-flash": {
+    "provider_id": "gemini-flash",
+    "model_name": "gemini-3.8-flash",
+    "lane": "lane_1_free_high_volume",
+    "mode": "MEASURED_LIVE_PROVIDER",
+    "status": "NOT_RUN",
+    "reason": "NOT_RUN_EXTERNAL_CALLS_DISABLED",
+    "report": null
+  },
+  "mock": {
+    "provider_id": "mock",
+    "model_name": "mock-deterministic",
+    "lane": "lane_3_local_fallback",
+    "mode": "DETERMINISTIC_LOCAL_BASELINE",
+    "status": "COMPLETED",
+    "reason": "Deterministic local baseline executed offline with test fixtures.",
+    "report": {
+      "provider_name": "mock",
+      "model_name": "mock-deterministic",
+      "benchmark_mode": "DETERMINISTIC_LOCAL_BASELINE",
+      "timestamp": "2026-10-07T17:31:43Z",
+      "dimension_results": {
+        "intent_accuracy": {
+          "dimension": "intent_accuracy",
+          "score": 0.71,
+          "passed_cases": 5,
+          "total_cases": 7,
+          "details": {},
+          "status": "PASS"
+        },
+        "structured_output_validity": {
+          "dimension": "structured_output_validity",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "tool_selection": {
+          "dimension": "tool_selection",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "sql_planning_quality": {
+          "dimension": "sql_planning_quality",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "ambiguity_handling": {
+          "dimension": "ambiguity_handling",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "business_reasoning": {
+          "dimension": "business_reasoning",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "evidence_interpretation": {
+          "dimension": "evidence_interpretation",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "hallucination_resistance": {
+          "dimension": "hallucination_resistance",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "prompt_injection_resistance": {
+          "dimension": "prompt_injection_resistance",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "latency": {
+          "dimension": "latency",
+          "score": 1.0,
+          "passed_cases": 15,
+          "total_cases": 15,
+          "details": {
+            "p50_ms": 0.01,
+            "p95_ms": 0.07
+          },
+          "status": "PASS"
+        },
+        "input_tokens": {
+          "dimension": "input_tokens",
+          "score": 1.0,
+          "passed_cases": 15,
+          "total_cases": 15,
+          "details": {
+            "avg_input_tokens": 31.7
+          },
+          "status": "PASS"
+        },
+        "output_tokens": {
+          "dimension": "output_tokens",
+          "score": 1.0,
+          "passed_cases": 15,
+          "total_cases": 15,
+          "details": {
+            "avg_output_tokens": 41.3
+          },
+          "status": "PASS"
+        },
+        "estimated_cost": {
+          "dimension": "estimated_cost",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {
+            "estimated_cost_per_1k_usd": 0.0
+          },
+          "status": "PASS"
+        },
+        "quota_efficiency": {
+          "dimension": "quota_efficiency",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {
+            "quota_efficiency_pct": 100.0
+          },
+          "status": "PASS"
+        },
+        "context_window_compatibility": {
+          "dimension": "context_window_compatibility",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "tool_calling_capability": {
+          "dimension": "tool_calling_capability",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "fallback_behavior": {
+          "dimension": "fallback_behavior",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {
+            "fallback_reason": "Provider 'FailingProvider' timed out after 0.02ms"
+          },
+          "status": "PASS"
+        }
+      },
+      "overall_score": 0.983,
+      "latency_p50_ms": 0.01,
+      "latency_p95_ms": 0.07,
+      "avg_input_tokens": 31.7,
+      "avg_output_tokens": 41.3,
+      "avg_total_tokens": 73.1,
+      "estimated_cost_per_1k_requests_usd": 0.0,
+      "quota_efficiency_pct": 100.0,
+      "summary": "Provider 'mock' [DETERMINISTIC_LOCAL_BASELINE] achieved 98.3% overall score across all benchmark dimensions with p50 latency 0.0ms and quota efficiency 100.0%.",
+      "disclaimer": "DETERMINISTIC LOCAL BASELINE NOTE: Results produced by the mock provider represent offline test-fixture orchestration and should NOT be interpreted as measured cognitive reasoning capabilities of a live external LLM."
+    }
+  },
+  "ollama-local": {
+    "provider_id": "ollama-local",
+    "model_name": "phi3:latest",
+    "lane": "lane_3_local_fallback",
+    "mode": "MEASURED_LIVE_PROVIDER",
+    "status": "COMPLETED",
+    "reason": "Live measured execution on local Ollama service (phi3:latest).",
+    "report": {
+      "provider_name": "ollama-local",
+      "model_name": "mock-deterministic",
+      "benchmark_mode": "MEASURED_LIVE_PROVIDER",
+      "timestamp": "2026-10-07T17:33:17Z",
+      "dimension_results": {
+        "intent_accuracy": {
+          "dimension": "intent_accuracy",
+          "score": 0.86,
+          "passed_cases": 6,
+          "total_cases": 7,
+          "details": {},
+          "status": "PASS"
+        },
+        "structured_output_validity": {
+          "dimension": "structured_output_validity",
+          "score": 0.0,
+          "passed_cases": 0,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "tool_selection": {
+          "dimension": "tool_selection",
+          "score": 0.0,
+          "passed_cases": 0,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "sql_planning_quality": {
+          "dimension": "sql_planning_quality",
+          "score": 0.0,
+          "passed_cases": 0,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "ambiguity_handling": {
+          "dimension": "ambiguity_handling",
+          "score": 0.0,
+          "passed_cases": 0,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "business_reasoning": {
+          "dimension": "business_reasoning",
+          "score": 0.0,
+          "passed_cases": 0,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "evidence_interpretation": {
+          "dimension": "evidence_interpretation",
+          "score": 0.0,
+          "passed_cases": 0,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "hallucination_resistance": {
+          "dimension": "hallucination_resistance",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "prompt_injection_resistance": {
+          "dimension": "prompt_injection_resistance",
+          "score": 0.0,
+          "passed_cases": 0,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "latency": {
+          "dimension": "latency",
+          "score": 0.8,
+          "passed_cases": 0,
+          "total_cases": 15,
+          "details": {
+            "p50_ms": 3416.84,
+            "p95_ms": 5991.16
+          },
+          "status": "PASS"
+        },
+        "input_tokens": {
+          "dimension": "input_tokens",
+          "score": 1.0,
+          "passed_cases": 15,
+          "total_cases": 15,
+          "details": {
+            "avg_input_tokens": 84.8
+          },
+          "status": "PASS"
+        },
+        "output_tokens": {
+          "dimension": "output_tokens",
+          "score": 1.0,
+          "passed_cases": 15,
+          "total_cases": 15,
+          "details": {
+            "avg_output_tokens": 151.1
+          },
+          "status": "PASS"
+        },
+        "estimated_cost": {
+          "dimension": "estimated_cost",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {
+            "estimated_cost_per_1k_usd": 0.0
+          },
+          "status": "PASS"
+        },
+        "quota_efficiency": {
+          "dimension": "quota_efficiency",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {
+            "quota_efficiency_pct": 100.0
+          },
+          "status": "PASS"
+        },
+        "context_window_compatibility": {
+          "dimension": "context_window_compatibility",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "tool_calling_capability": {
+          "dimension": "tool_calling_capability",
+          "score": 0.0,
+          "passed_cases": 0,
+          "total_cases": 1,
+          "details": {},
+          "status": "PASS"
+        },
+        "fallback_behavior": {
+          "dimension": "fallback_behavior",
+          "score": 1.0,
+          "passed_cases": 1,
+          "total_cases": 1,
+          "details": {
+            "fallback_reason": "Provider 'FailingProvider' timed out after 0.03ms"
+          },
+          "status": "PASS"
+        }
+      },
+      "overall_score": 0.509,
+      "latency_p50_ms": 3416.84,
+      "latency_p95_ms": 5991.16,
+      "avg_input_tokens": 84.8,
+      "avg_output_tokens": 151.1,
+      "avg_total_tokens": 235.9,
+      "estimated_cost_per_1k_requests_usd": 0.0,
+      "quota_efficiency_pct": 100.0,
+      "summary": "Provider 'ollama-local' [MEASURED_LIVE_PROVIDER] achieved 50.9% overall score across all benchmark dimensions with p50 latency 3416.8ms and quota efficiency 100.0%.",
+      "disclaimer": "MEASURED LIVE RESULTS: Live measurements against an external provider endpoint."
+    }
+  }
+}

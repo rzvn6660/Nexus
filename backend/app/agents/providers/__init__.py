@@ -9,12 +9,14 @@ from app.agents.providers.factory import (
 from app.agents.providers.guard import DeterministicCalculationGuard
 from app.agents.providers.interface import NexusLLMInterface
 from app.agents.providers.mock import MockLLMProvider
+from app.agents.providers.live_adapter import OpenAICompatibleLiveProvider
 from app.agents.providers.models import (
     DeterministicInvariantViolationError,
     IntelligenceLane,
     LLMProviderError,
     LLMProviderTimeoutError,
     LLMProviderUnavailableError,
+    LLMSafetyGuardViolationError,
     LLMRequest,
     LLMResponse,
     LLMTaskCategory,
@@ -22,6 +24,7 @@ from app.agents.providers.models import (
     ModelCapability,
     ModelTier,
     PricingCatalog,
+    ProviderAvailabilityStatus,
     ProviderCandidateSpec,
     ProviderQuotaState,
     ProviderTelemetry,
@@ -43,6 +46,7 @@ __all__ = [
     "LLMProviderError",
     "LLMProviderTimeoutError",
     "LLMProviderUnavailableError",
+    "LLMSafetyGuardViolationError",
     "LLMRequest",
     "LLMResponse",
     "LLMTaskCategory",
@@ -52,8 +56,10 @@ __all__ = [
     "ModelRouter",
     "ModelTier",
     "NexusLLMInterface",
+    "OpenAICompatibleLiveProvider",
     "OpenAIProvider",
     "PricingCatalog",
+    "ProviderAvailabilityStatus",
     "ProviderCandidateRegistry",
     "ProviderCandidateSpec",
     "ProviderQuotaState",

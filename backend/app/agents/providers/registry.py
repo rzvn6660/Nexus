@@ -53,7 +53,7 @@ class ProviderCandidateRegistry:
         self.register(
             ProviderCandidateSpec(
                 provider_id="groq",
-                model_name="llama-3.3-70b-versatile",
+                model_name="openai/gpt-oss-120b",
                 lane=IntelligenceLane.LANE_1_FREE_HIGH_VOLUME,
                 capabilities={
                     ModelCapability.LOW_COST,
@@ -61,16 +61,19 @@ class ProviderCandidateRegistry:
                     ModelCapability.STRUCTURED_OUTPUT,
                     ModelCapability.TOOL_CALLING,
                     ModelCapability.SQL_PLANNING,
+                    ModelCapability.REASONING,
                 },
-                cost_per_1m_input=0.59,
-                cost_per_1m_output=0.79,
+                cost_per_1m_input=0.0,
+                cost_per_1m_output=0.0,
                 is_free_tier=True,
-                context_window_tokens=128_000,
+                context_window_tokens=131_072,
+                api_key_env_var="GROQ_API_KEY",
+                base_url="https://api.groq.com/openai/v1",
                 quota_state=ProviderQuotaState(
                     requests_limit=default_req_limit,
-                    tokens_limit=default_token_limit,
+                    tokens_limit=200_000,
                     limit_source="configured",
-                    quota_notes="Configured operational limit from application settings; subject to upstream vendor policy.",
+                    quota_notes="Configured operational limit from application settings; 200k TPD on Groq developer tier.",
                 ),
             )
         )
@@ -89,6 +92,8 @@ class ProviderCandidateRegistry:
                 cost_per_1m_output=0.0,
                 is_free_tier=True,
                 context_window_tokens=64_000,
+                api_key_env_var="OPENROUTER_API_KEY",
+                base_url="https://openrouter.ai/api/v1",
                 quota_state=ProviderQuotaState(
                     requests_limit=None,
                     tokens_limit=None,
@@ -101,7 +106,7 @@ class ProviderCandidateRegistry:
         self.register(
             ProviderCandidateSpec(
                 provider_id="gemini-flash",
-                model_name="gemini-1.5-flash",
+                model_name="gemini-3.8-flash",
                 lane=IntelligenceLane.LANE_1_FREE_HIGH_VOLUME,
                 capabilities={
                     ModelCapability.LOW_COST,
@@ -113,7 +118,9 @@ class ProviderCandidateRegistry:
                 cost_per_1m_input=0.075,
                 cost_per_1m_output=0.30,
                 is_free_tier=True,
-                context_window_tokens=1_000_000,
+                context_window_tokens=1_048_576,
+                api_key_env_var="GEMINI_API_KEY",
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
                 quota_state=ProviderQuotaState(
                     requests_limit=None,
                     tokens_limit=None,
@@ -144,6 +151,8 @@ class ProviderCandidateRegistry:
                 cost_per_1m_output=2.19,
                 is_free_tier=False,
                 context_window_tokens=64_000,
+                api_key_env_var="DEEPSEEK_API_KEY",
+                base_url="https://api.deepseek.com",
                 quota_state=ProviderQuotaState(
                     cost_budget_usd=default_budget_usd,
                     limit_source="configured",
@@ -168,10 +177,66 @@ class ProviderCandidateRegistry:
                 cost_per_1m_output=0.28,
                 is_free_tier=False,
                 context_window_tokens=64_000,
+                api_key_env_var="DEEPSEEK_API_KEY",
+                base_url="https://api.deepseek.com",
                 quota_state=ProviderQuotaState(
                     cost_budget_usd=default_budget_usd,
                     limit_source="configured",
                     quota_notes="Monitored against configured monthly budget.",
+                ),
+            )
+        )
+
+        self.register(
+            ProviderCandidateSpec(
+                provider_id="qwen",
+                model_name="qwen-2.5-72b-instruct",
+                lane=IntelligenceLane.LANE_2_STRONG_ESCALATION,
+                capabilities={
+                    ModelCapability.REASONING,
+                    ModelCapability.BUSINESS_REASONING,
+                    ModelCapability.SQL_PLANNING,
+                    ModelCapability.STRUCTURED_OUTPUT,
+                    ModelCapability.CONTEXT_WINDOW,
+                    ModelCapability.LOW_COST,
+                },
+                cost_per_1m_input=0.35,
+                cost_per_1m_output=0.70,
+                is_free_tier=False,
+                context_window_tokens=131_072,
+                api_key_env_var="QWEN_API_KEY",
+                base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+                quota_state=ProviderQuotaState(
+                    cost_budget_usd=default_budget_usd,
+                    limit_source="configured",
+                    quota_notes="Alibaba Cloud DashScope / Qwen candidate model.",
+                ),
+            )
+        )
+
+        self.register(
+            ProviderCandidateSpec(
+                provider_id="kimi",
+                model_name="kimi-k2.6",
+                lane=IntelligenceLane.LANE_2_STRONG_ESCALATION,
+                capabilities={
+                    ModelCapability.REASONING,
+                    ModelCapability.BUSINESS_REASONING,
+                    ModelCapability.EVIDENCE_INTERPRETATION,
+                    ModelCapability.AMBIGUITY_RESOLUTION,
+                    ModelCapability.STRUCTURED_OUTPUT,
+                    ModelCapability.CONTEXT_WINDOW,
+                },
+                cost_per_1m_input=0.60,
+                cost_per_1m_output=2.40,
+                is_free_tier=False,
+                context_window_tokens=128_000,
+                api_key_env_var="KIMI_API_KEY",
+                base_url="https://api.moonshot.cn/v1",
+                quota_state=ProviderQuotaState(
+                    cost_budget_usd=default_budget_usd,
+                    limit_source="configured",
+                    quota_notes="Moonshot AI Kimi K2 / K2.6 long-context candidate model.",
                 ),
             )
         )
@@ -193,6 +258,8 @@ class ProviderCandidateRegistry:
                 cost_per_1m_output=5.00,
                 is_free_tier=False,
                 context_window_tokens=2_000_000,
+                api_key_env_var="GEMINI_API_KEY",
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
                 quota_state=ProviderQuotaState(
                     cost_budget_usd=default_budget_usd,
                     limit_source="configured",
@@ -216,6 +283,8 @@ class ProviderCandidateRegistry:
                 cost_per_1m_output=10.00,
                 is_free_tier=False,
                 context_window_tokens=128_000,
+                api_key_env_var="GROK_API_KEY",
+                base_url="https://api.x.ai/v1",
                 quota_state=ProviderQuotaState(
                     cost_budget_usd=default_budget_usd,
                     limit_source="configured",
@@ -242,6 +311,8 @@ class ProviderCandidateRegistry:
                 cost_per_1m_output=10.00,
                 is_free_tier=False,
                 context_window_tokens=128_000,
+                api_key_env_var="OPENAI_API_KEY",
+                base_url="https://api.openai.com/v1",
                 quota_state=ProviderQuotaState(
                     cost_budget_usd=default_budget_usd,
                     limit_source="configured",
@@ -273,7 +344,7 @@ class ProviderCandidateRegistry:
         self.register(
             ProviderCandidateSpec(
                 provider_id="ollama-local",
-                model_name="llama3.2:latest",
+                model_name="phi3:latest",
                 lane=IntelligenceLane.LANE_3_LOCAL_FALLBACK,
                 capabilities={
                     ModelCapability.LOW_COST,
@@ -284,7 +355,7 @@ class ProviderCandidateRegistry:
                 cost_per_1m_input=0.0,
                 cost_per_1m_output=0.0,
                 is_free_tier=True,
-                context_window_tokens=128_000,
+                context_window_tokens=131_072,
                 quota_state=ProviderQuotaState(
                     limit_source="unknown",
                     quota_notes="Local inference instance unconstrained by remote network quotas.",
