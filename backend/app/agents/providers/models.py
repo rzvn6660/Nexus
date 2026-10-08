@@ -253,6 +253,8 @@ class ProviderCandidateSpec(BaseModel):
             from app.core.config import settings
             import os
             key_val = getattr(settings, self.api_key_env_var, None) or os.getenv(self.api_key_env_var)
+            if not key_val and self.api_key_env_var == "KIMI_API_KEY":
+                key_val = getattr(settings, "MOONSHOT_API_KEY", None) or os.getenv("MOONSHOT_API_KEY")
             if not key_val:
                 return False, f"{ProviderAvailabilityStatus.NOT_RUN_MISSING_CREDENTIALS.value} ({self.api_key_env_var} not configured)"
 
@@ -277,11 +279,16 @@ class PricingCatalog:
         "openai/gpt-oss-120b": (0.0, 0.0),
         # DeepSeek models
         "deepseek-v3": (0.14, 0.28),
+        "deepseek-chat": (0.14, 0.28),
+        "deepseek/deepseek-chat": (0.14, 0.28),
         "deepseek-r1": (0.55, 2.19),
+        "deepseek/deepseek-r1": (0.55, 2.19),
         # Qwen models (Alibaba Cloud / DashScope / OpenRouter)
         "qwen-2.5-72b-instruct": (0.35, 0.70),
+        "qwen/qwen-2.5-72b-instruct": (0.35, 0.70),
         "qwen-2.5-32b-instruct": (0.20, 0.40),
         "qwen-2.5-7b-instruct": (0.05, 0.10),
+        "qwen/qwen-2.5-7b-instruct": (0.05, 0.10),
         "qwen": (0.35, 0.70),
         # Kimi models (Moonshot AI K2 / K2.6)
         "kimi-k2.6": (0.60, 2.40),

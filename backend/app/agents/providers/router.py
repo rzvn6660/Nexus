@@ -213,7 +213,7 @@ class ModelRouter:
         pid = spec.provider_id.lower()
         if pid == "mock":
             return self._fallback_provider
-        if pid in ("groq", "deepseek-v3", "deepseek-r1", "gemini-flash", "gemini-pro", "grok", "openrouter-free", "ollama-local"):
+        if pid in ("groq", "deepseek-v3", "deepseek-r1", "gemini-flash", "gemini-pro", "grok", "openrouter-free", "openrouter-qwen", "openrouter-deepseek", "ollama-local"):
             # If custom injected provider matches
             if spec.lane == IntelligenceLane.LANE_1_FREE_HIGH_VOLUME and self._low_cost_provider:
                 return self._low_cost_provider
@@ -286,10 +286,31 @@ class ModelRouter:
                     f"Supported categories are: {[c.value for c in LLMTaskCategory]}"
                 )
 
-        # 3. Enforce calculation guard on prompt
+        # 3. Upstream Prompt Injection Defense (Must remain strictly upstream of provider execution)
+        from app.security.prompt_guard import detect_prompt_injection
+
+        prompt_scan_target = f"{request.prompt} {request.system_prompt or ''}"
+        is_injection, injection_reason = detect_prompt_injection(prompt_scan_target)
+        if is_injection:
+            logger.warning(
+                f"[ModelRouter] Upstream prompt injection blocked before provider execution: {injection_reason}"
+            )
+            return LLMResponse(
+                content=f"Request blocked by upstream prompt injection security guard: {injection_reason}",
+                parsed_data={"blocked": True, "reason": injection_reason, "security_violation": "prompt_injection"},
+                task_category=request.task_category,
+                model_name="upstream-security-guard",
+                provider_name="nexus_security_guard",
+                tier=ModelTier.LOCAL_FALLBACK,
+                warnings=[f"Adversarial prompt injection blocked upstream: {injection_reason}"],
+                usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+                estimated_cost_usd=0.0,
+            )
+
+        # 4. Enforce calculation guard on prompt
         guard_warnings = DeterministicCalculationGuard.validate_request(request)
 
-        # 4. Capability-based candidate selection (Cheapest Capable Wins)
+        # 5. Capability-based candidate selection (Cheapest Capable Wins)
         start_time = time.perf_counter()
         spec, provider = self.select_candidate(request)
 
@@ -297,32 +318,43 @@ class ModelRouter:
         fallback_occurred = False
         fallback_reason: str | None = None
 
-        try:
-            # Check candidate quota capacity before execution
-            if not spec.quota_state.can_accept():
-                raise LLMProviderUnavailableError(f"Candidate '{spec.provider_id}' quota capacity exhausted.")
-
-            # Execute with winning provider
-            response = provider.generate(request)
-
-        except Exception as exc:
-            elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-            exc_str = str(exc).lower()
-            spec.telemetry.failures_count += 1
-            spec.telemetry.last_error = str(exc)
-
-            if "429" in exc_str or "quota" in exc_str or "rate limit" in exc_str:
-                spec.quota_state.mark_exhausted()
-                fallback_reason = f"Provider '{spec.provider_id}' quota exhausted (429/RateLimit)"
-                logger.warning(f"[ModelRouter] {fallback_reason}. Escalating to fallback.")
-            elif "timeout" in exc_str or "timed out" in exc_str:
-                fallback_reason = f"Provider '{spec.provider_id}' timed out after {elapsed_ms}ms"
-                logger.warning(f"[ModelRouter] {fallback_reason}. Escalating to fallback.")
-            else:
-                fallback_reason = f"Provider '{spec.provider_id}' failed: {exc}"
-                logger.warning(f"[ModelRouter] {fallback_reason}. Escalating to fallback.")
-
+        # Hard Safety Guard: Candidates lacking tool-calling capability (specifically Qwen)
+        # must NOT receive unrestricted autonomous tool execution
+        if request.task_category == LLMTaskCategory.TOOL_SELECTION and ModelCapability.TOOL_CALLING not in spec.capabilities:
+            logger.warning(
+                f"[ModelRouter] Candidate '{spec.provider_id}' lacks TOOL_CALLING capability and cannot "
+                "receive autonomous tool execution. Escalating to safe fallback."
+            )
             fallback_occurred = True
+            fallback_reason = f"Candidate '{spec.provider_id}' prohibited from autonomous tool execution."
+
+        if not fallback_occurred:
+            try:
+                # Check candidate quota capacity before execution
+                if not spec.quota_state.can_accept():
+                    raise LLMProviderUnavailableError(f"Candidate '{spec.provider_id}' quota capacity exhausted.")
+
+                # Execute with winning provider
+                response = provider.generate(request)
+
+            except Exception as exc:
+                elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                exc_str = str(exc).lower()
+                spec.telemetry.failures_count += 1
+                spec.telemetry.last_error = str(exc)
+
+                if "429" in exc_str or "quota" in exc_str or "rate limit" in exc_str:
+                    spec.quota_state.mark_exhausted()
+                    fallback_reason = f"Provider '{spec.provider_id}' quota exhausted (429/RateLimit)"
+                    logger.warning(f"[ModelRouter] {fallback_reason}. Escalating to fallback.")
+                elif "timeout" in exc_str or "timed out" in exc_str:
+                    fallback_reason = f"Provider '{spec.provider_id}' timed out after {elapsed_ms}ms"
+                    logger.warning(f"[ModelRouter] {fallback_reason}. Escalating to fallback.")
+                else:
+                    fallback_reason = f"Provider '{spec.provider_id}' failed: {exc}"
+                    logger.warning(f"[ModelRouter] {fallback_reason}. Escalating to fallback.")
+
+                fallback_occurred = True
 
         # 5. Intelligent Escalation / Fallback
         if fallback_occurred or response is None or not response.content:

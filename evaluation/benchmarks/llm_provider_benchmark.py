@@ -1056,7 +1056,7 @@ class MultiCandidateBenchmarkSuite:
                     base_url=candidate.base_url,
                     api_key_env_var=candidate.api_key_env_var,
                     is_local=False,
-                    timeout_seconds=20.0,
+                    timeout_seconds=35.0,
                     allow_external=self.allow_external,
                 )
                 # Pre-flight probe

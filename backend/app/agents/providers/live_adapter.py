@@ -130,6 +130,8 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
         resolved_key = api_key
         if not resolved_key and api_key_env_var:
             resolved_key = getattr(settings, api_key_env_var, None) or os.getenv(api_key_env_var)
+            if not resolved_key and api_key_env_var == "KIMI_API_KEY":
+                resolved_key = getattr(settings, "MOONSHOT_API_KEY", None) or os.getenv("MOONSHOT_API_KEY")
         self.api_key = resolved_key or ("ollama" if is_local else None)
         self._fallback_mock = MockLLMProvider()
 
@@ -160,11 +162,17 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
             )
 
         from openai import OpenAI
-        return OpenAI(
-            base_url=self.base_url,
-            api_key=self.api_key or "local",
-            timeout=self.timeout_seconds,
-        )
+        client_kwargs: dict[str, Any] = {
+            "base_url": self.base_url,
+            "api_key": self.api_key or "local",
+            "timeout": self.timeout_seconds,
+        }
+        if self.base_url and "openrouter" in self.base_url.lower():
+            client_kwargs["default_headers"] = {
+                "HTTP-Referer": "https://nexus.local",
+                "X-Title": "NEXUS Benchmark",
+            }
+        return OpenAI(**client_kwargs)
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         """Execute request using live provider or report error."""
@@ -216,9 +224,14 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
                     })
 
         # Register tools or structured response format
+        # Hard Safety Guard: Candidates lacking tool capability (specifically Qwen) must NOT receive unrestricted autonomous tool execution
+        allow_autonomous_tools = self.provider_name.lower() not in ("openrouter-qwen", "qwen")
         is_tool_scenario = (
-            request.task_category in (LLMTaskCategory.TOOL_SELECTION, "tool_selection")
-            or bool(tools_def and not request.schema_model)
+            allow_autonomous_tools
+            and (
+                request.task_category in (LLMTaskCategory.TOOL_SELECTION, "tool_selection")
+                or bool(tools_def and not request.schema_model)
+            )
         )
         if is_tool_scenario and tools_def:
             kwargs["tools"] = tools_def

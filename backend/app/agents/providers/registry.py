@@ -60,8 +60,6 @@ class ProviderCandidateRegistry:
                     ModelCapability.LOW_LATENCY,
                     ModelCapability.STRUCTURED_OUTPUT,
                     ModelCapability.TOOL_CALLING,
-                    ModelCapability.SQL_PLANNING,
-                    ModelCapability.REASONING,
                 },
                 cost_per_1m_input=0.0,
                 cost_per_1m_output=0.0,
@@ -99,6 +97,68 @@ class ProviderCandidateRegistry:
                     tokens_limit=None,
                     limit_source="unknown",
                     quota_notes="OpenRouter free model tier limits are unconfigured/unknown; dynamically governed upstream.",
+                ),
+            )
+        )
+
+        # -------------------------------------------------------------
+        # LANE 2: STRONG / ESCALATION CANDIDATES
+        # -------------------------------------------------------------
+        self.register(
+            ProviderCandidateSpec(
+                provider_id="openrouter-qwen",
+                model_name="qwen/qwen-2.5-72b-instruct",
+                lane=IntelligenceLane.LANE_2_STRONG_ESCALATION,
+                capabilities={
+                    ModelCapability.REASONING,
+                    ModelCapability.BUSINESS_REASONING,
+                    ModelCapability.SQL_PLANNING,
+                    ModelCapability.AMBIGUITY_RESOLUTION,
+                    ModelCapability.EVIDENCE_INTERPRETATION,
+                    ModelCapability.STRUCTURED_OUTPUT,
+                    ModelCapability.CONTEXT_WINDOW,
+                },
+                cost_per_1m_input=0.35,
+                cost_per_1m_output=0.70,
+                is_free_tier=False,
+                context_window_tokens=131_072,
+                api_key_env_var="OPENROUTER_API_KEY",
+                base_url="https://openrouter.ai/api/v1",
+                quota_state=ProviderQuotaState(
+                    requests_limit=None,
+                    tokens_limit=None,
+                    limit_source="unknown",
+                    quota_notes="OpenRouter Qwen 2.5 72B candidate for Lane 2 reasoning/escalation; measured unit costs preserved.",
+                ),
+            )
+        )
+
+        self.register(
+            ProviderCandidateSpec(
+                provider_id="openrouter-deepseek",
+                model_name="deepseek/deepseek-chat",
+                lane=IntelligenceLane.LANE_2_STRONG_ESCALATION,
+                capabilities={
+                    ModelCapability.LOW_COST,
+                    ModelCapability.STRUCTURED_OUTPUT,
+                    ModelCapability.TOOL_CALLING,
+                    ModelCapability.SQL_PLANNING,
+                    ModelCapability.REASONING,
+                    ModelCapability.BUSINESS_REASONING,
+                    ModelCapability.AMBIGUITY_RESOLUTION,
+                    ModelCapability.EVIDENCE_INTERPRETATION,
+                },
+                cost_per_1m_input=0.14,
+                cost_per_1m_output=0.28,
+                is_free_tier=False,
+                context_window_tokens=64_000,
+                api_key_env_var="OPENROUTER_API_KEY",
+                base_url="https://openrouter.ai/api/v1",
+                quota_state=ProviderQuotaState(
+                    requests_limit=None,
+                    tokens_limit=None,
+                    limit_source="unknown",
+                    quota_notes="OpenRouter DeepSeek V3 candidate evaluated under account free-tier grant.",
                 ),
             )
         )
@@ -232,7 +292,7 @@ class ProviderCandidateRegistry:
                 is_free_tier=False,
                 context_window_tokens=128_000,
                 api_key_env_var="KIMI_API_KEY",
-                base_url="https://api.moonshot.cn/v1",
+                base_url="https://api.moonshot.ai/v1",
                 quota_state=ProviderQuotaState(
                     cost_budget_usd=default_budget_usd,
                     limit_source="configured",

@@ -130,13 +130,17 @@ class NexusLLMInterface(BaseLLMProvider):
 
     def plan_sql(self, query: str, schema_info: dict[str, Any] | None = None) -> dict[str, Any]:
         """Generate read-only SQL aggregation plan without executing calculations in LLM."""
+        from app.agents.providers.guard import DeterministicCalculationGuard
+
         req = LLMRequest(
             task_category=LLMTaskCategory.SQL_DATA_PLANNING,
             prompt=query,
             context={"schema_info": schema_info or {}},
         )
         response = self.generate(req)
-        return response.parsed_data or {"content": response.content}
+        plan = dict(response.parsed_data) if response.parsed_data else {"content": response.content}
+        DeterministicCalculationGuard.validate_sql_plan(plan)
+        return plan
 
     def reason_investigation(
         self, anomaly_description: str, metrics: dict[str, Any] | None = None
