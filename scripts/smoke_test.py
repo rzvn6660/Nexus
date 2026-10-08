@@ -187,11 +187,91 @@ def run_smoke_test(client_getter) -> None:
 def create_in_process_client():
     from fastapi.testclient import TestClient
     from app.main import app
+    from app.core.config import settings
     from app.core.database import get_db
     from app.api.deps import get_db_session
     from evaluation.runner.runner import create_evaluation_database
 
+    # Enable API-key authentication for in-process smoke test execution
+    settings.API_KEY_ENABLED = True
+    settings.API_KEY = "smoke-test-key"
+
     session = create_evaluation_database()
+
+    # Seed the system service workspace with ready dataset and active semantic model
+    from app.models.tenant import Organization, Business, UserIdentity, OrganizationMembership, UploadedDataset, TenantSemanticModel
+    from app.models.customer import Customer
+    from app.models.product import Product
+    from app.models.sale import Sale
+
+    session.query(Customer).update({Customer.business_id: "biz_system_service"})
+    session.query(Product).update({Product.business_id: "biz_system_service"})
+    session.query(Sale).update({Sale.business_id: "biz_system_service"})
+    session.flush()
+
+    org = Organization(id="org_system_service", name="System Service Org", slug="system-service-org")
+    session.add(org)
+    session.flush()
+
+    user = UserIdentity(
+        id="usr_system_service",
+        email="system@nexus.internal",
+        full_name="NEXUS System Service",
+        password_hash="N/A",
+        is_active=True,
+        is_verified=True,
+    )
+    session.add(user)
+    session.flush()
+
+    mem = OrganizationMembership(
+        user_id=user.id,
+        organization_id=org.id,
+        role="owner",
+    )
+    session.add(mem)
+
+    biz = Business(
+        id="biz_system_service",
+        organization_id=org.id,
+        name="System Primary Business",
+        status="active",
+    )
+    session.add(biz)
+    session.flush()
+
+    dataset = UploadedDataset(
+        id="ds_system_service",
+        organization_id=org.id,
+        business_id=biz.id,
+        filename="smoke_test_retail.csv",
+        file_type="csv",
+        storage_key="uploads/smoke_test.csv",
+        file_size_bytes=1024,
+        row_count=100,
+        column_count=5,
+        content_hash="smoke_test_hash",
+        readiness_status="ready",
+    )
+    session.add(dataset)
+    session.flush()
+
+    sem = TenantSemanticModel(
+        id="sem_system_service",
+        organization_id=org.id,
+        business_id=biz.id,
+        version=1,
+        status="ACTIVE",
+        source_dataset_id=dataset.id,
+        entities_json={"Sale": {"record_count": 100}},
+        metrics_json={"net_revenue": {"status": "AVAILABLE"}},
+        dimensions_json={},
+        synonyms_json={},
+        ambiguous_terms_json={},
+        business_summary_json={"total_sales": 100},
+    )
+    session.add(sem)
+    session.commit()
 
     def override_get_db():
         try:
@@ -202,7 +282,10 @@ def create_in_process_client():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_db_session] = override_get_db
 
-    return TestClient(app)
+    return TestClient(
+        app,
+        headers={"X-API-Key": settings.API_KEY},
+    )
 
 
 def main():
