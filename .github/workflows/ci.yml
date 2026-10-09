@@ -41,6 +41,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements-dev.txt
 
+      - name: Run PostgreSQL database migrations
+        env:
+          DATABASE_URL: postgresql://nexus_user:nexus_password@localhost:5432/nexus_test_db
+        run: |
+          cd backend
+          python -c "import os; from sqlalchemy import create_engine, text; e = create_engine(os.environ['DATABASE_URL']); conn = e.connect(); conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector;')); conn.commit(); conn.close()"
+          alembic upgrade head
+
       - name: Run backend tests
         env:
           DATABASE_URL: postgresql://nexus_user:nexus_password@localhost:5432/nexus_test_db

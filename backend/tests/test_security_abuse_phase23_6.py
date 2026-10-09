@@ -178,6 +178,11 @@ def security_tenants(db_session: Session):
         content=content_alpha,
         business_domain="finance",
         embedding=provider.get_embedding(content_alpha),
+        business_id=biz_alpha.id,
+        embedding_provider=provider.provider_name,
+        embedding_model=provider.model_name,
+        embedding_dimension=provider.dimension,
+        embedding_version=provider.version,
     )
     db_session.add(chunk_alpha)
 
@@ -205,6 +210,11 @@ def security_tenants(db_session: Session):
         content=content_global,
         business_domain="finance",
         embedding=provider.get_embedding(content_global),
+        business_id=None,
+        embedding_provider=provider.provider_name,
+        embedding_model=provider.model_name,
+        embedding_dimension=provider.dimension,
+        embedding_version=provider.version,
     )
     db_session.add(chunk_global)
 

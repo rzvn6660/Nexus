@@ -1,7 +1,7 @@
 """Core configuration management for NEXUS using Pydantic v2."""
 
 from functools import lru_cache
-from typing import List, Union
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     API_V1_PREFIX: str = "/api/v1"
-    BACKEND_CORS_ORIGINS: Union[List[str], str] = [
+    BACKEND_CORS_ORIGINS: list[str] | str = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+    def assemble_cors_origins(cls, v: str | list[str]) -> list[str]:
         """Parse comma-separated origins string into list if necessary."""
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",") if i.strip()]
@@ -101,7 +101,9 @@ class Settings(BaseSettings):
     LLM_STRONG_REASONING_MODEL: str = "mock-reasoning"
     LLM_FALLBACK_PROVIDER: str = "mock"
     LLM_FALLBACK_MODEL: str = "mock-deterministic"
-    LLM_ALLOW_EXTERNAL_CALLS: bool = False  # Strict Guard: Prevent accidental external paid LLM calls
+    LLM_ALLOW_EXTERNAL_CALLS: bool = (
+        False  # Strict Guard: Prevent accidental external paid LLM calls
+    )
     LLM_REQUEST_TIMEOUT_SECONDS: float = 10.0
     LLM_MAX_RETRIES: int = 2
 
@@ -132,7 +134,18 @@ class Settings(BaseSettings):
     RAG_HYBRID_SEARCH_ENABLED: bool = True
     RAG_HYBRID_SEMANTIC_WEIGHT: float = 0.7
     RAG_HYBRID_LEXICAL_WEIGHT: float = 0.3
+    RAG_FUSION_METHOD: str = "rrf"  # "rrf" (Reciprocal Rank Fusion) or "linear"
+    RAG_RRF_K: int = 60  # Smoothing parameter for reciprocal rank fusion
+    RAG_LEXICAL_TOP_K: int = 10  # Candidate count for lexical stage
     MAX_DOCUMENT_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB max document size
+
+    # Phase 25C.3 Reranking & Ingestion Bounds
+    RAG_RERANK_ENABLED: bool = False  # Optional and disabled by default
+    RAG_RERANK_PROVIDER: str = "none"  # "none", "local", "cohere"
+    RAG_RERANK_MODEL: str = "local-cross-scorer-v1"
+    RAG_RERANK_TOP_K: int = 3
+    RAG_MAX_FALLBACK_SCAN_CHUNKS: int = 1000  # Explicit bound for in-memory BM25 fallback
+    COHERE_API_KEY: str | None = None
 
     # Investigation / Diagnostic Intelligence Layer
     MAX_INVESTIGATION_STEPS: int = 8
@@ -176,14 +189,14 @@ class Settings(BaseSettings):
         """Helper to verify if running in production mode."""
         return self.APP_ENV.lower() == "production"
 
-    def get_sanitized_cors_origins(self) -> List[str]:
+    def get_sanitized_cors_origins(self) -> list[str]:
         """Return allowed CORS origins, strictly stripping wildcards in production."""
         if self.is_production:
             return [o for o in self.BACKEND_CORS_ORIGINS if o != "*"]
         return list(self.BACKEND_CORS_ORIGINS)
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Return cached instance of application settings."""
     return Settings()
