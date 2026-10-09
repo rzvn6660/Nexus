@@ -189,7 +189,7 @@ class TestPostgresPgvectorIntegration:
         """Verify SQL-level tenant isolation in PostgreSQL: Tenant B cannot retrieve Tenant A data."""
         service = DocumentIngestionService(pg_session)
         service.ingest_text(
-            "## Confidential Financial Plan\nTenant Alpha projected net margin is 42 percent.",
+            "## Confidential Financial Plan\nTenant Alpha proprietary internal projection ALPHA-PROJ-777 is forty-two percent.",
             doc_type="markdown",
             metadata=DocumentMetadata(title="Alpha Plan", business_domain="finance"),
             business_id="tenant_alpha",
@@ -197,11 +197,11 @@ class TestPostgresPgvectorIntegration:
 
         retriever = HybridRetriever(pg_session)
         # Tenant Beta query
-        res_beta = retriever.retrieve("projected net margin", business_id="tenant_beta", top_k=3)
+        res_beta = retriever.retrieve("ALPHA-PROJ-777 internal projection", business_id="tenant_beta", top_k=3)
         assert len(res_beta.chunks) == 0
 
         # Tenant Alpha query
-        res_alpha = retriever.retrieve("projected net margin", business_id="tenant_alpha", top_k=3)
+        res_alpha = retriever.retrieve("ALPHA-PROJ-777 internal projection", business_id="tenant_alpha", top_k=3)
         assert len(res_alpha.chunks) == 1
         assert res_alpha.chunks[0].business_id == "tenant_alpha"
 
