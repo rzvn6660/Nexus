@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.schema import FetchedValue
 from sqlalchemy.types import TypeDecorator
 
 from app.core.config import settings
@@ -103,7 +104,9 @@ class KnowledgeChunk(Base):
     embedding_model: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     embedding_dimension: Mapped[int | None] = mapped_column(Integer, nullable=True)
     embedding_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    tsv_content: Mapped[Any | None] = mapped_column(TSVectorType, nullable=True)
+    tsv_content: Mapped[Any | None] = mapped_column(
+        TSVectorType, server_default=FetchedValue(), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=datetime.utcnow,

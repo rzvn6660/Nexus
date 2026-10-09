@@ -22,7 +22,7 @@ from app.rag.ingestion.models import DocumentMetadata
 from app.rag.ingestion.service import DocumentIngestionService
 from app.rag.retrieval.retriever import HybridRetriever
 from sqlalchemy import create_engine, func, inspect, select, text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session, sessionmaker
 
 PG_URL = os.getenv(
@@ -208,7 +208,7 @@ class TestPostgresPgvectorIntegration:
     def test_failed_postgresql_transaction_rollback(self, pg_session: Session):
         """Verify that a failed query in PostgreSQL is rolled back so subsequent queries succeed."""
         # Intentionally cause a syntax error inside PostgreSQL
-        with pytest.raises(OperationalError):
+        with pytest.raises((ProgrammingError, OperationalError, DBAPIError)):
             pg_session.execute(text("SELECT * FROM non_existent_table_triggering_abort;"))
 
         # In PostgreSQL, transaction is now aborted. Without rollback, subsequent queries fail.
