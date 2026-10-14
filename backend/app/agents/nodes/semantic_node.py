@@ -2,6 +2,7 @@
 
 import logging
 import re
+from datetime import date
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
@@ -140,8 +141,11 @@ def semantic_resolution_node(state: AgentState, config: RunnableConfig | None = 
             "needs_clarification": False,
         }
 
+    ref_date_str = state.get("reference_date")
+    ref_date = date.fromisoformat(ref_date_str) if ref_date_str else None
+
     # Canonical resolution fallback
-    resolution = semantic_resolver.resolve(user_query)
+    resolution = semantic_resolver.resolve(user_query, reference_date=ref_date)
 
     # 1. Check for explicit unsupported metric
     if not resolution.is_supported:

@@ -5,6 +5,7 @@ analytics tools, ensuring numbers are only ever computed by AnalyticsService.
 """
 
 import re
+from datetime import date
 from typing import Any
 
 from app.rag.semantic.models import (
@@ -883,7 +884,7 @@ class SemanticResolver:
     def __init__(self, ontology: KPIOntology | None = None) -> None:
         self.ontology = ontology or KPIOntology()
 
-    def resolve(self, query: str) -> SemanticResolutionResult:
+    def resolve(self, query: str, reference_date: date | None = None) -> SemanticResolutionResult:
         """
         Deterministically resolve user query against the KPI ontology.
         
@@ -950,7 +951,7 @@ class SemanticResolver:
         temporal_ctx: dict[str, Any] | None = None
         try:
             from app.agents.tools.date_interpreter import DateInterpreter
-            date_res = DateInterpreter.interpret(query)
+            date_res = DateInterpreter.interpret(query, reference_date=reference_date)
             if date_res.get("matched_expression") is not None or date_res.get("date_from") is not None:
                 temporal_ctx = dict(date_res)
                 if date_res.get("date_from"):

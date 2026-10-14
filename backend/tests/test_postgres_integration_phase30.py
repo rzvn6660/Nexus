@@ -217,12 +217,17 @@ def test_pg_02_failure_rollback_and_diagnostic_persistence(pg_client, pg_tenant,
         "X-Business-ID": pg_tenant["biz"].id,
     }
 
+    prefix = uuid4().hex[:6].upper()
+    ord1 = f"PG-ROLLBACK-{prefix}-01"
+    ord2 = f"PG-ROLLBACK-{prefix}-02"
+    ord3 = f"PG-ROLLBACK-{prefix}-03"
+
     # Upload dataset with 2 valid sales followed by 1 invalid amount
     csv_data = (
         "order_number,date,amount\n"
-        "PG-ROLLBACK-01,2025-05-01,100.00\n"
-        "PG-ROLLBACK-02,2025-05-02,200.00\n"
-        "PG-ROLLBACK-03,2025-05-03,CORRUPT_NON_NUMERIC\n"
+        f"{ord1},2025-05-01,100.00\n"
+        f"{ord2},2025-05-02,200.00\n"
+        f"{ord3},2025-05-03,CORRUPT_NON_NUMERIC\n"
     )
     files = {"file": ("pg_rollback_test.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
     upload_res = pg_client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -243,7 +248,7 @@ def test_pg_02_failure_rollback_and_diagnostic_persistence(pg_client, pg_tenant,
         persisted = fresh_db.execute(
             select(Sale).where(
                 Sale.business_id == pg_tenant["biz"].id,
-                Sale.transaction_number.in_(["PG-ROLLBACK-01", "PG-ROLLBACK-02", "PG-ROLLBACK-03"]),
+                Sale.transaction_number.in_([ord1, ord2, ord3]),
             )
         ).scalars().all()
         assert len(persisted) == 0, "PostgreSQL rollback failed: partial records found committed."
@@ -262,10 +267,14 @@ def test_pg_03_uniqueness_constraints_and_idempotency(pg_client, pg_tenant, pg_s
         "X-Business-ID": pg_tenant["biz"].id,
     }
 
+    prefix = uuid4().hex[:6].upper()
+    ord1 = f"PG-IDEMP-{prefix}-01"
+    ord2 = f"PG-IDEMP-{prefix}-02"
+
     csv_data = (
         "order_number,date,amount\n"
-        "PG-IDEMP-01,2025-05-10,50.00\n"
-        "PG-IDEMP-02,2025-05-11,75.00\n"
+        f"{ord1},2025-05-10,50.00\n"
+        f"{ord2},2025-05-11,75.00\n"
     )
     files = {"file": ("pg_idempotent.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
     res_upload = pg_client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -295,7 +304,7 @@ def test_pg_03_uniqueness_constraints_and_idempotency(pg_client, pg_tenant, pg_s
         sales = fresh_db.execute(
             select(Sale).where(
                 Sale.business_id == pg_tenant["biz"].id,
-                Sale.transaction_number.in_(["PG-IDEMP-01", "PG-IDEMP-02"]),
+                Sale.transaction_number.in_([ord1, ord2]),
             )
         ).scalars().all()
         assert len(sales) == 2

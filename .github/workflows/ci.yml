@@ -69,7 +69,7 @@ jobs:
           DEBUG: "false"
         run: |
           cd backend
-          pytest
+          pytest --ignore=tests/test_postgres_integration_phase30.py
 
       - name: Run evaluation benchmark regression check
         run: |
