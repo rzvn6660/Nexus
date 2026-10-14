@@ -1,8 +1,10 @@
 """Core configuration management for NEXUS using Pydantic v2."""
 
+import os
 from functools import lru_cache
+from urllib.parse import parse_qs, urlparse
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -66,11 +68,14 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "nexus_user"
     POSTGRES_PASSWORD: str = "nexus_password"
 
-    # Database Connection Pool
+    # Database Connection Pool & SSL
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 1800  # Recycle idle/stale connections after 30 minutes
     DB_ECHO: bool = False
+    DB_SSL_MODE: str | None = None  # None | "disable" | "allow" | "prefer" | "require" | "verify-ca" | "verify-full"
+    DB_SSL_ROOT_CERT: str | None = None  # Optional path to trusted CA root bundle (e.g. /etc/ssl/certs/rds-global-bundle.pem)
 
     # AI / LLM Layer Configuration
     DEFAULT_LLM_PROVIDER: str = "mock"
@@ -184,17 +189,237 @@ class Settings(BaseSettings):
     METRICS_ENABLED: bool = True
     UPLOAD_DIR: str = "./data/uploads"
 
-    # Phase 29 — Continuous Intelligence Scheduled Execution
+    # Phase 29 & 31 — Continuous Intelligence Scheduled Execution
     CONTINUOUS_SCHEDULER_ENABLED: bool = True
+    CONTINUOUS_SCHEDULER_AUTOSTART: bool = True  # Autostart inside web application lifespan; set False in multi-worker web pods
     CONTINUOUS_SCHEDULER_INTERVAL_SECONDS: int = 60
     CONTINUOUS_SCHEDULER_BATCH_SIZE: int = 10
     CONTINUOUS_SCHEDULER_STARTUP_DELAY_SECONDS: int = 5
     CONTINUOUS_SCHEDULER_MAX_BUSINESSES_PER_TICK: int = 50
 
+    @field_validator("DB_SSL_MODE", mode="before")
+    @classmethod
+    def validate_ssl_mode(cls, v: str | None) -> str | None:
+        """Validate PostgreSQL TLS sslmode matches supported libpq/psycopg modes."""
+        if v is None:
+            return None
+        v_clean = str(v).strip().lower()
+        if not v_clean:
+            return None
+        valid_modes = {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
+        if v_clean not in valid_modes:
+            raise ValueError(
+                f"Invalid DB_SSL_MODE '{v}'. Supported PostgreSQL TLS modes: "
+                f"{', '.join(sorted(valid_modes))}."
+            )
+        return v_clean
+
     @property
     def is_production(self) -> bool:
         """Helper to verify if running in production mode."""
         return self.APP_ENV.lower() == "production"
+
+    @property
+    def effective_db_ssl_mode(self) -> str | None:
+        """Resolve effective PostgreSQL TLS sslmode.
+
+        If explicitly set via DB_SSL_MODE, uses that validated value.
+        In production with DB_SSL_MODE unset:
+          - If DB_SSL_ROOT_CERT is configured, prefers 'verify-full' (certificate + hostname verification).
+          - Otherwise, defaults to 'require' (strict transport encryption).
+        Outside production with DB_SSL_MODE unset, returns None (allowing unencrypted local dev/test).
+        """
+        if self.DB_SSL_MODE is not None and self.DB_SSL_MODE.strip():
+            return self.DB_SSL_MODE.strip().lower()
+        if self.is_production:
+            if self.DB_SSL_ROOT_CERT and self.DB_SSL_ROOT_CERT.strip():
+                return "verify-full"
+            return "require"
+        return None
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        """Enforce strict secret safety when running in production mode.
+
+        Fails application startup if SECRET_KEY or AUTH_JWT_SECRET match known insecure
+        defaults, contain placeholder tokens, fail minimum length requirements (>= 32 chars),
+        or exhibit low character variety (heuristic sanity check).
+        Character diversity is evaluated as a heuristic sanity check to reject repeated patterns (e.g. 'aaaa...'),
+        not as formal proof of cryptographic entropy. True entropy must be derived from a CSPRNG.
+        Preserves convenient development and test defaults outside production.
+        """
+        if not self.is_production:
+            return self
+
+        insecure_defaults = {
+            "nexus-insecure-development-secret-key-change-in-production",
+            "nexus-production-secret-key-change-me",
+            "nexus-saas-jwt-secret-key-change-in-production-min-32-chars",
+            "secret",
+            "changeme",
+            "change-me",
+            "password",
+            "admin",
+            "nexus",
+        }
+        placeholder_substrings = ["change-in-production", "change-me", "insecure", "example"]
+
+        # 1. Validate SECRET_KEY
+        secret_val = (self.SECRET_KEY or "").strip()
+        self.SECRET_KEY = secret_val
+        if not secret_val or secret_val in insecure_defaults:
+            raise ValueError(
+                "Production startup failed: SECRET_KEY is set to a known insecure default. "
+                "You must supply a cryptographically strong, non-default SECRET_KEY."
+            )
+        if any(token in secret_val.lower() for token in placeholder_substrings):
+            raise ValueError(
+                "Production startup failed: SECRET_KEY contains insecure placeholder tokens "
+                "('change-in-production', 'change-me', 'insecure', or 'example')."
+            )
+        if len(secret_val) < 32:
+            raise ValueError(
+                f"Production startup failed: SECRET_KEY length ({len(secret_val)}) is below "
+                "the mandatory minimum of 32 characters."
+            )
+        # Character diversity heuristic: rejects trivial repeated-character sequences
+        if len(set(secret_val)) < 8:
+            raise ValueError(
+                "Production startup failed: SECRET_KEY exhibits low character diversity heuristic "
+                f"(found {len(set(secret_val))} distinct characters; minimum 8 required)."
+            )
+
+        # 2. Validate AUTH_JWT_SECRET
+        jwt_val = (self.AUTH_JWT_SECRET or "").strip()
+        self.AUTH_JWT_SECRET = jwt_val
+        if not jwt_val or jwt_val in insecure_defaults:
+            raise ValueError(
+                "Production startup failed: AUTH_JWT_SECRET is set to a known insecure default. "
+                "You must supply a cryptographically strong, non-default AUTH_JWT_SECRET."
+            )
+        if any(token in jwt_val.lower() for token in placeholder_substrings):
+            raise ValueError(
+                "Production startup failed: AUTH_JWT_SECRET contains insecure placeholder tokens."
+            )
+        if len(jwt_val) < 32:
+            raise ValueError(
+                f"Production startup failed: AUTH_JWT_SECRET length ({len(jwt_val)}) is below "
+                "the mandatory minimum of 32 characters."
+            )
+        # Character diversity heuristic: rejects trivial repeated-character sequences
+        if len(set(jwt_val)) < 8:
+            raise ValueError(
+                "Production startup failed: AUTH_JWT_SECRET exhibits low character diversity heuristic "
+                f"(found {len(set(jwt_val))} distinct characters; minimum 8 required)."
+            )
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_production_database_tls(self) -> "Settings":
+        """Enforce strict TLS encryption for PostgreSQL in production mode.
+
+        In production:
+        - Rejects insecure DB_SSL_MODE ('disable', 'allow', 'prefer').
+        - Rejects DATABASE_URL query parameter overrides attempting to set
+          sslmode to 'disable', 'allow', or 'prefer'.
+        - Rejects duplicate, ambiguous 'sslmode' or 'sslrootcert' query parameters.
+        - Rejects malformed DATABASE_URL strings.
+        - Mandates a valid, readable CA certificate bundle when 'verify-full' or 'verify-ca' is selected.
+        - Fails startup safely if configured CA certificate bundle does not exist or is unreadable.
+        - Preserves unencrypted and custom configurations in non-production environments.
+        """
+        if not self.is_production:
+            return self
+
+        # 1. Validate DB_SSL_MODE in production
+        if self.DB_SSL_MODE is not None and self.DB_SSL_MODE.strip():
+            mode_clean = self.DB_SSL_MODE.strip().lower()
+            if mode_clean in ("disable", "allow", "prefer"):
+                raise ValueError(
+                    f"Production startup failed: Insecure DB_SSL_MODE '{mode_clean}'. "
+                    "Production PostgreSQL connections strictly mandate encrypted TLS ('require', 'verify-ca', or 'verify-full')."
+                )
+
+        # 2. Validate DATABASE_URL query parameters for PostgreSQL in production
+        try:
+            parsed_url = urlparse(self.DATABASE_URL)
+        except Exception as exc:
+            raise ValueError(f"Production startup failed: Malformed DATABASE_URL: {exc}") from exc
+
+        scheme = (parsed_url.scheme or "").lower()
+        if "postgres" in scheme:
+            if not parsed_url.netloc and not parsed_url.path:
+                raise ValueError("Production startup failed: Malformed DATABASE_URL missing host/database.")
+
+            query_params = parse_qs(parsed_url.query)
+
+            # Check duplicate / ambiguous sslmode parameters
+            if len(query_params.get("sslmode", [])) > 1:
+                raise ValueError(
+                    f"Production startup failed: Ambiguous multiple 'sslmode' parameters in DATABASE_URL: {query_params['sslmode']}. "
+                    "Specify exactly one sslmode parameter."
+                )
+
+            # Check duplicate / ambiguous sslrootcert parameters
+            if len(query_params.get("sslrootcert", [])) > 1:
+                raise ValueError(
+                    f"Production startup failed: Ambiguous multiple 'sslrootcert' parameters in DATABASE_URL: {query_params['sslrootcert']}. "
+                    "Specify exactly one sslrootcert parameter."
+                )
+
+            if "sslmode" in query_params:
+                for mode_val in query_params["sslmode"]:
+                    mode_clean = mode_val.strip().lower()
+                    if mode_clean in ("disable", "allow", "prefer"):
+                        raise ValueError(
+                            f"Production startup failed: Insecure sslmode='{mode_clean}' in DATABASE_URL. "
+                            "Production PostgreSQL connections strictly mandate encrypted TLS ('require', 'verify-ca', or 'verify-full'). "
+                            "Insecure explicit URL overrides are rejected."
+                        )
+                    if mode_clean not in ("require", "verify-ca", "verify-full"):
+                        raise ValueError(
+                            f"Production startup failed: Unsupported sslmode='{mode_clean}' in DATABASE_URL. "
+                            "Supported secure modes: 'require', 'verify-ca', or 'verify-full'."
+                        )
+
+            # 3. Determine active TLS mode and validate trusted CA configuration
+            active_tls_mode = self.effective_db_ssl_mode
+            if "sslmode" in query_params and query_params["sslmode"]:
+                active_tls_mode = query_params["sslmode"][0].strip().lower()
+
+            # Resolve CA certificate path (URL parameter takes precedence if both present)
+            ca_path: str | None = None
+            if "sslrootcert" in query_params and query_params["sslrootcert"]:
+                ca_path = query_params["sslrootcert"][0].strip()
+            elif self.DB_SSL_ROOT_CERT and self.DB_SSL_ROOT_CERT.strip():
+                ca_path = self.DB_SSL_ROOT_CERT.strip()
+
+            # verify-full and verify-ca strictly require a trusted CA certificate bundle
+            if active_tls_mode in ("verify-full", "verify-ca") and not ca_path:
+                raise ValueError(
+                    f"Production startup failed: PostgreSQL TLS mode '{active_tls_mode}' strictly requires a trusted CA root certificate bundle. "
+                    "Provide a valid CA bundle path via DB_SSL_ROOT_CERT or sslrootcert in DATABASE_URL."
+                )
+
+            # When CA path is configured, verify file existence, file type, and readability
+            if ca_path:
+                if not os.path.exists(ca_path):
+                    raise ValueError(
+                        f"Production startup failed: Configured CA root certificate bundle '{ca_path}' does not exist. "
+                        "Ensure the trusted CA certificate file is mounted and accessible."
+                    )
+                if not os.path.isfile(ca_path):
+                    raise ValueError(
+                        f"Production startup failed: Configured CA root certificate bundle '{ca_path}' is not a regular file."
+                    )
+                if not os.access(ca_path, os.R_OK):
+                    raise ValueError(
+                        f"Production startup failed: Configured CA root certificate bundle '{ca_path}' is not readable. "
+                        "Check file permissions."
+                    )
+
+        return self
 
     def get_sanitized_cors_origins(self) -> list[str]:
         """Return allowed CORS origins, strictly stripping wildcards in production."""

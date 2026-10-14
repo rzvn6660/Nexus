@@ -258,3 +258,54 @@ class ContinuousIntelligenceScheduler:
 
 # Global singleton instance for application lifespan
 continuous_scheduler = ContinuousIntelligenceScheduler()
+
+
+def run_scheduler_daemon() -> None:
+    """Run the continuous intelligence scheduler as a dedicated standalone daemon process.
+
+    Provides signal-aware execution (SIGINT, SIGTERM) for independent background worker
+    containers or systemd units, preventing duplicate execution across multi-worker web processes.
+    """
+    import signal
+
+    logger.info("Starting standalone Continuous Intelligence Scheduler daemon process...")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    scheduler = ContinuousIntelligenceScheduler()
+    scheduler.start()
+
+    def handle_signal(sig: int, frame: Any) -> None:
+        logger.info("Received termination signal (%d), initiating graceful shutdown...", sig)
+        if scheduler._shutdown_event is not None:
+            scheduler._shutdown_event.set()
+        scheduler._is_running = False
+
+    try:
+        signal.signal(signal.SIGINT, handle_signal)
+        signal.signal(signal.SIGTERM, handle_signal)
+    except (ValueError, AttributeError):
+        # In non-main thread or special OS environments, signal handlers may not be attachable
+        pass
+
+    async def _wait_until_stopped() -> None:
+        while scheduler.is_running:
+            await asyncio.sleep(0.5)
+
+    try:
+        loop.run_until_complete(_wait_until_stopped())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Scheduler daemon received keyboard interrupt or system exit.")
+    finally:
+        if scheduler.is_running:
+            loop.run_until_complete(scheduler.stop(timeout_seconds=5.0))
+        loop.close()
+        logger.info("Standalone scheduler daemon process terminated cleanly.")
+
+
+if __name__ == "__main__":
+    from app.core.logging import setup_logging
+
+    setup_logging()
+    run_scheduler_daemon()
+

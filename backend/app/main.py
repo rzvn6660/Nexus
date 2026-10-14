@@ -42,11 +42,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "Ensure PostgreSQL is running via Docker or local service."
         )
 
-    # Phase 29: Continuous Intelligence Background Scheduler
+    # Phase 29 & 31: Continuous Intelligence Background Scheduler
     from app.analytics.continuous.scheduler import continuous_scheduler
 
-    if settings.CONTINUOUS_SCHEDULER_ENABLED:
+    if settings.CONTINUOUS_SCHEDULER_ENABLED and settings.CONTINUOUS_SCHEDULER_AUTOSTART:
         continuous_scheduler.start()
+        logger.info("Continuous intelligence scheduler started in web application lifespan.")
+    elif settings.CONTINUOUS_SCHEDULER_ENABLED:
+        logger.info(
+            "Continuous intelligence scheduler web autostart disabled (CONTINUOUS_SCHEDULER_AUTOSTART=False). "
+            "Dedicated background worker process must be provisioned."
+        )
 
     yield
 

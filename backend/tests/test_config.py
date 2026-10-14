@@ -49,6 +49,8 @@ def test_production_cors_sanitization() -> None:
     """Validate that in production mode, wildcard CORS origins are strictly stripped."""
     prod_cfg = Settings(
         APP_ENV="production",
+        SECRET_KEY="a-secure-production-random-secret-key-32-chars-long",
+        AUTH_JWT_SECRET="a-secure-production-jwt-secret-key-32-chars-long",
         BACKEND_CORS_ORIGINS=["*", "https://nexus.ai", "http://localhost:3000"],
     )
     assert prod_cfg.is_production is True
