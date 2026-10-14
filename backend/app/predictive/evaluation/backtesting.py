@@ -75,11 +75,24 @@ class ExpandingWindowBacktester:
             preds = m.predict(test_h)
             lower, upper = m.get_prediction_intervals(test_h)
 
+            pt_val = float(preds[0])
+            low_val = float(lower[0])
+            up_val = float(upper[0])
+            width = round(up_val - low_val, 2)
+            if pt_val > 1e-4:
+                unc_ratio = round(min(5.0, width / pt_val), 3)
+            elif width > 0.0:
+                unc_ratio = 1.0
+            else:
+                unc_ratio = 0.0
+
             point_obj = ForecastPredictionPoint(
                 period=f"step_{split_idx+1}",
-                point_forecast=float(preds[0]),
-                lower_bound=float(lower[0]),
-                upper_bound=float(upper[0]),
+                point_forecast=pt_val,
+                lower_bound=low_val,
+                upper_bound=up_val,
+                interval_width=width,
+                uncertainty_ratio=unc_ratio,
             )
             step_metrics = evaluate_forecast(actuals, preds)
             split_results.append(

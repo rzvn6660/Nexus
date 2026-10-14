@@ -2,12 +2,12 @@
 
 from datetime import date
 from typing import Any
+
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy.orm import Session
 
 from app.agents.state.models import AgentState
 from app.predictive.schemas import ForecastRequest, ModelPolicy
-from app.predictive.services.forecasting_service import ForecastingService
 
 
 def execute_forecast_node(
@@ -57,7 +57,9 @@ def execute_forecast_node(
         reference_date=ref_date,
     )
 
-    svc = ForecastingService(session)
+    business_id = state.get("business_id") or configurable.get("business_id")
+    from app.predictive.services.forecasting_service import ForecastingService
+    svc = ForecastingService(session, business_id=business_id)
     result = svc.forecast(req)
 
     tools_used = list(state.get("tools_used", []))

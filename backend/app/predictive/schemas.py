@@ -59,7 +59,11 @@ class ForecastDataQuality(BaseModel):
     missing_periods: list[str] = Field(default_factory=list, description="Identified gap intervals.")
     missing_values: int = 0
     zero_periods_count: int = 0
+    zero_demand_ratio: float = 0.0
     outliers_detected: int = 0
+    demand_pattern: str = "smooth"
+    has_seasonality: bool = False
+    cycle_count: float = 0.0
     warnings: list[str] = Field(default_factory=list)
     blocking_reasons: list[str] = Field(default_factory=list)
 
@@ -73,6 +77,8 @@ class ForecastPredictionPoint(BaseModel):
     lower_bound: float = Field(..., description="Lower prediction interval limit at alpha.")
     upper_bound: float = Field(..., description="Upper prediction interval limit at alpha.")
     confidence_level: float = Field(default=0.95, description="Coverage probability for prediction intervals.")
+    interval_width: float = Field(default=0.0, description="Absolute prediction interval range (upper - lower).")
+    uncertainty_ratio: float = Field(default=0.0, description="Relative uncertainty spread (interval_width / max(1e-4, point_forecast)).")
 
 
 class EvaluationMetrics(BaseModel):
@@ -86,7 +92,7 @@ class EvaluationMetrics(BaseModel):
 
 class ModelMetadata(BaseModel):
     """Model registry record for candidate or selected forecasting model."""
-    name: str = Field(..., description="Model identifier: naive, seasonal_naive, moving_average, exponential_smoothing, arima.")
+    name: str = Field(..., description="Model identifier: naive, seasonal_naive, moving_average, exponential_smoothing, croston, holt_winters, ridge_lagged, arima.")
     version: str = "1.0"
     model_type: str = Field(default="baseline", description="Category: baseline or statistical.")
     parameters: dict[str, Any] = Field(default_factory=dict)
@@ -117,6 +123,8 @@ class ForecastEvidence(BaseModel):
     assumptions: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
     data_quality_status: str
+    demand_pattern: str = Field(default="smooth", description="Identified demand profile: smooth, intermittent, or erratic.")
+    parsimony_applied: bool = Field(default=False, description="Whether parsimony baseline retention was applied.")
     generated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @model_validator(mode="after")

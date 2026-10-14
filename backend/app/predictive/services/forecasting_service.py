@@ -256,9 +256,16 @@ class ForecastingService:
                 p_end = p_start + pd.Timedelta(hours=23, minutes=59, seconds=59)
                 label = p_start.strftime("%Y-%m-%d")
 
-            pt_val = round(float(point_preds[h - 1]), 2)
-            low_val = round(float(lower_bounds[h - 1]), 2)
-            up_val = round(float(upper_bounds[h - 1]), 2)
+            pt_val = max(0.0, round(float(point_preds[h - 1]), 2))
+            low_val = max(0.0, round(float(lower_bounds[h - 1]), 2))
+            up_val = max(pt_val, round(float(upper_bounds[h - 1]), 2))
+            width = round(up_val - low_val, 2)
+            if pt_val > 1e-4:
+                unc_ratio = round(min(5.0, width / pt_val), 3)
+            elif width > 0.0:
+                unc_ratio = 1.0
+            else:
+                unc_ratio = 0.0
 
             future_points.append(
                 ForecastPredictionPoint(
@@ -269,6 +276,8 @@ class ForecastingService:
                     lower_bound=low_val,
                     upper_bound=up_val,
                     confidence_level=request.confidence_level,
+                    interval_width=width,
+                    uncertainty_ratio=unc_ratio,
                 )
             )
 
@@ -290,6 +299,10 @@ class ForecastingService:
             "Transactional data captures completed and shipped operational sales only.",
             f"Prediction intervals are derived under a {int(request.confidence_level * 100)}% coverage distribution assumption.",
         ]
+        if data_quality.demand_pattern == "intermittent":
+            assumptions.append(
+                "Intermittent demand modeling: Positive transaction sizes and inter-order arrival intervals are decomposed independently under the Syntetos-Boylan formulation."
+            )
         if not is_item_level:
             assumptions.append(
                 "Order-level sales telemetry: Telemetry is derived directly from sales order totals without line-item or product catalog decomposition."
@@ -299,9 +312,17 @@ class ForecastingService:
             "Exogenous macroeconomic shocks, consumer inflation shifts, and unannounced competitor actions are unobserved.",
             f"Forecast extends {horizon} steps into the future; longer horizon intervals exhibit wider error distributions.",
         ]
+        if data_quality.demand_pattern == "intermittent":
+            limitations.append(
+                "Intermittent demand volatility: Sporadic order intervals introduce heightened variance; prediction intervals reflect compound Poisson-normal bounds."
+            )
         if not is_item_level:
             limitations.append(
                 "Order-level sales telemetry fallback: Line-item product and category granularity is not evaluated in this aggregate forecast."
+            )
+        if any(p.uncertainty_ratio > 0.50 for p in future_points):
+            limitations.append(
+                "Elevated uncertainty spread: Prediction interval width exceeds 50% of central point forecast; maintain operational inventory safety buffers."
             )
         if data_quality.warnings:
             limitations.extend(data_quality.warnings)
@@ -335,6 +356,8 @@ class ForecastingService:
             assumptions=assumptions,
             limitations=limitations,
             data_quality_status=data_quality.status.value,
+            demand_pattern=data_quality.demand_pattern,
+            parsimony_applied="retained" in (model_meta.selection_reason or "").lower(),
         )
 
         # 10. Formulate Explanation Narrative adhering to Section 27 Schema

@@ -2,7 +2,8 @@
 
 import logging
 import time
-from typing import Any, TypeVar
+from typing import ClassVar, TypeVar
+
 from pydantic import BaseModel
 
 from app.agents.providers.base import BaseLLMProvider
@@ -10,13 +11,10 @@ from app.agents.providers.guard import DeterministicCalculationGuard
 from app.agents.providers.mock import MockLLMProvider
 from app.agents.providers.models import (
     IntelligenceLane,
-    LLMProviderError,
-    LLMProviderTimeoutError,
     LLMProviderUnavailableError,
     LLMRequest,
     LLMResponse,
     LLMTaskCategory,
-    MalformedLLMResponseError,
     ModelCapability,
     ModelTier,
     PricingCatalog,
@@ -24,6 +22,7 @@ from app.agents.providers.models import (
     TokenUsage,
     UnsupportedLLMTaskError,
 )
+from app.agents.providers.prompts import sanitize_fallback_reason
 from app.agents.providers.registry import ProviderCandidateRegistry, get_candidate_registry
 from app.core.config import settings
 
@@ -50,7 +49,7 @@ class ModelRouter:
     """
 
     # Default capability requirements per task category
-    TASK_CAPABILITY_REQUIREMENTS: dict[LLMTaskCategory, set[ModelCapability]] = {
+    TASK_CAPABILITY_REQUIREMENTS: ClassVar[dict[LLMTaskCategory, set[ModelCapability]]] = {
         LLMTaskCategory.INTENT_UNDERSTANDING: {ModelCapability.LOW_COST},
         LLMTaskCategory.STRUCTURED_OUTPUT: {ModelCapability.STRUCTURED_OUTPUT},
         LLMTaskCategory.TOOL_SELECTION: {ModelCapability.TOOL_CALLING},
@@ -62,7 +61,7 @@ class ModelRouter:
     }
 
     # Default task category to Intelligence Lane mappings
-    TASK_LANE_MAPPING: dict[LLMTaskCategory, IntelligenceLane] = {
+    TASK_LANE_MAPPING: ClassVar[dict[LLMTaskCategory, IntelligenceLane]] = {
         LLMTaskCategory.INTENT_UNDERSTANDING: IntelligenceLane.LANE_1_FREE_HIGH_VOLUME,
         LLMTaskCategory.STRUCTURED_OUTPUT: IntelligenceLane.LANE_1_FREE_HIGH_VOLUME,
         LLMTaskCategory.TOOL_SELECTION: IntelligenceLane.LANE_1_FREE_HIGH_VOLUME,
@@ -74,7 +73,7 @@ class ModelRouter:
     }
 
     # Default task category to capability tier mappings (backward compatibility)
-    DEFAULT_TASK_TIER_MAPPING: dict[LLMTaskCategory, ModelTier] = {
+    DEFAULT_TASK_TIER_MAPPING: ClassVar[dict[LLMTaskCategory, ModelTier]] = {
         LLMTaskCategory.INTENT_UNDERSTANDING: ModelTier.LOW_COST,
         LLMTaskCategory.STRUCTURED_OUTPUT: ModelTier.LOW_COST,
         LLMTaskCategory.TOOL_SELECTION: ModelTier.LOW_COST,
@@ -98,6 +97,18 @@ class ModelRouter:
         self._strong_reasoning_provider = strong_reasoning_provider
         self._task_tier_mapping = dict(task_tier_mapping or self.DEFAULT_TASK_TIER_MAPPING)
         self._registry = registry or get_candidate_registry()
+
+    @property
+    def fallback_provider(self) -> BaseLLMProvider:
+        """Return the default deterministic local fallback provider."""
+        return self._fallback_provider
+
+    def is_external_allowed(self) -> bool:
+        """Check if live external LLM calls are permitted by environment and configuration."""
+        return (
+            getattr(settings, "LLM_ALLOW_EXTERNAL_CALLS", False)
+            and getattr(settings, "APP_ENV", "").lower() != "test"
+        )
 
     @property
     def registry(self) -> ProviderCandidateRegistry:
@@ -213,16 +224,36 @@ class ModelRouter:
         pid = spec.provider_id.lower()
         if pid == "mock":
             return self._fallback_provider
-        if pid in ("groq", "deepseek-v3", "deepseek-r1", "gemini-flash", "gemini-pro", "grok", "openrouter-free", "openrouter-qwen", "openrouter-deepseek", "ollama-local"):
-            # If custom injected provider matches
-            if spec.lane == IntelligenceLane.LANE_1_FREE_HIGH_VOLUME and self._low_cost_provider:
-                return self._low_cost_provider
-            if spec.lane == IntelligenceLane.LANE_2_STRONG_ESCALATION and self._strong_reasoning_provider:
-                return self._strong_reasoning_provider
+
+        # Check injected custom providers first
+        if spec.lane == IntelligenceLane.LANE_1_FREE_HIGH_VOLUME and self._low_cost_provider:
+            return self._low_cost_provider
+        if spec.lane == IntelligenceLane.LANE_2_STRONG_ESCALATION and self._strong_reasoning_provider:
+            return self._strong_reasoning_provider
+
+        is_external_allowed = (
+            getattr(settings, "LLM_ALLOW_EXTERNAL_CALLS", False)
+            and getattr(settings, "APP_ENV", "").lower() != "test"
+        )
+        if not is_external_allowed and not (pid == "ollama-local" and spec.base_url):
             return self._fallback_provider
+
         if pid in ("openai", "openai-gpt4o"):
             from app.agents.providers.openai_provider import OpenAIProvider
             return OpenAIProvider(model=spec.model_name)
+
+        # For OpenAI-compatible candidates (Groq, Gemini, DeepSeek, Qwen, OpenRouter, Ollama)
+        if spec.base_url or spec.api_key_env_var:
+            from app.agents.providers.live_adapter import OpenAICompatibleLiveProvider
+            return OpenAICompatibleLiveProvider(
+                provider_name=spec.provider_id,
+                model_name=spec.model_name,
+                base_url=spec.base_url,
+                api_key_env_var=spec.api_key_env_var,
+                is_local=(pid == "ollama-local"),
+                allow_external=is_external_allowed,
+            )
+
         return self._fallback_provider
 
     def resolve_provider(self, tier: ModelTier) -> tuple[BaseLLMProvider, str, bool]:
@@ -334,10 +365,18 @@ class ModelRouter:
                 if not spec.quota_state.can_accept():
                     raise LLMProviderUnavailableError(f"Candidate '{spec.provider_id}' quota capacity exhausted.")
 
+                # Check candidate configuration if supported
+                if hasattr(provider, "is_configured"):
+                    is_conf, conf_reason = provider.is_configured(
+                        allow_external=getattr(settings, "LLM_ALLOW_EXTERNAL_CALLS", False)
+                    )
+                    if not is_conf:
+                        raise LLMProviderUnavailableError(f"Candidate '{spec.provider_id}' not configured: {conf_reason}")
+
                 # Execute with winning provider
                 response = provider.generate(request)
 
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
                 exc_str = str(exc).lower()
                 spec.telemetry.failures_count += 1
@@ -361,7 +400,7 @@ class ModelRouter:
             spec.telemetry.fallbacks_count += 1
             fallback_resp = self._fallback_provider.generate(request)
             fallback_resp.is_fallback = True
-            fallback_resp.fallback_reason = fallback_reason or "Primary provider returned empty response"
+            fallback_resp.fallback_reason = sanitize_fallback_reason(fallback_reason or "Primary provider returned empty response")
             response = fallback_resp
 
         # 6. Quota and Cost Accounting
@@ -416,7 +455,7 @@ class ModelRouter:
                 parsed_dict = json.loads(response.content)
                 instance = response_model.model_validate(parsed_dict)
             return instance, response
-        except Exception as validation_err:
+        except Exception as validation_err:  # noqa: BLE001
             logger.warning(
                 f"[ModelRouter] Structured output validation failed: {validation_err}. "
                 f"Falling back to local fallback provider for schema '{response_model.__name__}'."
@@ -425,5 +464,12 @@ class ModelRouter:
                 request, response_model
             )
             fallback_response.is_fallback = True
-            fallback_response.fallback_reason = f"Malformed structured output: {validation_err}"
+            if isinstance(response.parsed_data, dict) and response.parsed_data.get("security_violation") == "prompt_injection":
+                fallback_response.fallback_reason = sanitize_fallback_reason(
+                    f"Adversarial prompt injection detected: {response.parsed_data.get('reason')}"
+                )
+            else:
+                fallback_response.fallback_reason = sanitize_fallback_reason(
+                    f"Malformed structured output: {validation_err}"
+                )
             return fallback_instance, fallback_response

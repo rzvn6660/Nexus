@@ -24,25 +24,27 @@ from app.agents.tools.models import (
     InventoryOverviewToolInput,
     InventoryTurnoverToolInput,
     InventoryVelocityToolInput,
+    MethodRecommendationToolInput,
+    ParetoConcentrationToolInput,
     PriceVolumeMixToolInput,
     ProductRankingsToolInput,
+    RecommendInventoryActionToolInput,
+    RecommendPricingActionToolInput,
+    RegressionDriverToolInput,
     RepeatPurchaseToolInput,
     RevenueTimeseriesToolInput,
     RFMAnalysisToolInput,
+    TimeSeriesDiagnosticsToolInput,
     ToolExecutionResult,
     VarianceAnalysisToolInput,
-    TimeSeriesDiagnosticsToolInput,
-    ParetoConcentrationToolInput,
-    RegressionDriverToolInput,
-    MethodRecommendationToolInput,
 )
 from app.analytics.core.context import AnalysisContext
 from app.analytics.core.types import (
+    AnalyticalQuestionType,
     CorrelationMethod,
     HypothesisTestType,
     PeriodGranularity,
     SortOrder,
-    AnalyticalQuestionType,
 )
 from app.analytics.service import AnalyticsService
 
@@ -100,7 +102,7 @@ class AnalyticsTool:
                 error_message=f"Input validation error: {ve}",
                 execution_time_ms=round((time.perf_counter() - start_time) * 1000, 2),
             )
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001
             return ToolExecutionResult(
                 tool=self.name,
                 status="error",
@@ -616,7 +618,7 @@ class ToolRegistry:
                 specific_model=args.get("specific_model"),
                 confidence_level=float(args.get("confidence_level", 0.95)),
             )
-            svc = ForecastingService(session)
+            svc = ForecastingService(session, business_id=args.get("business_id"))
             res = svc.forecast(req)
             return ToolExecutionResult(
                 tool="forecast_metric",
@@ -691,6 +693,7 @@ class ToolRegistry:
         # 20. Regression Driver Analysis
         def _exec_regression(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
             from sqlalchemy import select
+
             from app.models.sale import Sale
 
             dep_var = args.get("dependent_variable", "subtotal")
@@ -771,10 +774,12 @@ class ToolRegistry:
                     result={},
                     error_message="Tenant authentication required: business_id is missing.",
                 )
-            from sqlalchemy import select
             from uuid import uuid4
-            from app.models.tenant import Business
+
+            from sqlalchemy import select
+
             from app.analytics.evidence.models import EvidenceRecord
+            from app.models.tenant import Business
 
             biz = session.execute(
                 select(Business).where(Business.id == business_id)
@@ -832,6 +837,78 @@ class ToolRegistry:
             category="context",
             input_schema=BusinessProfileToolInput,
             handler=_exec_business_profile,
+        ))
+
+        # 24. Recommend Inventory Replenishment Action
+        def _exec_recommend_inventory_action(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
+            from app.analytics.prescriptive import (
+                ConstraintSet,
+                ObjectiveType,
+                PrescriptiveEngine,
+            )
+
+            engine = PrescriptiveEngine(session, business_id=args.get("business_id"))
+            constraints = ConstraintSet(
+                max_budget=args.get("max_budget"),
+                max_storage_units=args.get("max_storage_units"),
+                target_service_level=args.get("target_service_level", 0.95),
+                min_order_quantity=args.get("min_order_quantity", 1),
+                max_order_quantity=args.get("max_order_quantity"),
+                lead_time_days=args.get("lead_time_days", 7),
+                annual_holding_cost_rate=args.get("annual_holding_cost_rate", 0.20),
+                order_setup_cost=args.get("order_setup_cost"),
+            )
+            raw_obj = args.get("objective", "balance_service_level")
+            try:
+                objective = ObjectiveType(raw_obj)
+            except ValueError:
+                objective = ObjectiveType.BALANCE_SERVICE_LEVEL
+
+            rec = engine.evaluate_inventory_replenishment(
+                sku=args["sku"],
+                constraints=constraints,
+                objective=objective,
+            )
+            return ToolExecutionResult(
+                tool="recommend_inventory_action",
+                status="success",
+                result=_serialize_obj(rec),
+                assumptions=rec.assumptions,
+                limitations=rec.limitations,
+            )
+
+        self.register(AnalyticsTool(
+            name="recommend_inventory_action",
+            description="Evaluates evidence-grounded inventory replenishment alternatives (EOQ, ROP, safety stock, expedited vs maintain) against budget, storage, and MOQ constraints with strict human-review gating.",
+            category="prescriptive",
+            input_schema=RecommendInventoryActionToolInput,
+            handler=_exec_recommend_inventory_action,
+        ))
+
+        # 25. Recommend Pricing Markdown Action
+        def _exec_recommend_pricing_action(session: Session, args: dict[str, Any]) -> ToolExecutionResult:
+            from app.analytics.prescriptive import PrescriptiveEngine
+
+            engine = PrescriptiveEngine(session, business_id=args.get("business_id"))
+            rec = engine.evaluate_pricing_markdown(
+                sku=args["sku"],
+                target_discount_pct=args.get("target_discount_pct", 0.15),
+                target_margin_floor=args.get("target_margin_floor", 0.10),
+            )
+            return ToolExecutionResult(
+                tool="recommend_pricing_action",
+                status="success",
+                result=_serialize_obj(rec),
+                assumptions=rec.assumptions,
+                limitations=rec.limitations,
+            )
+
+        self.register(AnalyticsTool(
+            name="recommend_pricing_action",
+            description="Evaluates clearance markdown vs holding price on slow-moving inventory, computing gross margin break-even volume elasticity and freed capital with strict human-review gating.",
+            category="prescriptive",
+            input_schema=RecommendPricingActionToolInput,
+            handler=_exec_recommend_pricing_action,
         ))
 
 

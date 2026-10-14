@@ -6,7 +6,7 @@ and baseline comparison periods without requiring LLM date arithmetic.
 
 import calendar
 import re
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, ClassVar
 
 
@@ -48,7 +48,10 @@ class DateInterpreter:
 
     @classmethod
     def interpret(
-        cls, query: str, reference_date: date | None = None
+        cls,
+        query: str,
+        reference_date: date | None = None,
+        fiscal_year_start: int = 1,
     ) -> dict[str, Any]:
         """
         Extract and resolve date intervals and comparison baselines from a user query.
@@ -56,12 +59,13 @@ class DateInterpreter:
         Args:
             query: The user query string
             reference_date: Anchor date for relative terms (defaults to date.today())
+            fiscal_year_start: Starting calendar month of fiscal year (1=January..12=December)
             
         Returns:
             Dict containing date_from, date_to, comparison_date_from, comparison_date_to,
             granularity, is_ambiguous, and matched_expression.
         """
-        ref = reference_date or date.today()
+        ref = reference_date or datetime.now(UTC).date()
         q_lower = query.lower()
 
         # 1. Check explicit ISO date range: YYYY-MM-DD to YYYY-MM-DD
@@ -79,6 +83,71 @@ class DateInterpreter:
                 return cls._build_result(d_from, d_to, comp_from, comp_to, "range", "monthly")
             except ValueError:
                 pass
+
+        # 1b. Check fiscal year expressions (e.g. "this fiscal year", "last fiscal year", "FY2024")
+        if "fiscal year" in q_lower or re.search(r'\bfy\s*\d{4}\b', q_lower):
+            fy_match = re.search(r'\bfy\s*(\d{4})\b', q_lower)
+            if fy_match:
+                fy_year = int(fy_match.group(1))
+                fy_start_m = fiscal_year_start
+                if fy_start_m == 1:
+                    d_from = date(fy_year, 1, 1)
+                    d_to = date(fy_year, 12, 31)
+                    comp_from = date(fy_year - 1, 1, 1)
+                    comp_to = date(fy_year - 1, 12, 31)
+                else:
+                    d_from = date(fy_year - 1, fy_start_m, 1)
+                    end_m = fy_start_m - 1
+                    _, last_d = calendar.monthrange(fy_year, end_m)
+                    d_to = date(fy_year, end_m, last_d)
+                    comp_from = date(fy_year - 2, fy_start_m, 1)
+                    comp_to = date(fy_year - 1, end_m, last_d)
+                res = cls._build_result(d_from, d_to, comp_from, comp_to, f"fy_{fy_year}", "quarterly")
+                res["fiscal_year_start"] = fiscal_year_start
+                return res
+
+            if "last fiscal year" in q_lower or "previous fiscal year" in q_lower or "prior fiscal year" in q_lower:
+                fy_start_m = fiscal_year_start
+                if fy_start_m == 1:
+                    year = ref.year - 1
+                    d_from = date(year, 1, 1)
+                    d_to = date(year, 12, 31)
+                    comp_from = date(year - 1, 1, 1)
+                    comp_to = date(year - 1, 12, 31)
+                else:
+                    curr_fy_start_y = ref.year if ref.month >= fy_start_m else ref.year - 1
+                    last_fy_start_y = curr_fy_start_y - 1
+                    d_from = date(last_fy_start_y, fy_start_m, 1)
+                    end_m = fy_start_m - 1
+                    _, last_d = calendar.monthrange(last_fy_start_y + 1, end_m)
+                    d_to = date(last_fy_start_y + 1, end_m, last_d)
+                    comp_from = date(last_fy_start_y - 1, fy_start_m, 1)
+                    comp_to = date(last_fy_start_y, end_m, last_d)
+                res = cls._build_result(d_from, d_to, comp_from, comp_to, "last_fiscal_year", "quarterly")
+                res["fiscal_year_start"] = fiscal_year_start
+                return res
+
+            if "this fiscal year" in q_lower or "current fiscal year" in q_lower:
+                fy_start_m = fiscal_year_start
+                if fy_start_m == 1:
+                    d_from = date(ref.year, 1, 1)
+                    d_to = ref
+                    comp_year = ref.year - 1
+                    _, max_comp_day = calendar.monthrange(comp_year, ref.month)
+                    comp_from = date(comp_year, 1, 1)
+                    comp_to = date(comp_year, ref.month, min(ref.day, max_comp_day))
+                else:
+                    curr_fy_start_y = ref.year if ref.month >= fy_start_m else ref.year - 1
+                    d_from = date(curr_fy_start_y, fy_start_m, 1)
+                    d_to = ref
+                    comp_fy_start_y = curr_fy_start_y - 1
+                    comp_from = date(comp_fy_start_y, fy_start_m, 1)
+                    comp_cal_year = comp_fy_start_y if ref.month >= fy_start_m else comp_fy_start_y + 1
+                    _, max_comp_day = calendar.monthrange(comp_cal_year, ref.month)
+                    comp_to = date(comp_cal_year, ref.month, min(ref.day, max_comp_day))
+                res = cls._build_result(d_from, d_to, comp_from, comp_to, "this_fiscal_year", "quarterly")
+                res["fiscal_year_start"] = fiscal_year_start
+                return res
 
         # 2. Check prospective/future forecast expressions
         next_m_match = re.search(r'next\s+(\d+)\s+months?', q_lower)
@@ -364,6 +433,7 @@ class DateInterpreter:
             "is_ambiguous": False,
             "is_forecast": False,
             "forecast_horizon": None,
+            "fiscal_year_start": fiscal_year_start,
         })
 
     @classmethod
@@ -375,6 +445,7 @@ class DateInterpreter:
         comp_to: date | None,
         matched_expression: str,
         granularity: str = "monthly",
+        fiscal_year_start: int = 1,
     ) -> ParsedDateInterval:
         is_far_future = bool(d_from and d_from.year > 2025)
         return ParsedDateInterval({
@@ -388,4 +459,5 @@ class DateInterpreter:
             "is_forecast": False,
             "is_far_future": is_far_future,
             "forecast_horizon": None,
+            "fiscal_year_start": fiscal_year_start,
         })

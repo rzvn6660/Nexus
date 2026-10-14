@@ -9,7 +9,7 @@ Enforces the core NEXUS architectural invariant:
 
 import logging
 import re
-from typing import Any
+from typing import Any, ClassVar
 
 from app.agents.providers.models import (
     DeterministicInvariantViolationError,
@@ -27,7 +27,7 @@ class DeterministicCalculationGuard:
     """
 
     # Patterns indicating an attempt to use the LLM as a raw arithmetic calculator
-    PROHIBITED_ARITHMETIC_PROMPTS = [
+    PROHIBITED_ARITHMETIC_PROMPTS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"\bcalculate\s+(?:the\s+)?(?:sum|difference|product|division|variance|stddev|standard\s+deviation)\s+of\b", re.IGNORECASE),
         re.compile(r"\bcompute\s+(?:the\s+)?(?:math|arithmetic|formula|sum)\s+(?:directly|manually)\b", re.IGNORECASE),
         re.compile(r"\bdo\s+not\s+use\s+(?:tools|sql|analytics)\b", re.IGNORECASE),
@@ -35,22 +35,26 @@ class DeterministicCalculationGuard:
     ]
 
     # Patterns indicating LLM invented fake zero costs when costs are missing
-    ZERO_COST_HALLUCINATIONS = [
+    ZERO_COST_HALLUCINATIONS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"\bcogs\s+(?:is|was|=)\s*\$?0(?:\.00)?\b", re.IGNORECASE),
         re.compile(r"\bgross\s+margin\s+(?:is|was|=)\s*(?:100%|0%)\b", re.IGNORECASE),
         re.compile(r"\bzero\s+(?:cost|cogs)\s+assumed\b", re.IGNORECASE),
     ]
 
     # Prohibited mutating or destructive SQL operations
-    DESTRUCTIVE_SQL_PATTERNS = [
+    DESTRUCTIVE_SQL_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"\b(?:drop|truncate|delete|alter|insert|update|create|replace|upsert)\b", re.IGNORECASE),
         re.compile(r"\b(?:grant|revoke|attach|detach|reindex|vacuum)\b", re.IGNORECASE),
         re.compile(r"\b(?:exec|execute|call|pg_sleep|benchmark|sleep)\b", re.IGNORECASE),
         re.compile(r";\s*(?:drop|truncate|delete|alter|insert|update|create|exec)", re.IGNORECASE),
     ]
 
+    # Strict numeric validation tolerances (aligned with financial accounting and evaluation contracts)
+    DEFAULT_NUMERIC_TOLERANCE_ABS: ClassVar[float] = 0.01  # +/- $0.01 for currency rounding
+    DEFAULT_NUMERIC_TOLERANCE_REL: ClassVar[float] = 0.001  # 0.1% for ratios and percentages
+
     # Whitelisted read-only analytical SQL statements (must start with SELECT, WITH, or EXPLAIN)
-    READ_ONLY_SQL_START = re.compile(r"^\s*(?:explain\s+)?(?:select|with)\b", re.IGNORECASE)
+    READ_ONLY_SQL_START: ClassVar[re.Pattern[str]] = re.compile(r"^\s*(?:explain\s+)?(?:select|with)\b", re.IGNORECASE)
 
     @classmethod
     def validate_sql(cls, sql_text: str, strict: bool = False) -> tuple[bool, str | None]:
@@ -198,10 +202,9 @@ class DeterministicCalculationGuard:
         for tr in tool_results:
             if isinstance(tr, dict):
                 res = tr.get("result", {})
-                if isinstance(res, dict):
-                    if res.get("cost_status") == "incomplete" or res.get("missing_unit_costs"):
-                        has_missing_costs = True
-                        break
+                if isinstance(res, dict) and (res.get("cost_status") == "incomplete" or res.get("missing_unit_costs")):
+                    has_missing_costs = True
+                    break
 
         if has_missing_costs:
             for pat in cls.ZERO_COST_HALLUCINATIONS:
@@ -235,9 +238,7 @@ class DeterministicCalculationGuard:
         prompt_text = f"{request.prompt}".strip().lower()
         if re.match(r"^[\d\.,\s\+\-\*\/\^\(\)]+=?$", prompt_text):
             return True
-        if re.search(r"^(?:calculate|compute|solve)\s+[\d\.,\s\+\-\*\/\^\(\)]+(?:\s*=)?$", prompt_text):
-            return True
-        return False
+        return bool(re.search(r"^(?:calculate|compute|solve)\s+[\d\.,\s\+\-\*\/\^\(\)]+(?:\s*=)?$", prompt_text))
 
     @classmethod
     def bypass_llm_for_deterministic(cls, request: LLMRequest) -> LLMResponse:
@@ -258,3 +259,170 @@ class DeterministicCalculationGuard:
             usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0),
             estimated_cost_usd=0.0,
         )
+
+    @classmethod
+    def validate_grounded_explanation(
+        cls,
+        explanation: Any,
+        tool_results: list[dict[str, Any]],
+        evidence: list[dict[str, Any]] | None = None,
+        rag_evidence: list[dict[str, Any]] | None = None,
+        semantic_context: dict[str, Any] | None = None,
+        tolerance_abs: float = 0.01,
+        tolerance_rel: float = 0.001,
+    ) -> tuple[bool, str | None]:
+        """
+        Deterministically validate that a generated explanation adheres strictly to
+        returned tool results, verified citations, data limitations, and missing-cost invariants.
+
+        Rejects:
+        1. Non-executed or hallucinated tool references in metric citations.
+        2. Fabricated, ungrounded, or contradicting numeric values.
+        3. Fabricated document IDs or policy citations not present in evidence.
+        4. Zero-cost or fabricated profit margins when catalog costs are missing.
+        5. Adversarial prompt leakage or security overrides in narrative.
+
+        Returns:
+            (is_valid: bool, rejection_reason: str | None)
+        """
+        from app.agents.state.models import GroundedExplanation
+        if not isinstance(explanation, GroundedExplanation):
+            try:
+                explanation = GroundedExplanation.model_validate(explanation)
+            except Exception as ve:  # noqa: BLE001
+                return False, f"Explanation output schema invalid: {ve}"
+
+        # 1. Adversarial leakage or prompt injection in narrative
+        from app.security.prompt_guard import detect_prompt_injection
+        is_inj, inj_reason = detect_prompt_injection(explanation.narrative)
+        if is_inj:
+            return False, f"Adversarial prompt leakage detected in explanation narrative: {inj_reason}"
+
+        # 2. Extract executed tools
+        executed_tools: set[str] = {
+            r.get("tool") for r in tool_results if isinstance(r, dict) and r.get("tool")
+        }
+
+        # Recursive number extractor from tool results
+        def _extract_numbers(val: Any) -> list[float]:
+            nums: list[float] = []
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                nums.append(float(val))
+            elif isinstance(val, dict):
+                for v in val.values():
+                    nums.extend(_extract_numbers(v))
+            elif isinstance(val, list):
+                for item in val:
+                    nums.extend(_extract_numbers(item))
+            elif isinstance(val, str):
+                cleaned = re.sub(r"[^\d\.\-]", "", val)
+                if cleaned and cleaned not in ("-", "."):
+                    try:
+                        nums.append(float(cleaned))
+                    except ValueError:
+                        pass
+            return nums
+
+        # Map tool_name -> list of numbers found in tool's result
+        tool_numbers_map: dict[str, list[float]] = {}
+        for r in tool_results:
+            if isinstance(r, dict):
+                t_name = r.get("tool")
+                if t_name:
+                    res_dict = r.get("result", {})
+                    tool_numbers_map.setdefault(t_name, []).extend(_extract_numbers(res_dict))
+
+        # 3. Validate metric citations
+        for mc in explanation.metric_citations:
+            if mc.tool_source not in executed_tools:
+                return False, f"Metric '{mc.metric_name}' cites non-executed tool '{mc.tool_source}'."
+
+            # Verify numeric value matches tool result
+            if mc.value is not None:
+                cleaned_val_str = re.sub(r"[^\d\.\-]", "", str(mc.value))
+                if cleaned_val_str and cleaned_val_str not in ("-", "."):
+                    try:
+                        cited_num = float(cleaned_val_str)
+                        available_nums = tool_numbers_map.get(mc.tool_source, [])
+                        # Differentiate currency/monetary metrics (strict cent tolerance) from ratios/percentages
+                        is_currency_metric = (
+                            mc.unit_or_currency in ("$", "€", "£", "¥", "USD", "EUR", "GBP")
+                            or any(
+                                term in mc.metric_name.lower()
+                                for term in [
+                                    "sales", "revenue", "profit", "cogs", "cost",
+                                    "expense", "price", "spend", "charges", "order_value",
+                                ]
+                            )
+                        )
+
+                        if is_currency_metric:
+                            # Monetary amounts require strict cent/penny precision (+/- $0.01)
+                            matches = any(
+                                abs(cited_num - n) <= tolerance_abs
+                                for n in available_nums
+                            )
+                        else:
+                            # Percentages, ratios, and unit counts allow absolute cent or 0.1% relative tolerance
+                            matches = any(
+                                abs(cited_num - n) <= tolerance_abs
+                                or (abs(n) > 1e-9 and (abs(cited_num - n) / abs(n)) <= tolerance_rel)
+                                for n in available_nums
+                            )
+
+                        if not matches:
+                            return False, (
+                                f"Fabricated or altered numeric value for metric '{mc.metric_name}': "
+                                f"{mc.value} does not match any deterministic output of tool '{mc.tool_source}'."
+                            )
+                    except ValueError:
+                        pass
+
+        # 4. Validate evidence citations
+        allowed_citations: set[str] = set(executed_tools)
+        if rag_evidence:
+            for d in rag_evidence:
+                if isinstance(d, dict):
+                    if d.get("document_id"):
+                        allowed_citations.add(str(d.get("document_id")).lower())
+                    if d.get("document_name"):
+                        allowed_citations.add(str(d.get("document_name")).lower())
+        if evidence:
+            for e in evidence:
+                if isinstance(e, dict):
+                    if e.get("analysis_id"):
+                        allowed_citations.add(str(e.get("analysis_id")).lower())
+                    if e.get("metric"):
+                        allowed_citations.add(str(e.get("metric")).lower())
+        known_policies = {"rev-001", "gp-001", "inv-001", "tax-001", "rec-001", "exp-001", "cust-001", "var-001", "pvm-001"}
+        allowed_citations.update(known_policies)
+
+        for citation in explanation.evidence_citations:
+            cit_str = str(citation).strip()
+            doc_id_match = re.search(r"\b(doc[_\-][a-zA-Z0-9_\-]+)\b", cit_str, re.IGNORECASE)
+            if doc_id_match:
+                cited_doc_id = doc_id_match.group(1).lower()
+                if cited_doc_id not in allowed_citations:
+                    return False, f"Fabricated citation '{citation}': document ID '{cited_doc_id}' not found in verified evidence sources."
+
+        # 5. Missing-cost invariant
+        has_missing_costs = False
+        for tr in tool_results:
+            if isinstance(tr, dict):
+                res = tr.get("result", {})
+                if isinstance(res, dict):
+                    if res.get("cost_status") == "incomplete" or res.get("missing_unit_costs"):
+                        has_missing_costs = True
+                        break
+                    if tr.get("tool") == "get_financial_summary" and (
+                        res.get("gross_profit", {}).get("value") is None or res.get("gross_margin", {}).get("value") is None
+                    ):
+                        has_missing_costs = True
+                        break
+
+        if has_missing_costs:
+            for pat in cls.ZERO_COST_HALLUCINATIONS:
+                if pat.search(explanation.narrative):
+                    return False, "Data Integrity Invariant Violation: Zero cost or 100% margin asserted when product catalog unit costs are missing."
+
+        return True, None

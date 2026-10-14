@@ -17,12 +17,11 @@ Coordinates:
 import hashlib
 import io
 import math
-import os
 import re
-from datetime import date, datetime, timezone
-from decimal import Decimal
+from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, ClassVar
 from uuid import uuid4
 
 import numpy as np
@@ -32,6 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.logging import get_logger
 from app.models.customer import Customer
 from app.models.expense import Expense
 from app.models.inventory import Inventory
@@ -39,17 +39,14 @@ from app.models.product import Product
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.models.tenant import Business, IngestionJob, UploadedDataset
-from app.core.logging import get_logger
 from app.schemas.data_gateway import (
     ColumnProfile,
     DataPreviewResponse,
     DataReadinessSummary,
-    DatasetDetailResponse,
     DateCoverage,
     QualityCheckItem,
     SchemaMappingProposal,
 )
-
 
 logger = get_logger(__name__)
 
@@ -64,13 +61,13 @@ class DataGatewayService:
     MAX_COLUMNS = 200
     MAX_CELL_LENGTH = 10_000
 
-    ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
-    PROHIBITED_EXTENSIONS = {
+    ALLOWED_EXTENSIONS: ClassVar[set[str]] = {".csv", ".xlsx", ".xls"}
+    PROHIBITED_EXTENSIONS: ClassVar[set[str]] = {
         ".exe", ".py", ".sh", ".bat", ".bin", ".js", ".html", ".dll",
-        ".cmd", ".vbs", ".ps1", ".com", ".scr", ".msi"
+        ".cmd", ".vbs", ".ps1", ".com", ".scr", ".msi",
     }
 
-    ENTITY_TARGETS = {
+    ENTITY_TARGETS: ClassVar[dict[str, Any]] = {
         "Sale": {
             "required": ["date", "amount"],
             "optional": ["customer_code", "order_number", "payment_method", "channel"],
@@ -175,7 +172,7 @@ class DataGatewayService:
             )
 
         # Check binary magic signatures (MIME spoofing detection)
-        if content_bytes.startswith(b"MZ") or content_bytes.startswith(b"\x7fELF"):
+        if content_bytes.startswith((b"MZ", b"\x7fELF")):
             logger.warning(
                 "SECURITY: Executable binary upload rejected. filename='%s' size=%d bytes",
                 filename, len(content_bytes),
@@ -184,7 +181,7 @@ class DataGatewayService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Executable binary format rejected.",
             )
-        if content_bytes.startswith(b"#!/bin/") or content_bytes.startswith(b"#!/usr/bin/"):
+        if content_bytes.startswith((b"#!/bin/", b"#!/usr/bin/")):
             logger.warning(
                 "SECURITY: Shell script upload rejected. filename='%s' size=%d bytes",
                 filename, len(content_bytes),
@@ -204,6 +201,78 @@ class DataGatewayService:
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail=f"Unsupported file extension '{ext}'. Only CSV (.csv) and Excel (.xlsx, .xls) are permitted.",
             )
+
+    @classmethod
+    def read_csv_dataframe(
+        cls,
+        source: io.BytesIO | bytes | Path | str,
+        nrows: int | None = None,
+    ) -> pd.DataFrame:
+        """
+        Read CSV tabular data into a pandas DataFrame using a deliberate, ordered decoding strategy:
+        1. 'utf-8-sig': Consumes and strips UTF-8 BOM if present, and decodes valid standard UTF-8.
+        2. 'utf-8': Strict standard UTF-8.
+        3. 'cp1252': Windows-1252 encoding. Preserves single-byte characters common in Excel/Windows exports,
+           including Euro ('€' [0x80]), smart quotes ('“' [0x93], '”' [0x94]), and em-dashes ('—' [0x97]).
+           Must precede Latin-1 because Latin-1 (ISO-8859-1) maps 0x80-0x9F to unprintable C1 control codes
+           without raising an error, silently masking CP1252 text.
+        4. 'latin1': ISO-8859-1 as a documented last-resort fallback for single-byte streams where CP1252 fails
+           (e.g. unassigned bytes 0x81, 0x8D, 0x8F, 0x90, 0x9D).
+
+        Encoding & Malformed Input Policy:
+        - Strict UTF-8 is the canonical standard for all uploads.
+        - Binary streams or files containing NULL bytes (b"\\x00") are rejected immediately with HTTP 400.
+        - Syntactic malformations (ragged rows, unclosed quotes, invalid delimiters) raise HTTP 400.
+        - Inherent Ambiguity Limitation: Single-byte character streams without out-of-band charset metadata
+          cannot be mathematically distinguished from damaged UTF-8 if byte values happen to coincide with
+          valid single-byte code points. Downstream strict type validations (dates, decimals) prevent silent
+          corruption of core analytical fields.
+
+        Raises HTTPException(400) if content cannot be parsed or decoded.
+        """
+        if isinstance(source, bytes):
+            raw_bytes = source
+        elif isinstance(source, io.BytesIO):
+            raw_bytes = source.getvalue()
+        else:
+            path = Path(source)
+            if not path.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Dataset file is no longer available on storage.",
+                )
+            raw_bytes = path.read_bytes()
+
+        # Reject binary streams and null-byte corrupted content immediately
+        if b"\x00" in raw_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Malformed CSV content: NULL byte or binary stream detected.",
+            )
+
+        df: pd.DataFrame | None = None
+        encodings = ["utf-8-sig", "utf-8", "cp1252", "latin1"]
+        last_error = None
+
+        for enc in encodings:
+            try:
+                df = pd.read_csv(io.BytesIO(raw_bytes), nrows=nrows, encoding=enc, index_col=False)
+                break
+            except UnicodeDecodeError as ude:
+                last_error = ude
+                continue
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Malformed CSV content: {str(exc).splitlines()[0]}",
+                )
+
+        if df is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to decode CSV content with supported encodings (UTF-8, UTF-8 with BOM, CP1252, Latin-1). Last error: {last_error}",
+            )
+        return df
 
     @classmethod
     def save_raw_dataset(
@@ -236,32 +305,14 @@ class DataGatewayService:
             return existing_dataset
 
         ext = Path(clean_name).suffix.lower()
-        df: Optional[pd.DataFrame] = None
+        df: pd.DataFrame | None = None
 
         if ext == ".csv":
-            encodings_to_try = ["utf-8", "utf-8-sig", "latin1", "cp1252"]
-            parsed_successfully = False
-            for enc in encodings_to_try:
-                try:
-                    df = pd.read_csv(io.BytesIO(content), encoding=enc)
-                    parsed_successfully = True
-                    break
-                except UnicodeDecodeError:
-                    continue
-                except Exception as exc:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Malformed CSV content: {str(exc).splitlines()[0]}",
-                    )
-            if not parsed_successfully or df is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Failed to decode CSV content with supported encodings (UTF-8, Latin-1, CP1252).",
-                )
+            df = cls.read_csv_dataframe(content)
         else:
             try:
                 df = pd.read_excel(io.BytesIO(content))
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Malformed or corrupted Excel workbook: {str(exc).splitlines()[0]}",
@@ -297,6 +348,17 @@ class DataGatewayService:
         mapping_proposal = cls.infer_schema_mapping(df, col_profiles)
         quality_summary = cls.evaluate_quality(df, col_profiles, date_coverage, mapping_proposal)
 
+        # Deterministic dataset version tracking for this business and filename
+        existing_versions_count = len(
+            db.execute(
+                select(UploadedDataset.id).where(
+                    UploadedDataset.business_id == business_id,
+                    UploadedDataset.filename == clean_name,
+                )
+            ).scalars().all()
+        )
+        dataset_version = existing_versions_count + 1
+
         dataset_id = str(uuid4())
         storage_rel_dir = Path("data") / "tenants" / organization_id / business_id / dataset_id
         storage_rel_dir.mkdir(parents=True, exist_ok=True)
@@ -314,6 +376,9 @@ class DataGatewayService:
             "mapping_proposal": mapping_proposal.model_dump(),
             "ingestion_status": ingestion_status,
             "dimensions": quality_summary.dimensions,
+            "dataset_version": dataset_version,
+            "source_filename": clean_name,
+            "content_hash": content_hash,
         }
 
         dataset = UploadedDataset(
@@ -341,7 +406,7 @@ class DataGatewayService:
             dataset_id=dataset_id,
             status=ingestion_status,
             target_entity=mapping_proposal.target_entity,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
             rows_processed=len(df),
         )
         db.add(initial_job)
@@ -364,11 +429,11 @@ class DataGatewayService:
         return dataset
 
     @classmethod
-    def profile_columns(cls, df: pd.DataFrame) -> Tuple[List[ColumnProfile], Optional[DateCoverage]]:
+    def profile_columns(cls, df: pd.DataFrame) -> tuple[list[ColumnProfile], DateCoverage | None]:
         """Compute deterministic profiling for every column in the dataframe."""
         row_count = len(df)
-        profiles: List[ColumnProfile] = []
-        date_coverage: Optional[DateCoverage] = None
+        profiles: list[ColumnProfile] = []
+        date_coverage: DateCoverage | None = None
 
         for col in df.columns:
             series = df[col]
@@ -406,7 +471,7 @@ class DataGatewayService:
                                 total_valid_dates=len(dt_parsed),
                                 estimated_granularity="daily" if (dt_parsed.max() - dt_parsed.min()).days > 7 else "irregular",
                             )
-                except Exception:
+                except Exception:  # noqa: BLE001, S110
                     pass
 
             # Test Numeric
@@ -459,8 +524,8 @@ class DataGatewayService:
     def evaluate_quality(
         cls,
         df: pd.DataFrame,
-        col_profiles: List[ColumnProfile],
-        date_coverage: Optional[DateCoverage],
+        col_profiles: list[ColumnProfile],
+        date_coverage: DateCoverage | None,
         mapping_proposal: SchemaMappingProposal,
     ) -> DataReadinessSummary:
         """
@@ -474,9 +539,9 @@ class DataGatewayService:
         """
         row_count = len(df)
         score = 100
-        checks: List[QualityCheckItem] = []
-        action_items: List[str] = []
-        dimensions: Dict[str, str] = {
+        checks: list[QualityCheckItem] = []
+        action_items: list[str] = []
+        dimensions: dict[str, str] = {
             "processing": "PASSED",
             "structure": "PASSED",
             "data_quality": "PASSED",
@@ -658,16 +723,15 @@ class DataGatewayService:
         )
 
     @classmethod
-    def infer_schema_mapping(cls, df: pd.DataFrame, col_profiles: List[ColumnProfile]) -> SchemaMappingProposal:
+    def infer_schema_mapping(cls, df: pd.DataFrame, col_profiles: list[ColumnProfile]) -> SchemaMappingProposal:
         """Infer target entity and column mappings using deterministic pattern matching."""
-        cols = [str(c).lower().strip() for c in df.columns]
         best_entity = "Sale"
         best_score = -1.0
-        best_mapping: Dict[str, str] = {}
-        best_missing: List[str] = []
+        best_mapping: dict[str, str] = {}
+        best_missing: list[str] = []
 
         for entity_name, spec in cls.ENTITY_TARGETS.items():
-            matched_fields: Dict[str, str] = {}
+            matched_fields: dict[str, str] = {}
             patterns = spec["patterns"]
 
             for target_field, pat_list in patterns.items():
@@ -737,10 +801,12 @@ class DataGatewayService:
 
         try:
             if dataset.file_type == "csv":
-                df = pd.read_csv(storage_path, nrows=sample_size)
+                df = cls.read_csv_dataframe(storage_path, nrows=sample_size)
             else:
                 df = pd.read_excel(storage_path, nrows=sample_size)
-        except Exception as exc:
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to read dataset preview: {str(exc).splitlines()[0]}",
@@ -748,7 +814,7 @@ class DataGatewayService:
 
         # Convert NaNs and dates to JSON-serializable primitives
         df_clean = df.replace({np.nan: None})
-        sample_records: List[Dict[str, Any]] = []
+        sample_records: list[dict[str, Any]] = []
         for row in df_clean.to_dict(orient="records"):
             clean_row = {}
             for k, v in row.items():
@@ -790,9 +856,9 @@ class DataGatewayService:
         db: Session,
         dataset_id: str,
         business_id: str,
-        target_entity: Optional[str] = None,
-        column_overrides: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        target_entity: str | None = None,
+        column_overrides: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """
         Commit mapped tabular records into unified NEXUS relational models idempotently.
         Manages durable IngestionJob lifecycle (PENDING -> PROCESSING -> COMPLETED | FAILED).
@@ -831,10 +897,14 @@ class DataGatewayService:
             entity = "Inventory"
         elif entity.lower() in ("expense", "expenses"):
             entity = "Expense"
+        elif entity.lower() in ("saleitem", "saleitems", "sale_item", "sale_items"):
+            entity = "SaleItem"
 
         field_map = dict(mapping_info.get("field_mappings", {}))
         if column_overrides:
             field_map.update(column_overrides)
+
+        dataset_version = schema_json.get("dataset_version", 1)
 
         # Idempotency Check: Was this dataset already ingested into this entity?
         completed_job = db.execute(
@@ -850,6 +920,27 @@ class DataGatewayService:
                 "Ingestion idempotent no-op: business_id=%s dataset_id=%s entity=%s job_id=%s",
                 business_id, dataset_id, entity, completed_job.id,
             )
+            # Reconcile pending scan if prior process crashed or failed before scan executed
+            try:
+                from app.analytics.continuous.service import ContinuousIntelligenceService
+                ContinuousIntelligenceService.trigger_ingestion_scan(
+                    db=db,
+                    business_id=business_id,
+                    organization_id=dataset.organization_id,
+                    dataset_id=dataset.id,
+                    ingestion_job_id=completed_job.id,
+                    dataset_version=dataset_version,
+                    entity=entity,
+                )
+            except Exception as rec_exc:  # noqa: BLE001
+                logger.warning(
+                    "Continuous intelligence scan reconciliation on retry encountered issue "
+                    "for business %s (job %s): %s",
+                    business_id,
+                    completed_job.id,
+                    rec_exc,
+                )
+
             return {
                 "dataset_id": dataset.id,
                 "job_id": completed_job.id,
@@ -860,36 +951,62 @@ class DataGatewayService:
                 "message": f"Dataset already ingested into {entity} (idempotent no-op).",
             }
 
-        # Create Durable Ingestion Job: PROCESSING
-        job = IngestionJob(
-            id=str(uuid4()),
-            organization_id=dataset.organization_id,
-            business_id=business_id,
-            dataset_id=dataset_id,
-            status="PROCESSING",
-            target_entity=entity,
-            started_at=datetime.now(timezone.utc),
-        )
-        db.add(job)
-        db.flush()
+        # Check for existing PENDING or FAILED job for this dataset/entity to reuse (e.g. initial PENDING job created on upload)
+        existing_job = db.execute(
+            select(IngestionJob).where(
+                IngestionJob.business_id == business_id,
+                IngestionJob.dataset_id == dataset_id,
+                IngestionJob.target_entity == entity,
+                IngestionJob.status.in_(["PENDING", "FAILED"]),
+            ).order_by(IngestionJob.created_at.desc())
+        ).scalars().first()
+
+        if existing_job:
+            job = existing_job
+            job.status = "PROCESSING"
+            job.started_at = datetime.now(UTC)
+            job.completed_at = None
+            job.error_message = None
+        else:
+            job = IngestionJob(
+                id=str(uuid4()),
+                organization_id=dataset.organization_id,
+                business_id=business_id,
+                dataset_id=dataset_id,
+                status="PROCESSING",
+                target_entity=entity,
+                started_at=datetime.now(UTC),
+            )
+            db.add(job)
+        db.commit()
+        job_id = job.id
         logger.info(
             "Ingestion job started: business_id=%s dataset_id=%s entity=%s job_id=%s",
-            business_id, dataset_id, entity, job.id,
+            business_id, dataset_id, entity, job_id,
         )
 
         try:
+            # 1. Load DataFrame with deliberate multi-encoding fallback
             if dataset.file_type == "csv":
-                df = pd.read_csv(storage_path)
+                df = cls.read_csv_dataframe(storage_path)
             else:
-                df = pd.read_excel(storage_path)
+                try:
+                    df = pd.read_excel(storage_path)
+                except Exception as exc:  # noqa: BLE001
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Failed to read stored Excel workbook: {str(exc).splitlines()[0]}",
+                    )
 
-            records_inserted = 0
             df = df.replace({np.nan: None})
+            row_errors: list[dict[str, Any]] = []
+            staged_objects: list[Any] = []
+            records_inserted = 0
 
-            # Ingest based on target entity
+            # 2. Check Entity-Specific Required Columns & Ingest Logic
             if entity == "Sale":
-                date_col = next((c for c, f in field_map.items() if f == "date"), None)
                 amount_col = next((c for c, f in field_map.items() if f == "amount"), None)
+                date_col = next((c for c, f in field_map.items() if f == "date"), None)
                 order_col = next((c for c, f in field_map.items() if f == "order_number"), None)
 
                 if not amount_col:
@@ -898,7 +1015,7 @@ class DataGatewayService:
                         detail="Cannot ingest Sales: missing required 'amount' column mapping.",
                     )
 
-                # Ensure a valid customer exists for this business
+                # Ensure a valid default customer exists for this business
                 cust = db.execute(
                     select(Customer).where(Customer.business_id == business_id)
                 ).scalars().first()
@@ -911,35 +1028,90 @@ class DataGatewayService:
                         email=f"customer-{cust_hex}@nexus.local",
                         city="Default City",
                         customer_segment="Retail",
-                        acquisition_date=date.today(),
+                        acquisition_date=datetime.now(tz=UTC).date(),
                     )
                     db.add(cust)
                     db.flush()
 
-                for _, row in df.iterrows():
-                    val = row[amount_col]
-                    try:
-                        num_amount = round(float(val), 2) if val is not None else 0.0
-                    except (ValueError, TypeError):
-                        num_amount = 0.0
+                # Pre-fetch existing order numbers for this business in batches
+                order_vals = [
+                    str(r[order_col]).strip()
+                    for _, r in df.iterrows()
+                    if order_col and r[order_col] is not None and str(r[order_col]).strip()
+                ]
+                existing_orders_set: set[str] = set()
+                if order_vals:
+                    for i in range(0, len(order_vals), 1000):
+                        batch = order_vals[i : i + 1000]
+                        found = db.execute(
+                            select(Sale.transaction_number).where(
+                                Sale.business_id == business_id,
+                                Sale.transaction_number.in_(batch),
+                            )
+                        ).scalars().all()
+                        existing_orders_set.update(found)
 
-                    sale_dt = datetime.now(timezone.utc)
-                    if date_col and row[date_col] is not None:
+                # Multi-line order aggregation map (preserves all line items for an order)
+                staged_sales_by_order: dict[str, Sale] = {}
+
+                for idx, row in df.iterrows():
+                    row_num = idx + 1
+                    val = row[amount_col]
+                    if val is None or str(val).strip() == "":
+                        row_errors.append({
+                            "row": row_num,
+                            "column": amount_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Sale amount cannot be null or empty.",
+                        })
+                        continue
+
+                    try:
+                        clean_val = str(val).replace("$", "").replace(",", "").strip()
+                        num_amount = round(Decimal(clean_val), 2)
+                    except (InvalidOperation, ValueError, TypeError):
+                        row_errors.append({
+                            "row": row_num,
+                            "column": amount_col,
+                            "value": str(val)[:50],
+                            "error_type": "INVALID_NUMERIC",
+                            "message": f"Invalid numerical sale amount '{val}'.",
+                        })
+                        continue
+
+                    sale_dt = datetime.now(UTC)
+                    if date_col and row[date_col] is not None and str(row[date_col]).strip() != "":
                         try:
                             sale_dt = pd.to_datetime(row[date_col]).to_pydatetime()
-                        except Exception:
-                            pass
+                            if sale_dt.tzinfo is None:
+                                sale_dt = sale_dt.replace(tzinfo=UTC)
+                        except Exception:  # noqa: BLE001
+                            row_errors.append({
+                                "row": row_num,
+                                "column": date_col,
+                                "value": str(row[date_col])[:50],
+                                "error_type": "UNPARSEABLE_DATE",
+                                "message": f"Invalid or unparseable transaction date '{row[date_col]}'.",
+                            })
+                            continue
 
-                    sale_order = str(row[order_col]) if order_col and row[order_col] is not None else f"TXN-{uuid4().hex[:8]}"
+                    sale_order = (
+                        str(row[order_col]).strip()
+                        if order_col and row[order_col] is not None and str(row[order_col]).strip()
+                        else f"TXN-{uuid4().hex[:8]}"
+                    )
 
-                    # Deduplication guard on transaction_number
-                    existing_sale = db.execute(
-                        select(Sale).where(
-                            Sale.business_id == business_id,
-                            Sale.transaction_number == sale_order,
-                        )
-                    ).scalars().first()
-                    if existing_sale:
+                    # Multi-line order preservation: If order is already staged in this batch,
+                    # aggregate line items into the overarching Sale order total rather than dropping them
+                    if sale_order in staged_sales_by_order:
+                        existing_sale = staged_sales_by_order[sale_order]
+                        existing_sale.subtotal += num_amount
+                        existing_sale.total_amount += num_amount
+                        continue
+
+                    # Deduplication guard: Skip if already committed in DB from previous ingestion
+                    if sale_order in existing_orders_set:
                         continue
 
                     sale = Sale(
@@ -947,14 +1119,14 @@ class DataGatewayService:
                         transaction_number=sale_order,
                         customer_id=cust.id,
                         transaction_date=sale_dt,
-                        subtotal=Decimal(str(num_amount)),
+                        subtotal=num_amount,
                         discount_amount=Decimal("0.00"),
                         tax_amount=Decimal("0.00"),
-                        total_amount=Decimal(str(num_amount)),
+                        total_amount=num_amount,
                         status="completed",
                     )
-                    db.add(sale)
-                    records_inserted += 1
+                    staged_sales_by_order[sale_order] = sale
+                    staged_objects.append(sale)
 
             elif entity == "Product":
                 sku_col = next((c for c, f in field_map.items() if f == "sku"), None)
@@ -962,6 +1134,7 @@ class DataGatewayService:
                 price_col = next((c for c, f in field_map.items() if f == "selling_price"), None)
                 cost_col = next((c for c, f in field_map.items() if f == "unit_cost"), None)
                 cat_col = next((c for c, f in field_map.items() if f == "category"), None)
+                subcat_col = next((c for c, f in field_map.items() if f == "subcategory"), None)
 
                 if not sku_col or not name_col:
                     raise HTTPException(
@@ -969,22 +1142,111 @@ class DataGatewayService:
                         detail="Cannot ingest Products: missing 'sku' or 'name' mapping.",
                     )
 
-                for _, row in df.iterrows():
-                    sku_val = str(row[sku_col]) if row[sku_col] is not None else f"SKU-{uuid4().hex[:6]}"
-                    name_val = str(row[name_col]) if row[name_col] is not None else "Product"
-                    price_val = float(row[price_col]) if price_col and row[price_col] is not None else 0.0
-                    cost_val = float(row[cost_col]) if cost_col and row[cost_col] is not None else 0.0
-                    cat_val = str(row[cat_col]) if cat_col and row[cat_col] is not None else "General"
+                sku_vals = [
+                    str(r[sku_col]).strip()
+                    for _, r in df.iterrows()
+                    if r[sku_col] is not None and str(r[sku_col]).strip()
+                ]
+                existing_skus_set: set[str] = set()
+                if sku_vals:
+                    for i in range(0, len(sku_vals), 1000):
+                        batch = sku_vals[i : i + 1000]
+                        found = db.execute(
+                            select(Product.sku).where(
+                                Product.business_id == business_id,
+                                Product.sku.in_(batch),
+                            )
+                        ).scalars().all()
+                        existing_skus_set.update(found)
 
-                    # Deduplication guard on SKU
-                    existing_prod = db.execute(
-                        select(Product).where(
-                            Product.business_id == business_id,
-                            Product.sku == sku_val,
-                        )
-                    ).scalars().first()
-                    if existing_prod:
+                seen_skus_in_file: set[str] = set()
+
+                for idx, row in df.iterrows():
+                    row_num = idx + 1
+                    raw_sku = row[sku_col]
+                    if raw_sku is None or str(raw_sku).strip() == "":
+                        row_errors.append({
+                            "row": row_num,
+                            "column": sku_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Product SKU cannot be null or empty.",
+                        })
                         continue
+
+                    sku_val = str(raw_sku).strip()
+
+                    raw_name = row[name_col]
+                    if raw_name is None or str(raw_name).strip() == "":
+                        row_errors.append({
+                            "row": row_num,
+                            "column": name_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Product name cannot be null or empty.",
+                        })
+                        continue
+
+                    name_val = str(raw_name).strip()
+
+                    price_val = Decimal("0.00")
+                    if price_col and row[price_col] is not None and str(row[price_col]).strip() != "":
+                        try:
+                            clean_price = str(row[price_col]).replace("$", "").replace(",", "").strip()
+                            price_val = round(Decimal(clean_price), 2)
+                            if price_val < 0:
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": price_col,
+                                    "value": str(row[price_col]),
+                                    "error_type": "RANGE_ERROR",
+                                    "message": "Product selling price cannot be negative.",
+                                })
+                                continue
+                        except Exception:  # noqa: BLE001
+                            row_errors.append({
+                                "row": row_num,
+                                "column": price_col,
+                                "value": str(row[price_col])[:50],
+                                "error_type": "INVALID_NUMERIC",
+                                "message": f"Invalid numerical selling price '{row[price_col]}'.",
+                            })
+                            continue
+
+                    cost_val = Decimal("0.00")
+                    if cost_col and row[cost_col] is not None and str(row[cost_col]).strip() != "":
+                        try:
+                            clean_cost = str(row[cost_col]).replace("$", "").replace(",", "").strip()
+                            cost_val = round(Decimal(clean_cost), 2)
+                            if cost_val < 0:
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": cost_col,
+                                    "value": str(row[cost_col]),
+                                    "error_type": "RANGE_ERROR",
+                                    "message": "Product unit cost cannot be negative.",
+                                })
+                                continue
+                        except Exception:  # noqa: BLE001
+                            row_errors.append({
+                                "row": row_num,
+                                "column": cost_col,
+                                "value": str(row[cost_col])[:50],
+                                "error_type": "INVALID_NUMERIC",
+                                "message": f"Invalid numerical unit cost '{row[cost_col]}'.",
+                            })
+                            continue
+
+                    cat_val = str(row[cat_col]).strip() if cat_col and row[cat_col] is not None else "General"
+                    subcat_val = str(row[subcat_col]).strip() if subcat_col and row[subcat_col] is not None else cat_val
+
+                    if sku_val in seen_skus_in_file:
+                        continue
+                    seen_skus_in_file.add(sku_val)
+
+                    if sku_val in existing_skus_set:
+                        continue
+                    existing_skus_set.add(sku_val)
 
                     prod = Product(
                         business_id=business_id,
@@ -993,16 +1255,18 @@ class DataGatewayService:
                         selling_price=price_val,
                         unit_cost=cost_val,
                         category=cat_val,
-                        is_active=True,
+                        subcategory=subcat_val,
+                        active=True,
                     )
-                    db.add(prod)
-                    records_inserted += 1
+                    staged_objects.append(prod)
 
             elif entity == "Customer":
                 code_col = next((c for c, f in field_map.items() if f == "customer_code"), None)
                 name_col = next((c for c, f in field_map.items() if f == "name"), None)
                 email_col = next((c for c, f in field_map.items() if f == "email"), None)
                 city_col = next((c for c, f in field_map.items() if f == "city"), None)
+                segment_col = next((c for c, f in field_map.items() if f == "customer_segment"), None)
+                acq_col = next((c for c, f in field_map.items() if f == "acquisition_date"), None)
 
                 if not name_col:
                     raise HTTPException(
@@ -1010,20 +1274,73 @@ class DataGatewayService:
                         detail="Cannot ingest Customers: missing 'name' mapping.",
                     )
 
-                for _, row in df.iterrows():
-                    cust_code = str(row[code_col]) if code_col and row[code_col] is not None else f"CUST-{uuid4().hex[:6]}"
-                    cust_name = str(row[name_col]) if row[name_col] is not None else "Customer"
-                    cust_email = str(row[email_col]) if email_col and row[email_col] is not None else f"cust-{uuid4().hex[:8]}@nexus.local"
-                    cust_city = str(row[city_col]) if city_col and row[city_col] is not None else "Unknown"
+                # Pre-fetch existing customer codes and emails SCOPED STRICTLY TO BUSINESS_ID
+                existing_codes_set: set[str] = set()
+                existing_emails_set: set[str] = set()
+                existing_custs = db.execute(
+                    select(Customer.customer_code, Customer.email).where(
+                        Customer.business_id == business_id
+                    )
+                ).all()
+                for c_code, c_email in existing_custs:
+                    if c_code:
+                        existing_codes_set.add(c_code)
+                    if c_email:
+                        existing_emails_set.add(c_email.lower())
 
-                    # Deduplication guard on customer_code or email
-                    existing_cust = db.execute(
-                        select(Customer).where(
-                            (Customer.customer_code == cust_code) | (Customer.email == cust_email)
-                        )
-                    ).scalars().first()
-                    if existing_cust:
+                seen_codes_in_file: set[str] = set()
+                seen_emails_in_file: set[str] = set()
+
+                for idx, row in df.iterrows():
+                    row_num = idx + 1
+                    raw_name = row[name_col]
+                    if raw_name is None or str(raw_name).strip() == "":
+                        row_errors.append({
+                            "row": row_num,
+                            "column": name_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Customer name cannot be null or empty.",
+                        })
                         continue
+
+                    cust_name = str(raw_name).strip()
+                    cust_code = (
+                        str(row[code_col]).strip()
+                        if code_col and row[code_col] is not None and str(row[code_col]).strip()
+                        else f"CUST-{uuid4().hex[:6].upper()}"
+                    )
+                    cust_email = (
+                        str(row[email_col]).strip().lower()
+                        if email_col and row[email_col] is not None and str(row[email_col]).strip()
+                        else f"cust-{uuid4().hex[:8]}@nexus.local"
+                    )
+                    cust_city = str(row[city_col]).strip() if city_col and row[city_col] is not None else "Unknown"
+                    cust_seg = str(row[segment_col]).strip() if segment_col and row[segment_col] is not None else "Retail"
+
+                    acq_dt = datetime.now(tz=UTC).date()
+                    if acq_col and row[acq_col] is not None and str(row[acq_col]).strip() != "":
+                        try:
+                            acq_dt = pd.to_datetime(row[acq_col]).date()
+                        except Exception:  # noqa: BLE001
+                            row_errors.append({
+                                "row": row_num,
+                                "column": acq_col,
+                                "value": str(row[acq_col])[:50],
+                                "error_type": "UNPARSEABLE_DATE",
+                                "message": f"Invalid customer acquisition date '{row[acq_col]}'.",
+                            })
+                            continue
+
+                    if cust_code in seen_codes_in_file or cust_email in seen_emails_in_file:
+                        continue
+                    seen_codes_in_file.add(cust_code)
+                    seen_emails_in_file.add(cust_email)
+
+                    if cust_code in existing_codes_set or cust_email in existing_emails_set:
+                        continue
+                    existing_codes_set.add(cust_code)
+                    existing_emails_set.add(cust_email)
 
                     cust = Customer(
                         business_id=business_id,
@@ -1031,28 +1348,240 @@ class DataGatewayService:
                         name=cust_name,
                         email=cust_email,
                         city=cust_city,
-                        customer_segment="Retail",
-                        acquisition_date=date.today(),
+                        customer_segment=cust_seg,
+                        acquisition_date=acq_dt,
                     )
-                    db.add(cust)
-                    records_inserted += 1
+                    staged_objects.append(cust)
+
+            elif entity == "Inventory":
+                prod_col = next((c for c, f in field_map.items() if f in ("product_id", "sku")), None)
+                stock_col = next((c for c, f in field_map.items() if f == "stock_quantity"), None)
+                threshold_col = next((c for c, f in field_map.items() if f == "reorder_threshold"), None)
+                wh_col = next((c for c, f in field_map.items() if f in ("warehouse", "warehouse_location")), None)
+
+                if not prod_col or not stock_col:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Cannot ingest Inventory: missing required 'product_id' or 'stock_quantity' mapping.",
+                    )
+
+                # Pre-fetch products for this business
+                biz_prods = db.execute(
+                    select(Product.id, Product.sku).where(Product.business_id == business_id)
+                ).all()
+                sku_to_id = {sku: pid for pid, sku in biz_prods}
+                valid_prod_ids = {pid for pid, _ in biz_prods}
+
+                # Pre-fetch existing inventory records for this business
+                existing_invs = db.execute(
+                    select(Inventory).where(Inventory.business_id == business_id)
+                ).scalars().all()
+                existing_inv_map = {inv.product_id: inv for inv in existing_invs}
+
+                seen_inv_prods: set[int] = set()
+
+                for idx, row in df.iterrows():
+                    row_num = idx + 1
+                    raw_prod = row[prod_col]
+                    if raw_prod is None or str(raw_prod).strip() == "":
+                        row_errors.append({
+                            "row": row_num,
+                            "column": prod_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Product reference cannot be null or empty.",
+                        })
+                        continue
+
+                    prod_str = str(raw_prod).strip()
+                    matched_pid = None
+                    if prod_str in sku_to_id:
+                        matched_pid = sku_to_id[prod_str]
+                    elif prod_str.isdigit() and int(prod_str) in valid_prod_ids:
+                        matched_pid = int(prod_str)
+
+                    if matched_pid is None:
+                        row_errors.append({
+                            "row": row_num,
+                            "column": prod_col,
+                            "value": prod_str[:50],
+                            "error_type": "FOREIGN_KEY_NOT_FOUND",
+                            "message": f"Product '{prod_str}' does not exist in catalog for this business.",
+                        })
+                        continue
+
+                    raw_stock = row[stock_col]
+                    if raw_stock is None or str(raw_stock).strip() == "":
+                        row_errors.append({
+                            "row": row_num,
+                            "column": stock_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Stock quantity cannot be null or empty.",
+                        })
+                        continue
+
+                    try:
+                        clean_stock = str(raw_stock).replace(",", "").strip()
+                        stock_qty = int(float(clean_stock))
+                        if stock_qty < 0:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": stock_col,
+                                "value": str(raw_stock),
+                                "error_type": "RANGE_ERROR",
+                                "message": "Stock quantity cannot be negative.",
+                            })
+                            continue
+                    except Exception:  # noqa: BLE001
+                        row_errors.append({
+                            "row": row_num,
+                            "column": stock_col,
+                            "value": str(raw_stock)[:50],
+                            "error_type": "INVALID_NUMERIC",
+                            "message": f"Invalid numerical stock quantity '{raw_stock}'.",
+                        })
+                        continue
+
+                    thresh_val = 10
+                    if threshold_col and row[threshold_col] is not None and str(row[threshold_col]).strip() != "":
+                        try:
+                            thresh_val = int(float(str(row[threshold_col]).replace(",", "").strip()))
+                            if thresh_val < 0:
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": threshold_col,
+                                    "value": str(row[threshold_col]),
+                                    "error_type": "RANGE_ERROR",
+                                    "message": "Reorder threshold cannot be negative.",
+                                })
+                                continue
+                        except Exception:  # noqa: BLE001
+                            row_errors.append({
+                                "row": row_num,
+                                "column": threshold_col,
+                                "value": str(row[threshold_col])[:50],
+                                "error_type": "INVALID_NUMERIC",
+                                "message": f"Invalid numerical reorder threshold '{row[threshold_col]}'.",
+                            })
+                            continue
+
+                    wh_val = str(row[wh_col]).strip() if wh_col and row[wh_col] is not None else "Main Warehouse"
+
+                    if matched_pid in seen_inv_prods:
+                        continue
+                    seen_inv_prods.add(matched_pid)
+
+                    if matched_pid in existing_inv_map:
+                        existing_inv = existing_inv_map[matched_pid]
+                        existing_inv.stock_quantity = stock_qty
+                        existing_inv.reorder_threshold = thresh_val
+                        existing_inv.warehouse_location = wh_val
+                    else:
+                        inv = Inventory(
+                            business_id=business_id,
+                            product_id=matched_pid,
+                            stock_quantity=stock_qty,
+                            reorder_threshold=thresh_val,
+                            warehouse_location=wh_val,
+                        )
+                        staged_objects.append(inv)
 
             elif entity == "Expense":
                 date_col = next((c for c, f in field_map.items() if f == "expense_date"), None)
                 cat_col = next((c for c, f in field_map.items() if f == "category"), None)
                 amount_col = next((c for c, f in field_map.items() if f == "amount"), None)
-                desc_col = next((c for c, f in field_map.items() if f == "description"), None)
+                desc_col = next((c for c, f in field_map.items() if f in ("description", "vendor")), None)
 
-                for _, row in df.iterrows():
-                    amt = float(row[amount_col]) if amount_col and row[amount_col] is not None else 0.0
-                    exp_dt = date.today()
-                    if date_col and row[date_col] is not None:
+                if not cat_col or not amount_col:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Cannot ingest Expenses: missing required 'category' or 'amount' column mapping.",
+                    )
+
+                seen_expenses_in_file: set[tuple] = set()
+
+                for idx, row in df.iterrows():
+                    row_num = idx + 1
+                    raw_cat = row[cat_col]
+                    if raw_cat is None or str(raw_cat).strip() == "":
+                        row_errors.append({
+                            "row": row_num,
+                            "column": cat_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Expense category cannot be null or empty.",
+                        })
+                        continue
+
+                    cat = str(raw_cat).strip()
+
+                    raw_amt = row[amount_col]
+                    if raw_amt is None or str(raw_amt).strip() == "":
+                        row_errors.append({
+                            "row": row_num,
+                            "column": amount_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Expense amount cannot be null or empty.",
+                        })
+                        continue
+
+                    try:
+                        clean_amt = str(raw_amt).replace("$", "").replace(",", "").strip()
+                        amt = round(Decimal(clean_amt), 2)
+                        if amt < 0:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": amount_col,
+                                "value": str(raw_amt),
+                                "error_type": "RANGE_ERROR",
+                                "message": "Expense amount cannot be negative.",
+                            })
+                            continue
+                    except Exception:  # noqa: BLE001
+                        row_errors.append({
+                            "row": row_num,
+                            "column": amount_col,
+                            "value": str(raw_amt)[:50],
+                            "error_type": "INVALID_NUMERIC",
+                            "message": f"Invalid numerical expense amount '{raw_amt}'.",
+                        })
+                        continue
+
+                    exp_dt = datetime.now(tz=UTC).date()
+                    if date_col and row[date_col] is not None and str(row[date_col]).strip() != "":
                         try:
                             exp_dt = pd.to_datetime(row[date_col]).date()
-                        except Exception:
-                            pass
-                    cat = str(row[cat_col]) if cat_col and row[cat_col] is not None else "Operating"
-                    desc = str(row[desc_col]) if desc_col and row[desc_col] is not None else "Business Expense"
+                        except Exception:  # noqa: BLE001
+                            row_errors.append({
+                                "row": row_num,
+                                "column": date_col,
+                                "value": str(row[date_col])[:50],
+                                "error_type": "UNPARSEABLE_DATE",
+                                "message": f"Invalid expense date '{row[date_col]}'.",
+                            })
+                            continue
+
+                    desc = str(row[desc_col]).strip() if desc_col and row[desc_col] is not None else "Business Expense"
+
+                    exp_key = (exp_dt, cat, amt, desc)
+                    if exp_key in seen_expenses_in_file:
+                        continue
+                    seen_expenses_in_file.add(exp_key)
+
+                    # Deduplication guard against existing expenses
+                    existing_exp = db.execute(
+                        select(Expense.id).where(
+                            Expense.business_id == business_id,
+                            Expense.expense_date == exp_dt,
+                            Expense.category == cat,
+                            Expense.amount == amt,
+                            Expense.description == desc,
+                        )
+                    ).scalars().first()
+                    if existing_exp:
+                        continue
 
                     exp = Expense(
                         business_id=business_id,
@@ -1061,8 +1590,7 @@ class DataGatewayService:
                         amount=amt,
                         description=desc,
                     )
-                    db.add(exp)
-                    records_inserted += 1
+                    staged_objects.append(exp)
 
             elif entity == "SaleItem":
                 sale_id_col = next((c for c, f in field_map.items() if f == "sale_id"), None)
@@ -1076,11 +1604,55 @@ class DataGatewayService:
                         detail="Cannot ingest SaleItems: missing required 'quantity' or 'unit_price' column.",
                     )
 
-                for _, row in df.iterrows():
-                    qty = max(1, int(row[qty_col])) if qty_col and row[qty_col] is not None else 1
-                    u_price = Decimal(str(round(float(row[price_col]), 2))) if price_col and row[price_col] is not None else Decimal("0.00")
-                    l_total = u_price * qty
+                for idx, row in df.iterrows():
+                    row_num = idx + 1
+                    try:
+                        qty = int(row[qty_col]) if qty_col and row[qty_col] is not None else 1
+                        if qty <= 0:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": qty_col,
+                                "value": str(row[qty_col]),
+                                "error_type": "RANGE_ERROR",
+                                "message": "SaleItem quantity must be strictly greater than 0.",
+                            })
+                            continue
+                    except Exception:  # noqa: BLE001
+                        row_errors.append({
+                            "row": row_num,
+                            "column": qty_col,
+                            "value": str(row[qty_col])[:50],
+                            "error_type": "INVALID_NUMERIC",
+                            "message": f"Invalid integer quantity '{row[qty_col]}'.",
+                        })
+                        continue
 
+                    try:
+                        u_price = (
+                            Decimal(str(round(float(str(row[price_col]).replace("$", "").replace(",", "")), 2)))
+                            if price_col and row[price_col] is not None
+                            else Decimal("0.00")
+                        )
+                        if u_price < 0:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": price_col,
+                                "value": str(row[price_col]),
+                                "error_type": "RANGE_ERROR",
+                                "message": "SaleItem unit price cannot be negative.",
+                            })
+                            continue
+                    except Exception:  # noqa: BLE001
+                        row_errors.append({
+                            "row": row_num,
+                            "column": price_col,
+                            "value": str(row[price_col])[:50],
+                            "error_type": "INVALID_NUMERIC",
+                            "message": f"Invalid unit price '{row[price_col]}'.",
+                        })
+                        continue
+
+                    l_total = u_price * qty
                     s_item = SaleItem(
                         sale_id=int(row[sale_id_col]) if sale_id_col and row[sale_id_col] is not None else 1,
                         product_id=int(row[prod_id_col]) if prod_id_col and row[prod_id_col] is not None else 1,
@@ -1089,20 +1661,77 @@ class DataGatewayService:
                         discount_amount=Decimal("0.00"),
                         line_total=l_total,
                     )
-                    db.add(s_item)
-                    records_inserted += 1
+                    staged_objects.append(s_item)
+
+            # 3. Check for Row Validation Errors - Rollback if any found
+            if row_errors:
+                db.rollback()
+                failed_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
+                if failed_job:
+                    failed_job.status = "FAILED"
+                    failed_job.completed_at = datetime.now(UTC)
+                    first_err = row_errors[0]
+                    failed_job.error_message = (
+                        f"Validation failed on {len(row_errors)} row(s). Row {first_err['row']} [{first_err['column']}]: {first_err['message']}"
+                    )[:500]
+
+                dataset_ref = db.execute(select(UploadedDataset).where(UploadedDataset.id == dataset_id)).scalar_one_or_none()
+                sanitized_errors = []
+                for err in row_errors[:50]:
+                    sanitized_errors.append({
+                        "row": int(err.get("row", 0)),
+                        "column": str(err.get("column", ""))[:100],
+                        "value": str(err.get("value", ""))[:100] if err.get("value") is not None else None,
+                        "error_type": str(err.get("error_type", "VALIDATION_ERROR"))[:50],
+                        "message": str(err.get("message", ""))[:250],
+                    })
+                if dataset_ref:
+                    s_copy = dict(dataset_ref.schema_json or {})
+                    s_copy["ingestion_status"] = "FAILED"
+                    s_copy["ingestion_errors"] = sanitized_errors
+                    s_copy["total_validation_errors"] = len(row_errors)
+                    dataset_ref.schema_json = s_copy
+                    dataset_ref.readiness_status = "REQUIRES_REVIEW"
+                    flag_modified(dataset_ref, "schema_json")
+
+                db.commit()
+                logger.warning(
+                    "Ingestion rejected with row validation errors: business_id=%s dataset_id=%s errors=%d",
+                    business_id, dataset_id, len(row_errors),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": f"Ingestion rejected: {len(row_errors)} validation error(s) detected.",
+                        "total_errors": len(row_errors),
+                        "errors": sanitized_errors,
+                    },
+                )
+
+            # 4. Commit Validated Records
+            for obj in staged_objects:
+                db.add(obj)
+
+            records_inserted = len(staged_objects)
 
             # Update IngestionJob to COMPLETED
-            job.status = "COMPLETED"
-            job.completed_at = datetime.now(timezone.utc)
-            job.rows_processed = records_inserted
+            running_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
+            if running_job:
+                running_job.status = "COMPLETED"
+                running_job.completed_at = datetime.now(UTC)
+                running_job.rows_processed = records_inserted
 
-            # Update dataset metadata
             # Update dataset metadata with new dict copy and flag_modified
             schema_copy = dict(dataset.schema_json or {})
             schema_copy["ingestion_status"] = "COMPLETED"
-            schema_copy["ingested_at"] = datetime.now(timezone.utc).isoformat()
+            schema_copy.pop("ingestion_errors", None)
+            schema_copy["total_validation_errors"] = 0
+            schema_copy["ingested_at"] = datetime.now(UTC).isoformat()
             schema_copy["records_persisted"] = records_inserted
+            schema_copy["dataset_version"] = dataset_version
+            schema_copy["source_filename"] = dataset.filename
+            schema_copy["content_hash"] = dataset.content_hash
+            schema_copy["ingestion_job_id"] = job_id
             if "mapping_proposal" in schema_copy:
                 prop_copy = dict(schema_copy["mapping_proposal"])
                 prop_copy["status"] = "MAPPED"
@@ -1124,7 +1753,7 @@ class DataGatewayService:
             db.refresh(dataset)
             logger.info(
                 "Ingestion job COMPLETED: business_id=%s dataset_id=%s entity=%s job_id=%s records=%d",
-                business_id, dataset_id, entity, job.id, records_inserted,
+                business_id, dataset_id, entity, job_id, records_inserted,
             )
 
             # Phase 17: Automatic Business Understanding and Semantic Activation upon DATASET READY
@@ -1136,47 +1765,74 @@ class DataGatewayService:
                     db=db,
                     source_dataset_id=dataset.id,
                 )
-            except Exception as sem_exc:
+            except Exception as sem_exc:  # noqa: BLE001
+                db.rollback()
                 logger.warning(
                     "Automatic semantic activation encountered an issue for business %s: %s",
                     business_id,
                     sem_exc,
                 )
 
-            return {
+            # Phase 29 Stage 2: Automatic Continuous Intelligence Scan upon Ingestion Completion
+            scan_run_id = None
+            try:
+                from app.analytics.continuous.service import ContinuousIntelligenceService
+                scan_res = ContinuousIntelligenceService.trigger_ingestion_scan(
+                    db=db,
+                    business_id=business_id,
+                    organization_id=dataset.organization_id,
+                    dataset_id=dataset.id,
+                    ingestion_job_id=job_id,
+                    dataset_version=dataset_version,
+                    entity=entity,
+                )
+                if scan_res:
+                    scan_run_id = scan_res.scan_run_id
+            except Exception as scan_exc:  # noqa: BLE001
+                db.rollback()
+                logger.warning(
+                    "Continuous intelligence ingestion-triggered scan encountered an issue for business %s (job %s): %s",
+                    business_id,
+                    job_id,
+                    scan_exc,
+                )
+
+            res_dict = {
                 "dataset_id": dataset.id,
-                "job_id": job.id,
+                "job_id": job_id,
                 "entity": entity,
                 "target_entity": entity,
                 "records_persisted": records_inserted,
                 "status": "COMPLETED",
                 "message": f"Successfully ingested {records_inserted} records into {entity} domain.",
             }
+            if scan_run_id is not None:
+                res_dict["scan_run_id"] = scan_run_id
+            return res_dict
 
         except HTTPException:
-            job.status = "FAILED"
-            job.completed_at = datetime.now(timezone.utc)
-            job.error_message = "Ingestion rejected due to schema or constraint validation."
-            db.commit()
-            logger.warning(
-                "Ingestion job FAILED (validation): business_id=%s dataset_id=%s entity=%s job_id=%s",
-                business_id, dataset_id, entity, job.id,
-            )
+            db.rollback()
+            failed_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
+            if failed_job and failed_job.status != "FAILED":
+                failed_job.status = "FAILED"
+                failed_job.completed_at = datetime.now(UTC)
+                failed_job.error_message = "Ingestion rejected due to schema or constraint validation."
+                db.commit()
             raise
         except Exception as exc:
             db.rollback()
-            # Set safe error message on job without exposing raw Python tracebacks
             safe_msg = f"Ingestion failed: {str(exc).splitlines()[0]}"
-            job.status = "FAILED"
-            job.completed_at = datetime.now(timezone.utc)
-            job.error_message = safe_msg[:500]
-            db.commit()
-            logger.error(
+            failed_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
+            if failed_job:
+                failed_job.status = "FAILED"
+                failed_job.completed_at = datetime.now(UTC)
+                failed_job.error_message = safe_msg[:500]
+                db.commit()
+            logger.exception(
                 "Ingestion job FAILED (exception): business_id=%s dataset_id=%s entity=%s job_id=%s error=%s",
-                business_id, dataset_id, entity, job.id, safe_msg,
-                exc_info=True,
+                business_id, dataset_id, entity, job_id, safe_msg,
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=safe_msg,
-            )
+            ) from exc

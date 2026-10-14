@@ -143,6 +143,29 @@ class BusinessProfileToolInput(BaseModel):
     business_id: str | None = Field(default=None, description="Active tenant business workspace ID")
 
 
+class RecommendInventoryActionToolInput(BaseModel):
+    """Input for Phase 27 deterministic inventory replenishment recommendation engine."""
+    sku: str = Field(description="Product SKU identifier to evaluate for replenishment")
+    business_id: str | None = Field(default=None, description="Active tenant business workspace ID")
+    max_budget: float | None = Field(default=None, description="Maximum allowable working capital outlay ($)")
+    max_storage_units: int | None = Field(default=None, description="Physical warehouse capacity limit for SKU")
+    target_service_level: float = Field(default=0.95, ge=0.50, le=0.999, description="Target probability of avoiding stockout (0.50-0.999)")
+    min_order_quantity: int = Field(default=1, ge=1, description="Supplier minimum order quantity (MOQ)")
+    max_order_quantity: int | None = Field(default=None, description="Supplier allocation ceiling")
+    lead_time_days: int = Field(default=7, ge=1, description="Supplier replenishment lead time in calendar days")
+    annual_holding_cost_rate: float = Field(default=0.20, ge=0.01, le=1.0, description="Annual cost of capital and storage as % of unit cost")
+    order_setup_cost: float | None = Field(default=None, ge=0.0, description="Optional tenant-specified procurement setup cost ($). If omitted, system-wide default assumption ($50.00) is applied.")
+    objective: str = Field(default="balance_service_level", description="Governing business objective: 'balance_service_level', 'minimize_stockout', 'minimize_holding_cost', 'maximize_margin'")
+
+
+class RecommendPricingActionToolInput(BaseModel):
+    """Input for Phase 27 deterministic pricing markdown recommendation engine."""
+    sku: str = Field(description="Product SKU identifier to evaluate for clearance markdown")
+    business_id: str | None = Field(default=None, description="Active tenant business workspace ID")
+    target_discount_pct: float = Field(default=0.15, ge=0.01, le=0.90, description="Proposed promotional markdown rate (0.01 to 0.90)")
+    target_margin_floor: float = Field(default=0.10, ge=0.0, le=0.90, description="Minimum acceptable gross margin percentage floor (0.0 to 0.90)")
+
+
 class ToolExecutionResult(BaseModel):
 
     """Standardized deterministic execution payload returned by every agent tool."""

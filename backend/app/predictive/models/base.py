@@ -76,13 +76,25 @@ class BaseForecaster(ABC):
         from app.predictive.schemas import ForecastPredictionPoint
         points = []
         for h in range(1, horizon + 1):
+            pt = float(raw[h - 1])
+            lb = float(lower[h - 1])
+            ub = float(upper[h - 1])
+            width = round(ub - lb, 2)
+            if pt > 1e-4:
+                unc_ratio = round(min(5.0, width / pt), 3)
+            elif width > 0.0:
+                unc_ratio = 1.0
+            else:
+                unc_ratio = 0.0
             points.append(
                 ForecastPredictionPoint(
                     period=f"t+{h}",
-                    point_forecast=float(raw[h - 1]),
-                    lower_bound=float(lower[h - 1]),
-                    upper_bound=float(upper[h - 1]),
+                    point_forecast=pt,
+                    lower_bound=lb,
+                    upper_bound=ub,
                     confidence_level=confidence_level,
+                    interval_width=width,
+                    uncertainty_ratio=unc_ratio,
                 )
             )
         return points

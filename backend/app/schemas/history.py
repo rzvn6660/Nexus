@@ -8,6 +8,7 @@ Phase 19 additions:
 
 from datetime import datetime
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -16,12 +17,21 @@ class DecisionRecordResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    business_id: str | None = None
+    organization_id: str | None = None
     analysis_id: int | None = None
     recommendation_text: str
-    status: str = Field(description="PENDING, APPROVED, REJECTED, MODIFIED")
+    status: str = Field(description="PENDING, APPROVED, REJECTED, MODIFIED, DEFERRED")
     reviewer_notes: str | None = None
     reviewed_by: str | None = None
     reviewed_at: datetime | None = None
+    recommendation_type: str | None = None
+    action_target_type: str | None = None
+    action_target_id: str | None = None
+    recommendation_payload: dict[str, Any] | None = None
+    baseline_metrics_snapshot: dict[str, Any] | None = None
+    current_revision: int = 0
+    outcome_window_days: int | None = 30
     created_at: datetime
     updated_at: datetime
 
@@ -31,13 +41,22 @@ class DecisionCreateRequest(BaseModel):
     analysis_id: int | None = None
     recommendation_text: str = Field(..., min_length=3, description="Action or recommendation to track")
     reviewer_notes: str | None = None
+    recommendation_type: str | None = None
+    action_target_type: str | None = None
+    action_target_id: str | None = None
+    recommendation_payload: dict[str, Any] | None = None
+    baseline_metrics_snapshot: dict[str, Any] | None = None
+    outcome_window_days: int | None = 30
+    idempotency_key: str | None = None
 
 
 class DecisionUpdateRequest(BaseModel):
-    """Input schema for updating an existing decision record (approve/reject/modify)."""
-    status: str = Field(..., description="PENDING, APPROVED, REJECTED, MODIFIED")
+    """Input schema for updating an existing decision record (approve/reject/modify/defer)."""
+    status: str = Field(..., description="PENDING, APPROVED, REJECTED, MODIFIED, DEFERRED")
     reviewer_notes: str | None = None
     reviewed_by: str | None = Field(None, description="Identifier of the human reviewer")
+    modified_parameters: dict[str, Any] | None = None
+    idempotency_key: str | None = None
 
 
 class AnalysisRunSummary(BaseModel):

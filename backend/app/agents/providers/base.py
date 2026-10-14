@@ -2,18 +2,19 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar
+
 from pydantic import BaseModel
 
 from app.agents.providers.models import (
     LLMRequest,
     LLMResponse,
-    LLMTaskCategory,
     ModelTier,
     TokenUsage,
 )
 from app.agents.state.models import (
     AnalysisPlan,
     ExplanationLevel,
+    GroundedExplanation,
     IntentCategory,
     IntentResult,
 )
@@ -77,6 +78,10 @@ class BaseLLMProvider(ABC):
     # Agent Workflow Methods (Preserved for compatibility)
     # ------------------------------------------------------------------
 
+    def interpret_intent(self, query: str) -> IntentResult:
+        """Classify user query against all standard IntentCategory values."""
+        return self.classify_intent(query, [c.value for c in IntentCategory])
+
     @abstractmethod
     def classify_intent(
         self, query: str, supported_intents: list[str]
@@ -90,6 +95,7 @@ class BaseLLMProvider(ABC):
         intent: IntentCategory,
         available_tools: list[dict[str, Any]],
         resolved_dates: dict[str, Any],
+        semantic_context: dict[str, Any] | None = None,
     ) -> AnalysisPlan:
         """Generate a structured, inspectable multi-step analytical plan."""
 
@@ -107,3 +113,34 @@ class BaseLLMProvider(ABC):
         Synthesize a grounded natural language explanation based strictly on returned tool evidence
         and verified business context. Must not hallucinate or compute arithmetic independently.
         """
+
+    def explain_results_structured(
+        self,
+        query: str,
+        plan: AnalysisPlan | None = None,
+        tool_results: list[dict[str, Any]] | None = None,
+        evidence: list[dict[str, Any]] | None = None,
+        explanation_level: ExplanationLevel = ExplanationLevel.MANAGER,
+        business_context: str | None = None,
+        semantic_context: dict[str, Any] | None = None,
+        warnings: list[str] | None = None,
+        rag_evidence: list[dict[str, Any]] | None = None,
+    ) -> GroundedExplanation:
+        """
+        Synthesize a structured, schema-validated explanation grounded in tool results.
+        Default implementation delegates to explain_results and wraps in GroundedExplanation.
+        """
+        raw_text = self.explain_results(
+            query=query,
+            plan=plan,
+            tool_results=tool_results or [],
+            evidence=evidence or [],
+            explanation_level=explanation_level,
+            business_context=business_context,
+        )
+        tools = [r.get("tool") for r in (tool_results or []) if isinstance(r, dict) and r.get("tool")]
+        return GroundedExplanation(
+            narrative=raw_text,
+            warnings=warnings or [],
+            evidence_citations=tools,
+        )

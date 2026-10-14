@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     analytics,
     auth,
     businesses,
+    continuous,
     data,
     forecast,
     gateway,
@@ -35,4 +36,5 @@ api_v1_router.include_router(semantic.router, prefix="/semantic", tags=["semanti
 api_v1_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_v1_router.include_router(forecast.router, prefix="/forecast", tags=["forecast"])
 api_v1_router.include_router(history.router, prefix="/history", tags=["history", "decisions"])
+api_v1_router.include_router(continuous.router, prefix="/continuous", tags=["continuous"])
 

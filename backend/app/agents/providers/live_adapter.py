@@ -12,9 +12,9 @@ from app.agents.providers.models import (
     LLMProviderError,
     LLMProviderTimeoutError,
     LLMProviderUnavailableError,
-    LLMSafetyGuardViolationError,
     LLMRequest,
     LLMResponse,
+    LLMSafetyGuardViolationError,
     LLMTaskCategory,
     ModelTier,
     TokenUsage,
@@ -22,6 +22,7 @@ from app.agents.providers.models import (
 from app.agents.state.models import (
     AnalysisPlan,
     ExplanationLevel,
+    GroundedExplanation,
     IntentCategory,
     IntentResult,
 )
@@ -59,19 +60,23 @@ def _extract_failed_tool_generation(exc: Exception) -> tuple[bool, str]:
     # 1. Check OpenAI API exception body dict
     if hasattr(exc, "body") and isinstance(exc.body, dict):
         err_obj = exc.body.get("error", {})
-        if isinstance(err_obj, dict):
-            if err_obj.get("code") == "tool_use_failed" or "model called a tool" in err_obj.get("message", "").lower():
-                return True, str(err_obj.get("failed_generation", ""))
+        if isinstance(err_obj, dict) and (
+            err_obj.get("code") == "tool_use_failed"
+            or "model called a tool" in err_obj.get("message", "").lower()
+        ):
+            return True, str(err_obj.get("failed_generation", ""))
 
     # 2. Check OpenAI API response JSON
     if hasattr(exc, "response"):
         try:
             rjson = exc.response.json()
             err_obj = rjson.get("error", {})
-            if isinstance(err_obj, dict):
-                if err_obj.get("code") == "tool_use_failed" or "model called a tool" in err_obj.get("message", "").lower():
-                    return True, str(err_obj.get("failed_generation", ""))
-        except Exception:
+            if isinstance(err_obj, dict) and (
+                err_obj.get("code") == "tool_use_failed"
+                or "model called a tool" in err_obj.get("message", "").lower()
+            ):
+                return True, str(err_obj.get("failed_generation", ""))
+        except Exception:  # noqa: BLE001, S110
             pass
 
     # 3. Check raw string
@@ -266,7 +271,7 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
                         fargs = getattr(func, "arguments", "{}") if func else "{}"
                         try:
                             parsed_args = json.loads(fargs) if isinstance(fargs, str) else fargs
-                        except Exception:
+                        except Exception:  # noqa: BLE001
                             parsed_args = {"raw": fargs}
                         tool_calls_list.append({"name": fname, "arguments": parsed_args})
                         selected_tools.append(fname)
@@ -292,13 +297,13 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
                 if parsed is None and content:
                     try:
                         parsed = json.loads(content)
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         try:
                             if "{" in content and "}" in content:
                                 start = content.index("{")
                                 end = content.rindex("}") + 1
                                 parsed = json.loads(content[start:end])
-                        except Exception:
+                        except Exception:  # noqa: BLE001
                             parsed = None
 
                 # Normalize steps into valid PlanStep structure if emitted as strings or dicts with field aliases
@@ -367,7 +372,7 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
                                     "arguments": parsed.get("arguments", {}),
                                 }]
                                 parsed["goal"] = f"Execute {parsed['name']}"
-                        except Exception:
+                        except Exception:  # noqa: BLE001
                             parsed = {"raw_generation": failed_gen}
 
                     return LLMResponse(
@@ -412,7 +417,7 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
             resp = self.generate(req)
             if resp.parsed_data:
                 return IntentResult.model_validate(resp.parsed_data)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
         return self._fallback_mock.classify_intent(query, supported_intents)
 
@@ -422,38 +427,235 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
         intent: IntentCategory,
         available_tools: list[dict[str, Any]],
         resolved_dates: dict[str, Any],
+        semantic_context: dict[str, Any] | None = None,
     ) -> AnalysisPlan:
-        tool_names = [t["name"] for t in available_tools]
+        from app.agents.providers.prompts import TaskPromptBuilder, sanitize_fallback_reason
+        sys_prompt, user_prompt = TaskPromptBuilder.build_planning_prompt(
+            query=query,
+            intent=intent,
+            available_tools=available_tools,
+            resolved_dates=resolved_dates,
+            semantic_context=semantic_context,
+            business_context=(semantic_context or {}).get("business_context"),
+        )
         req = LLMRequest(
-            task_category=LLMTaskCategory.SQL_PLANNING,
-            prompt=f"Create analysis plan for query: '{query}' with intent '{intent.value}'. Available tools: {tool_names}. Return JSON AnalysisPlan.",
+            task_category=LLMTaskCategory.STRUCTURED_OUTPUT,
+            prompt=user_prompt,
+            system_prompt=sys_prompt,
             schema_model="AnalysisPlan",
-            context={"available_tools": available_tools, "resolved_dates": resolved_dates},
+            context={"available_tools": available_tools, "resolved_dates": resolved_dates, "semantic_context": semantic_context},
         )
         try:
             resp = self.generate(req)
             if resp.parsed_data:
-                return AnalysisPlan.model_validate(resp.parsed_data)
-        except Exception:
-            pass
-        return self._fallback_mock.create_plan(query, intent, available_tools, resolved_dates)
+                plan = AnalysisPlan.model_validate(resp.parsed_data)
+                plan.is_fallback = getattr(resp, "is_fallback", False)
+                plan.fallback_reason = getattr(resp, "fallback_reason", None)
+                plan.llm_provider = getattr(resp, "provider_name", self._provider_name)
+                plan.llm_model = getattr(resp, "model_name", self.model_name)
+
+                # Tool validation
+                from app.agents.tools.registry import tool_registry
+                is_valid = True
+                invalid_reason = ""
+                for step in plan.steps:
+                    if not tool_registry.has_tool(step.tool_name):
+                        is_valid = False
+                        invalid_reason = f"Proposed tool '{step.tool_name}' is not in registered tool catalog"
+                        break
+                    t = tool_registry.get_tool(step.tool_name)
+                    if t:
+                        try:
+                            t.input_schema.model_validate(step.arguments)
+                        except Exception as ve:  # noqa: BLE001
+                            is_valid = False
+                            invalid_reason = f"Tool '{step.tool_name}' argument schema validation failed: {ve}"
+                            break
+
+                if is_valid:
+                    return plan
+                else:
+                    fallback_plan = self._fallback_mock.create_plan(
+                        query, intent, available_tools, resolved_dates, semantic_context=semantic_context
+                    )
+                    fallback_plan.is_fallback = True
+                    fallback_plan.fallback_reason = sanitize_fallback_reason(f"Malformed structured output: {invalid_reason}")
+                    fallback_plan.llm_provider = self._provider_name
+                    fallback_plan.llm_model = self.model_name
+                    return fallback_plan
+        except Exception as exc:  # noqa: BLE001
+            fallback_plan = self._fallback_mock.create_plan(
+                query, intent, available_tools, resolved_dates, semantic_context=semantic_context
+            )
+            fallback_plan.is_fallback = True
+            fallback_plan.fallback_reason = sanitize_fallback_reason(str(exc))
+            fallback_plan.llm_provider = self._provider_name
+            fallback_plan.llm_model = self.model_name
+            return fallback_plan
+
+        fallback_plan = self._fallback_mock.create_plan(
+            query, intent, available_tools, resolved_dates, semantic_context=semantic_context
+        )
+        fallback_plan.is_fallback = True
+        fallback_plan.fallback_reason = sanitize_fallback_reason("Live provider returned empty response")
+        fallback_plan.llm_provider = self._provider_name
+        fallback_plan.llm_model = self.model_name
+        return fallback_plan
+
+    def explain_results_structured(
+        self,
+        query: str,
+        plan: AnalysisPlan | None = None,
+        tool_results: list[dict[str, Any]] | None = None,
+        evidence: list[dict[str, Any]] | None = None,
+        explanation_level: ExplanationLevel = ExplanationLevel.MANAGER,
+        business_context: str | None = None,
+        semantic_context: dict[str, Any] | None = None,
+        warnings: list[str] | None = None,
+        rag_evidence: list[dict[str, Any]] | None = None,
+    ) -> GroundedExplanation:
+        """Synthesize structured, schema-validated GroundedExplanation via live model."""
+        from app.agents.providers.guard import DeterministicCalculationGuard
+        from app.agents.providers.prompts import TaskPromptBuilder, sanitize_fallback_reason
+        from app.agents.state.models import GroundedExplanation
+
+        t_results = tool_results or []
+        ev_records = evidence or []
+        rag_records = rag_evidence or []
+        is_plan_fallback = getattr(plan, "is_fallback", False) if plan else False
+        plan_fallback_reason = getattr(plan, "fallback_reason", None) if plan else None
+
+        if not self._allow_external and not self._is_local:
+            fallback_exp = self._fallback_mock.explain_results_structured(
+                query=query,
+                plan=plan,
+                tool_results=t_results,
+                evidence=ev_records,
+                explanation_level=explanation_level,
+                business_context=business_context,
+                semantic_context=semantic_context,
+                warnings=warnings,
+                rag_evidence=rag_records,
+            )
+            fallback_exp.is_fallback = True
+            fallback_exp.fallback_reason = sanitize_fallback_reason("External calls disabled by configuration.")
+            fallback_exp.llm_provider = self._provider_name
+            fallback_exp.llm_model = self.model_name
+            return fallback_exp
+
+        sys_prompt, user_prompt = TaskPromptBuilder.build_explanation_prompt(
+            query=query,
+            plan=plan,
+            tool_results=t_results,
+            evidence=ev_records,
+            explanation_level=explanation_level,
+            business_context=business_context,
+            is_fallback=is_plan_fallback,
+            fallback_reason=plan_fallback_reason,
+            semantic_context=semantic_context,
+            warnings=warnings,
+            rag_evidence=rag_records,
+        )
+        req = LLMRequest(
+            task_category=LLMTaskCategory.STRUCTURED_OUTPUT,
+            prompt=user_prompt,
+            system_prompt=sys_prompt,
+            schema_model="GroundedExplanation",
+            context={
+                "tool_results": t_results,
+                "evidence": ev_records,
+                "explanation_level": explanation_level.value if hasattr(explanation_level, "value") else str(explanation_level),
+                "business_context": business_context,
+                "semantic_context": semantic_context,
+                "warnings": warnings,
+                "rag_evidence": rag_records,
+            },
+        )
+        try:
+            exp_instance, resp = self.generate_structured(req, GroundedExplanation)
+            if getattr(resp, "is_fallback", False):
+                fallback_exp = self._fallback_mock.explain_results_structured(
+                    query=query,
+                    plan=plan,
+                    tool_results=t_results,
+                    evidence=ev_records,
+                    explanation_level=explanation_level,
+                    business_context=business_context,
+                    semantic_context=semantic_context,
+                    warnings=warnings,
+                    rag_evidence=rag_records,
+                )
+                fallback_exp.is_fallback = True
+                fallback_exp.fallback_reason = sanitize_fallback_reason(getattr(resp, "fallback_reason", None))
+                fallback_exp.llm_provider = self._provider_name
+                fallback_exp.llm_model = self.model_name
+                return fallback_exp
+
+            # Deterministic Grounding & Verification
+            is_valid, validation_err = DeterministicCalculationGuard.validate_grounded_explanation(
+                explanation=exp_instance,
+                tool_results=t_results,
+                evidence=ev_records,
+                rag_evidence=rag_records,
+                semantic_context=semantic_context,
+            )
+            if not is_valid:
+                fallback_exp = self._fallback_mock.explain_results_structured(
+                    query=query,
+                    plan=plan,
+                    tool_results=t_results,
+                    evidence=ev_records,
+                    explanation_level=explanation_level,
+                    business_context=business_context,
+                    semantic_context=semantic_context,
+                    warnings=warnings,
+                    rag_evidence=rag_records,
+                )
+                fallback_exp.is_fallback = True
+                fallback_exp.fallback_reason = sanitize_fallback_reason(f"Ungrounded explanation: {validation_err}")
+                fallback_exp.llm_provider = self._provider_name
+                fallback_exp.llm_model = self.model_name
+                return fallback_exp
+
+            exp_instance.is_fallback = False
+            exp_instance.fallback_reason = None
+            exp_instance.llm_provider = self._provider_name
+            exp_instance.llm_model = self.model_name
+            return exp_instance
+
+        except Exception as exc:  # noqa: BLE001
+            fallback_exp = self._fallback_mock.explain_results_structured(
+                query=query,
+                plan=plan,
+                tool_results=t_results,
+                evidence=ev_records,
+                explanation_level=explanation_level,
+                business_context=business_context,
+                semantic_context=semantic_context,
+                warnings=warnings,
+                rag_evidence=rag_records,
+            )
+            fallback_exp.is_fallback = True
+            fallback_exp.fallback_reason = sanitize_fallback_reason(str(exc))
+            fallback_exp.llm_provider = self._provider_name
+            fallback_exp.llm_model = self.model_name
+            return fallback_exp
 
     def explain_results(
         self,
         query: str,
-        tool_results: list[dict[str, Any]],
+        plan: AnalysisPlan | None = None,
+        tool_results: list[dict[str, Any]] | None = None,
+        evidence: list[dict[str, Any]] | None = None,
         explanation_level: ExplanationLevel = ExplanationLevel.MANAGER,
         business_context: str | None = None,
     ) -> str:
-        req = LLMRequest(
-            task_category=LLMTaskCategory.EXPLANATION,
-            prompt=f"Explain results for query: '{query}' at {explanation_level.value} level.",
-            context={"tool_results": tool_results, "business_context": business_context},
+        exp = self.explain_results_structured(
+            query=query,
+            plan=plan,
+            tool_results=tool_results,
+            evidence=evidence,
+            explanation_level=explanation_level,
+            business_context=business_context,
         )
-        try:
-            resp = self.generate(req)
-            if resp.content:
-                return resp.content
-        except Exception:
-            pass
-        return self._fallback_mock.explain_results(query, tool_results, explanation_level, business_context)
+        return exp.to_formatted_text(explanation_level)

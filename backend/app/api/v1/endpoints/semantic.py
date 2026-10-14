@@ -13,6 +13,7 @@ from app.rag.semantic.ontology import kpi_ontology, semantic_resolver
 from app.schemas.semantic import (
     BusinessDataSummary,
     BusinessUnderstandingResponse,
+    DimensionResponse,
     KPIResponse,
     SemanticActivationRequest,
     SemanticActivationResponse,
@@ -128,6 +129,9 @@ def resolve_terminology(
             unit=k.unit.value,
             business_domain=k.business_domain.value,
             status=k.status,
+            supported_dimensions=getattr(k, "supported_dimensions", []),
+            supported_filters=getattr(k, "supported_filters", []),
+            default_dimension=getattr(k, "default_dimension", None),
         )
 
     candidates_resp = []
@@ -144,6 +148,9 @@ def resolve_terminology(
                 unit=cand.unit.value,
                 business_domain=cand.business_domain.value,
                 status=cand.status,
+                supported_dimensions=getattr(cand, "supported_dimensions", []),
+                supported_filters=getattr(cand, "supported_filters", []),
+                default_dimension=getattr(cand, "default_dimension", None),
             )
         )
 
@@ -160,7 +167,15 @@ def resolve_terminology(
         unsupported_message=result.unsupported_message,
         clarification_prompt=result.clarification_prompt,
         matched_synonym=result.matched_synonym,
-        availability_status="AVAILABLE",
+        availability_status="AVAILABLE" if (result.is_supported and result.canonical_name) else "UNAVAILABLE",
+        confidence=result.confidence if (result.is_supported and result.canonical_name) else 0.0,
+        resolved_dimensions=result.resolved_dimensions,
+        extracted_filters=result.extracted_filters,
+        temporal_context=result.temporal_context,
+        evidence_provenance=result.evidence_provenance if (result.is_supported and result.canonical_name and result.evidence_provenance) else {},
+        supported_dimensions=getattr(result.resolved_kpi, "supported_dimensions", []) if result.resolved_kpi else [],
+        unsupported_dimensions=getattr(result, "unsupported_dimensions", []),
+        unsupported_filters=getattr(result, "unsupported_filters", {}),
     )
 
 
@@ -505,6 +520,9 @@ def list_kpis(
             unit=k.unit.value,
             business_domain=k.business_domain.value,
             status=k.status,
+            supported_dimensions=getattr(k, "supported_dimensions", []),
+            supported_filters=getattr(k, "supported_filters", []),
+            default_dimension=getattr(k, "default_dimension", None),
         )
         for k in kpis
     ]
@@ -536,4 +554,60 @@ def get_kpi_by_name(canonical_name: str) -> KPIResponse:
         unit=kpi.unit.value,
         business_domain=kpi.business_domain.value,
         status=kpi.status,
+        supported_dimensions=getattr(kpi, "supported_dimensions", []),
+        supported_filters=getattr(kpi, "supported_filters", []),
+        default_dimension=getattr(kpi, "default_dimension", None),
+    )
+
+
+@router.get(
+    "/dimensions",
+    response_model=list[DimensionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List all canonical analytical dimensions",
+)
+def list_dimensions() -> list[DimensionResponse]:
+    """Retrieve all approved analytical slicing dimensions supported by NEXUS tools."""
+    dims = kpi_ontology.list_dimensions()
+    return [
+        DimensionResponse(
+            dimension_name=d.dimension_name,
+            display_name=d.display_name,
+            source_table=d.source_table,
+            column_name=d.column_name,
+            allowed_values=d.allowed_values,
+            aliases=d.aliases,
+            applicable_tools=d.applicable_tools,
+            filter_key=d.filter_key,
+            description=d.description,
+        )
+        for d in dims
+    ]
+
+
+@router.get(
+    "/dimensions/{dimension_name}",
+    response_model=DimensionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get details for a specific canonical dimension",
+)
+def get_dimension_by_name(dimension_name: str) -> DimensionResponse:
+    """Retrieve specific canonical dimension definition by name or alias."""
+    dim = kpi_ontology.get_dimension(dimension_name.lower().strip())
+    if not dim:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dimension '{dimension_name}' not found in NEXUS semantic catalog.",
+        )
+
+    return DimensionResponse(
+        dimension_name=dim.dimension_name,
+        display_name=dim.display_name,
+        source_table=dim.source_table,
+        column_name=dim.column_name,
+        allowed_values=dim.allowed_values,
+        aliases=dim.aliases,
+        applicable_tools=dim.applicable_tools,
+        filter_key=dim.filter_key,
+        description=dim.description,
     )

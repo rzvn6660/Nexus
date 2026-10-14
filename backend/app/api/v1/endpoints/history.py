@@ -1,13 +1,30 @@
 """API endpoints for Analysis Run History, Human Decisions (HITL), and Reports."""
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.analytics.outcome.schemas import (
+    AuditChainVerificationReport,
+    BaselineMetricsSnapshot,
+    DecisionAuditEventResponse,
+    DecisionCreatePayload,
+    DecisionRetrievalFilter,
+    DecisionReviewPayload,
+    EvidenceQualityGrade,
+    HistoricalDecisionRetrievalResponse,
+    OutcomeActionExecutionRequest,
+    OutcomeEvaluationResponse,
+    OutcomeMaturityStatus,
+    OutcomeObservationCreateRequest,
+    OutcomeObservationResponse,
+    RecommendationSnapshot,
+)
+from app.analytics.outcome.service import DecisionMemoryService
 from app.api.deps import get_db_session
 from app.core.auth import (
     get_current_user,
@@ -15,7 +32,7 @@ from app.core.auth import (
     verify_user_business_access,
     verify_user_decision_access,
 )
-from app.models.history import AnalysisRun, DecisionRecord
+from app.models.history import AnalysisRun, DecisionAuditEvent, DecisionRecord
 from app.models.tenant import Business, OrganizationMembership, UserIdentity
 from app.schemas.history import (
     AnalysisRunDetail,
@@ -35,13 +52,13 @@ router = APIRouter()
 
 @router.get(
     "/runs",
-    response_model=List[AnalysisRunSummary],
+    response_model=list[AnalysisRunSummary],
     summary="List historical agent analysis runs",
     description="Retrieve paginated list of past analytical runs with execution telemetry and status.",
 )
 @router.get(
     "/analyses",
-    response_model=List[AnalysisRunSummary],
+    response_model=list[AnalysisRunSummary],
     include_in_schema=False,
 )
 def list_analysis_runs(
@@ -50,7 +67,7 @@ def list_analysis_runs(
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
     current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
-) -> List[AnalysisRunSummary]:
+) -> list[AnalysisRunSummary]:
     stmt = select(AnalysisRun)
 
     if x_business_id is not None:
@@ -252,7 +269,7 @@ def export_analysis_report(
         analysis_id=run.id,
         title=title,
         format=format,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         content=content,
     )
 
@@ -263,18 +280,18 @@ def export_analysis_report(
 
 @router.get(
     "/decisions",
-    response_model=List[DecisionRecordResponse],
+    response_model=list[DecisionRecordResponse],
     summary="List Human-in-the-Loop decision records",
     description="Retrieve decisions with optional filtering by status (PENDING, APPROVED, REJECTED, MODIFIED).",
 )
 def list_decisions(
-    status_filter: Optional[str] = Query(None, alias="status", pattern="^(PENDING|APPROVED|REJECTED|MODIFIED)$"),
+    status_filter: str | None = Query(None, alias="status", pattern="^(PENDING|APPROVED|REJECTED|MODIFIED)$"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
     current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
-) -> List[DecisionRecordResponse]:
+) -> list[DecisionRecordResponse]:
     stmt = select(DecisionRecord)
 
     if x_business_id is not None:
@@ -338,17 +355,153 @@ def create_decision(
         if not target_biz_id:
             target_biz_id = run.business_id
 
-    decision = DecisionRecord(
-        business_id=target_biz_id,
-        analysis_id=payload.analysis_id,
+    if not target_biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Business workspace context could not be resolved for decision creation.",
+        )
+
+    idemp_key = payload.idempotency_key or f"dec_create_{uuid4().hex}"
+    rec_snap = None
+    if payload.recommendation_payload and payload.recommendation_type:
+        rec_snap = RecommendationSnapshot(
+            recommendation_type=payload.recommendation_type,
+            action_target_type=payload.action_target_type or "SKU",
+            action_target_id=payload.action_target_id or "UNKNOWN",
+            point_recommendation=payload.recommendation_payload.get("point_recommendation", {}),
+            observed_facts=payload.recommendation_payload.get("observed_facts", {}),
+            forecast_outputs=payload.recommendation_payload.get("forecast_outputs", {}),
+            assumptions=payload.recommendation_payload.get("assumptions", []),
+            limitations=payload.recommendation_payload.get("limitations", []),
+            engine_metadata=payload.recommendation_payload.get("engine_metadata", {}),
+        )
+    elif payload.recommendation_payload:
+        rec_snap = RecommendationSnapshot(
+            recommendation_type="GENERAL",
+            action_target_type="SKU",
+            action_target_id="UNKNOWN",
+            point_recommendation=payload.recommendation_payload.get("point_recommendation", {}),
+            observed_facts=payload.recommendation_payload.get("observed_facts", {}),
+            forecast_outputs=payload.recommendation_payload.get("forecast_outputs", {}),
+            assumptions=payload.recommendation_payload.get("assumptions", []),
+            limitations=payload.recommendation_payload.get("limitations", []),
+            engine_metadata=payload.recommendation_payload.get("engine_metadata", {}),
+        )
+
+    base_snap = None
+    if payload.baseline_metrics_snapshot:
+        base_snap = BaselineMetricsSnapshot(
+            window_start=payload.baseline_metrics_snapshot.get("window_start", datetime.now(UTC).isoformat()),
+            window_end=payload.baseline_metrics_snapshot.get("window_end", datetime.now(UTC).isoformat()),
+            window_days=payload.baseline_metrics_snapshot.get("window_days", 30),
+            metrics=payload.baseline_metrics_snapshot.get("metrics", {}),
+            metric_definitions=payload.baseline_metrics_snapshot.get("metric_definitions", {}),
+            provenance=payload.baseline_metrics_snapshot.get("provenance", {}),
+        )
+
+    create_payload = DecisionCreatePayload(
         recommendation_text=payload.recommendation_text,
-        status="PENDING",
+        recommendation_snapshot=rec_snap,
+        baseline_metrics_snapshot=base_snap,
+        analysis_id=payload.analysis_id,
         reviewer_notes=payload.reviewer_notes,
     )
-    db.add(decision)
-    db.commit()
-    db.refresh(decision)
+
+    decision = DecisionMemoryService.create_decision_record(
+        db=db,
+        current_user=current_user,
+        business_id=target_biz_id,
+        payload=create_payload,
+        idempotency_key=idemp_key,
+    )
     return DecisionRecordResponse.model_validate(decision)
+
+
+# ---------------------------------------------------------------------------
+# PHASE 28 STAGE 3: HISTORICAL DECISION MEMORY RETRIEVAL ENDPOINTS
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/decisions/history-context",
+    response_model=HistoricalDecisionRetrievalResponse,
+    summary="Retrieve historical decision memory context with outcome evaluations and provenance",
+    description="Deterministic, tenant-scoped retrieval of historical decisions, recommendations, human dispositions, and observed outcomes for planning and explanations.",
+)
+def get_historical_decision_context(
+    recommendation_type: str | None = Query(None, description="Action category, e.g. INVENTORY_REORDER, PRICE_MARKDOWN"),
+    action_target_type: str | None = Query(None, description="Target entity type, e.g. SKU, CATEGORY, STORE"),
+    action_target_id: str | None = Query(None, description="Target identifier, e.g. SKU-PREM-101"),
+    metric_name: str | None = Query(None, description="Canonical metric identifier, e.g. revenue, stockout_days, margin"),
+    decision_status: Literal["PENDING", "APPROVED", "REJECTED", "MODIFIED", "DEFERRED"] | None = Query(None, alias="status", description="Human review disposition"),
+    is_action_executed: bool | None = Query(None, description="Filter by downstream action execution"),
+    maturity_status: OutcomeMaturityStatus | None = Query(None, description="Filter by outcome maturity status"),
+    min_evidence_quality: EvidenceQualityGrade | None = Query(None, description="Minimum evidence quality threshold"),
+    created_after: datetime | None = Query(None, description="Filter decisions created at or after UTC timestamp"),
+    created_before: datetime | None = Query(None, description="Filter decisions created at or before UTC timestamp"),
+    as_of: datetime | None = Query(None, description="Point-in-time evaluation timestamp"),
+    limit: int = Query(5, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> HistoricalDecisionRetrievalResponse:
+    if not x_business_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-Business-ID header is required for tenant-scoped decision retrieval.",
+        )
+    verify_user_business_access(db, current_user, x_business_id, action="retrieve historical decisions")
+
+    query = DecisionRetrievalFilter(
+        recommendation_type=recommendation_type,
+        action_target_type=action_target_type,
+        action_target_id=action_target_id,
+        metric_name=metric_name,
+        status=decision_status,
+        is_action_executed=is_action_executed,
+        maturity_status=maturity_status,
+        min_evidence_quality=min_evidence_quality,
+        created_after=created_after,
+        created_before=created_before,
+        limit=limit,
+        offset=offset,
+    )
+    return DecisionMemoryService.retrieve_historical_decisions(
+        db=db,
+        current_user=current_user,
+        business_id=x_business_id,
+        query=query,
+        as_of=as_of,
+    )
+
+
+@router.post(
+    "/decisions/search-history",
+    response_model=HistoricalDecisionRetrievalResponse,
+    summary="Search historical decision memory context with structured filters",
+    description="Deterministic, tenant-scoped search of historical decisions, recommendations, human dispositions, and observed outcomes.",
+)
+def search_historical_decision_context(
+    query: DecisionRetrievalFilter,
+    as_of: datetime | None = Query(None, description="Optional point-in-time evaluation timestamp"),
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> HistoricalDecisionRetrievalResponse:
+    if not x_business_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-Business-ID header is required for tenant-scoped decision retrieval.",
+        )
+    verify_user_business_access(db, current_user, x_business_id, action="retrieve historical decisions")
+
+    return DecisionMemoryService.retrieve_historical_decisions(
+        db=db,
+        current_user=current_user,
+        business_id=x_business_id,
+        query=query,
+        as_of=as_of,
+    )
 
 
 @router.get(
@@ -378,7 +531,7 @@ def get_decision(
 @router.patch(
     "/decisions/{decision_id}",
     response_model=DecisionRecordResponse,
-    summary="Update decision disposition (Approve, Reject, Modify)",
+    summary="Update decision disposition (Approve, Reject, Modify, Defer)",
     description="Commits human analyst review disposition to the audit ledger.",
 )
 def update_decision(
@@ -398,7 +551,7 @@ def update_decision(
     # Multi-tenant IDOR defense: verify user and workspace ownership
     verify_user_decision_access(db, current_user, record.business_id, x_business_id)
 
-    valid_statuses = {"PENDING", "APPROVED", "REJECTED", "MODIFIED"}
+    valid_statuses = {"PENDING", "APPROVED", "REJECTED", "MODIFIED", "DEFERRED"}
     new_status = payload.status.upper().strip()
     if new_status not in valid_statuses:
         raise HTTPException(
@@ -406,12 +559,189 @@ def update_decision(
             detail=f"Invalid status '{payload.status}'. Must be one of: {sorted(valid_statuses)}",
         )
 
-    record.status = new_status
-    record.reviewer_notes = payload.reviewer_notes or record.reviewer_notes
-    reviewer = payload.reviewed_by or (current_user.email if current_user else None) or record.reviewed_by or "analyst"
-    record.reviewed_by = reviewer
-    record.reviewed_at = datetime.now(timezone.utc)
+    if new_status in {"APPROVED", "REJECTED", "MODIFIED", "DEFERRED"}:
+        review_payload = DecisionReviewPayload(
+            status=new_status,
+            reviewer_notes=payload.reviewer_notes,
+            reviewed_by=payload.reviewed_by or (current_user.email if current_user else None),
+            modified_parameters=payload.modified_parameters,
+        )
+        idemp_key = payload.idempotency_key or f"dec_rev_{record.id}_{new_status}_{int(datetime.now(UTC).timestamp()*1000)}"
+        record = DecisionMemoryService.record_human_review(
+            db=db,
+            current_user=current_user,
+            business_id=record.business_id,
+            decision_id=record.id,
+            review_payload=review_payload,
+            idempotency_key=idemp_key,
+        )
+    else:
+        record.status = new_status
+        record.reviewer_notes = payload.reviewer_notes or record.reviewer_notes
+        db.commit()
+        db.refresh(record)
 
-    db.commit()
-    db.refresh(record)
     return DecisionRecordResponse.model_validate(record)
+
+
+@router.get(
+    "/decisions/{decision_id}/audit-events",
+    response_model=list[DecisionAuditEventResponse],
+    summary="List immutable audit events for a decision record",
+)
+def list_decision_audit_events(
+    decision_id: int,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> list[DecisionAuditEventResponse]:
+    record = db.get(DecisionRecord, decision_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Decision record #{decision_id} not found.")
+    verify_user_decision_access(db, current_user, record.business_id, x_business_id)
+
+    events = db.execute(
+        select(DecisionAuditEvent)
+        .where(DecisionAuditEvent.decision_id == decision_id)
+        .order_by(DecisionAuditEvent.revision.asc())
+    ).scalars().all()
+    return [DecisionAuditEventResponse.model_validate(e) for e in events]
+
+
+@router.get(
+    "/decisions/{decision_id}/verify-audit-chain",
+    response_model=AuditChainVerificationReport,
+    summary="Verify cryptographic hash chain integrity for a decision record",
+)
+def verify_audit_chain(
+    decision_id: int,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> AuditChainVerificationReport:
+    record = db.get(DecisionRecord, decision_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Decision record #{decision_id} not found.")
+    verify_user_decision_access(db, current_user, record.business_id, x_business_id)
+
+    return DecisionMemoryService.verify_decision_audit_chain(
+        db=db,
+        current_user=current_user,
+        business_id=record.business_id,
+        decision_id=decision_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3. PHASE 28 STAGE 2: OUTCOME RECORDING & MATURITY EVALUATION ENDPOINTS
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/decisions/{decision_id}/outcomes",
+    response_model=OutcomeObservationResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record empirical outcome observation for a decision",
+)
+def record_outcome(
+    decision_id: int,
+    payload: OutcomeObservationCreateRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> OutcomeObservationResponse:
+    record = db.get(DecisionRecord, decision_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Decision record #{decision_id} not found.")
+    verify_user_decision_access(db, current_user, record.business_id, x_business_id)
+
+    obs = DecisionMemoryService.record_outcome_observation(
+        db=db,
+        current_user=current_user,
+        business_id=record.business_id,
+        decision_id=decision_id,
+        payload=payload,
+    )
+    return OutcomeObservationResponse.model_validate(obs)
+
+
+@router.get(
+    "/decisions/{decision_id}/outcomes",
+    response_model=list[OutcomeObservationResponse],
+    summary="List recorded outcome observations for a decision",
+)
+def list_outcomes(
+    decision_id: int,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> list[OutcomeObservationResponse]:
+    record = db.get(DecisionRecord, decision_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Decision record #{decision_id} not found.")
+    verify_user_decision_access(db, current_user, record.business_id, x_business_id)
+
+    observations = DecisionMemoryService.list_outcome_observations(
+        db=db,
+        current_user=current_user,
+        business_id=record.business_id,
+        decision_id=decision_id,
+    )
+    return [OutcomeObservationResponse.model_validate(o) for o in observations]
+
+
+@router.post(
+    "/decisions/{decision_id}/action-execution",
+    response_model=DecisionRecordResponse,
+    summary="Record action execution or monitoring start (e.g. for deferred decisions)",
+)
+def record_action_execution(
+    decision_id: int,
+    payload: OutcomeActionExecutionRequest,
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> DecisionRecordResponse:
+    record = db.get(DecisionRecord, decision_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Decision record #{decision_id} not found.")
+    verify_user_decision_access(db, current_user, record.business_id, x_business_id)
+
+    updated_rec = DecisionMemoryService.record_action_execution(
+        db=db,
+        current_user=current_user,
+        business_id=record.business_id,
+        decision_id=decision_id,
+        payload=payload,
+    )
+    return DecisionRecordResponse.model_validate(updated_rec)
+
+
+@router.get(
+    "/decisions/{decision_id}/evaluate-outcome",
+    response_model=OutcomeEvaluationResponse,
+    summary="Evaluate outcome maturity, empirical coverage, pre/post delta, and evidence quality",
+)
+def evaluate_outcome(
+    decision_id: int,
+    metric_name: str | None = Query(None, description="Optional metric to evaluate, e.g. revenue, stockout_days"),
+    as_of: datetime | None = Query(None, description="Optional evaluation point-in-time timestamp"),
+    x_business_id: str | None = Header(None, alias="X-Business-ID"),
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> OutcomeEvaluationResponse:
+    record = db.get(DecisionRecord, decision_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Decision record #{decision_id} not found.")
+    verify_user_decision_access(db, current_user, record.business_id, x_business_id)
+
+    return DecisionMemoryService.evaluate_decision_outcome(
+        db=db,
+        current_user=current_user,
+        business_id=record.business_id,
+        decision_id=decision_id,
+        metric_name=metric_name,
+        as_of=as_of,
+    )
+
+
+

@@ -159,16 +159,36 @@ class TenantSemanticService:
 
     DEFAULT_AMBIGUOUS_TERMS = {
         "sales": {
-            "candidates": ["net_revenue", "orders", "units_sold"],
-            "prompt": "The term 'sales' is ambiguous. Do you mean Net Revenue, number of Orders, or Units Sold?",
+            "candidates": ["net_revenue", "orders", "units_sold", "gross_sales"],
+            "prompt": "The term 'sales' is ambiguous. Do you mean Net Revenue, number of Orders, Units Sold, or Gross Sales?",
         },
         "turnover": {
             "candidates": ["net_revenue", "inventory_turnover"],
             "prompt": "The term 'turnover' can refer to sales revenue or inventory turnover velocity. Which would you like to analyze?",
         },
         "margin": {
-            "candidates": ["gross_margin", "operating_margin"],
+            "candidates": ["gross_margin", "operating_margin", "net_margin", "product_margin"],
             "prompt": "The term 'margin' can mean Gross Margin (product profit) or Operating Margin (after overhead). Which would you like to inspect?",
+        },
+        "profit": {
+            "candidates": ["gross_profit", "net_profit", "product_profit"],
+            "prompt": "The term 'profit' can refer to Gross Profit (revenue minus COGS), Net Profit (operating profit after OPEX), or individual Product Profit. Which would you like to analyze?",
+        },
+        "cost": {
+            "candidates": ["cogs", "operating_expense", "fixed_expense", "variable_expense"],
+            "prompt": "The term 'cost' can refer to Cost of Goods Sold (COGS), Total Operating Expenses, Fixed Costs, or Variable Costs. Which cost metric would you like to examine?",
+        },
+        "expenses": {
+            "candidates": ["operating_expense", "fixed_expense", "variable_expense"],
+            "prompt": "The term 'expenses' can refer to Total Operating Expenses, Fixed Recurring Expenses, or Variable Expenses. Which expense category would you like to analyze?",
+        },
+        "retention": {
+            "candidates": ["repeat_purchase_rate", "active_customer"],
+            "prompt": "The term 'retention' can refer to Repeat Purchase Rate (percentage of returning buyers) or Active Customer count. Which retention metric would you like to examine?",
+        },
+        "volume": {
+            "candidates": ["units_sold", "orders"],
+            "prompt": "The term 'volume' can refer to Units Sold (physical product quantity) or Order Count (transaction volume). Which volume metric would you like to analyze?",
         },
     }
 
@@ -181,6 +201,27 @@ class TenantSemanticService:
         "net promoter score": "Net Promoter Score (NPS) is not currently integrated into the NEXUS telemetry catalog.",
         "churn": "Churn Rate is scheduled for a future release and not currently supported.",
         "churn rate": "Churn Rate is scheduled for a future release and not currently supported.",
+    }
+
+    KPI_ACCOUNTING_RULES = {
+        "gross_sales": "REV-001",
+        "net_revenue": "REV-001",
+        "gross_profit": "GP-001",
+        "gross_margin": "GP-001",
+        "cogs": "GP-001",
+        "operating_profit": "OP-001",
+        "net_profit": "OP-001",
+        "net_margin": "OP-001",
+        "inventory_turnover": "INV-001",
+        "holding_cost": "INV-001",
+        "inventory_value": "INV-001",
+        "stock_value": "INV-001",
+        "repeat_purchase_rate": "CUST-001",
+        "active_customer": "CUST-001",
+        "operating_expenses": "EXP-001",
+        "operating_expense": "EXP-001",
+        "fixed_expense": "EXP-001",
+        "variable_expense": "EXP-001",
     }
 
     APPROVED_FORMULA_FUNCTIONS = {
@@ -1505,7 +1546,13 @@ class TenantSemanticService:
                 availability_status="UNAVAILABLE",
                 is_supported=False,
                 unsupported_message="No active business understanding exists for this business. Please upload and activate your data first.",
+                confidence=0.0,
             )
+
+        biz = db.execute(select(Business).where(Business.id == business_id)).scalar_one_or_none()
+        fiscal_start = getattr(biz, "fiscal_year_start", 1) or 1
+        biz_timezone = getattr(biz, "timezone", "UTC") or "UTC"
+        biz_currency = getattr(biz, "currency", "USD") or "USD"
 
         metrics_dict = tenant_model.metrics_json or {}
         synonyms_dict = tenant_model.synonyms_json or {}
@@ -1519,6 +1566,10 @@ class TenantSemanticService:
                     availability_status="UNAVAILABLE",
                     is_supported=False,
                     unsupported_message=unsupp_msg,
+                    confidence=0.0,
+                    evidence_provenance={},
+                    resolved_dimensions=[],
+                    extracted_filters={},
                 )
 
         # 2. Check for ambiguous business terms (e.g. "sales", "turnover", "margin")
@@ -1531,11 +1582,22 @@ class TenantSemanticService:
                         has_qualifier = True
                         break
                 if not has_qualifier:
-                    for syn in synonyms_dict.keys():
+                    for syn in synonyms_dict:
                         syn_clean = syn.replace("_", " ")
                         if len(syn_clean) > len(ambig_term) and (syn in clean_query or syn_clean in clean_query) and (ambig_term in syn or ambig_term in syn_clean):
                             has_qualifier = True
                             break
+                if not has_qualifier:
+                    for c in info["candidates"]:
+                        kpi_def = kpi_ontology.get_kpi(c)
+                        if kpi_def:
+                            for syn in kpi_def.synonyms:
+                                syn_clean = syn.lower().replace("_", " ")
+                                if syn_clean in clean_query and syn_clean != ambig_term:
+                                    has_qualifier = True
+                                    break
+                            if has_qualifier:
+                                break
                 if not has_qualifier:
                     return SemanticResolveResponse(
                         query=query,
@@ -1544,11 +1606,16 @@ class TenantSemanticService:
                         clarification_prompt=info["prompt"],
                         ambiguity_candidates=info["candidates"],
                         is_supported=True,
+                        confidence=0.0,
+                        evidence_provenance={},
+                        resolved_dimensions=[],
+                        extracted_filters={},
                     )
 
         # 3. Check tenant-specific custom synonyms (longest match first)
-        matched_canonical: Optional[str] = None
-        matched_synonym: Optional[str] = None
+        matched_canonical: str | None = None
+        matched_synonym: str | None = None
+        is_exact_match: bool = False
         sorted_synonyms = sorted(synonyms_dict.keys(), key=len, reverse=True)
         for syn in sorted_synonyms:
             syn_clean = syn.replace("_", " ")
@@ -1558,8 +1625,15 @@ class TenantSemanticService:
                 or clean_query == syn
                 or clean_query == syn_clean
             ):
+                # Avoid shorter substring collision if a more specific qualified KPI phrase is present
+                if syn in ("turnover", "sales", "margin", "profit", "cost", "volume", "expenses", "retention"):
+                    qualifiers = ("inventory", "gross", "operating", "net", "product", "order", "unit", "holding", "repeat", "active")
+                    if any(f"{q} {syn}" in clean_query or f"{q}_{syn}" in clean_query for q in qualifiers):
+                        continue
                 matched_canonical = synonyms_dict[syn]
                 matched_synonym = syn
+                if clean_query == syn or clean_query == syn_clean:
+                    is_exact_match = True
                 break
 
         # Fallback to KPIOntology resolver if no tenant synonym matched
@@ -1568,8 +1642,70 @@ class TenantSemanticService:
             if kpi_res.canonical_name:
                 matched_canonical = kpi_res.canonical_name
                 matched_synonym = kpi_res.matched_synonym
+                is_exact_match = (kpi_res.confidence == 1.0)
 
-        # 4. If canonical KPI was resolved, evaluate availability against tenant database state
+        # 4. Analytical dimension and filter extraction & validation
+        resolved_kpi_def = kpi_ontology.get_kpi(matched_canonical) if matched_canonical else None
+        supported_dims_for_kpi = resolved_kpi_def.supported_dimensions if resolved_kpi_def else []
+        supported_filters_for_kpi = resolved_kpi_def.supported_filters if resolved_kpi_def else []
+
+        candidate_dimensions: list[str] = []
+        for alias, dim_name in sorted(
+            kpi_ontology._dimension_alias_map.items(), key=lambda x: len(x[0]), reverse=True
+        ):
+            pattern = rf"\b{re.escape(alias)}\b"
+            if re.search(pattern, clean_query) and dim_name not in candidate_dimensions:
+                candidate_dimensions.append(dim_name)
+
+        candidate_filters: dict[str, Any] = {}
+        cust_dim = kpi_ontology.get_dimension("customer_segment")
+        if cust_dim and cust_dim.allowed_values:
+            for seg in cust_dim.allowed_values:
+                if re.search(rf"\b{re.escape(seg.lower())}\b", clean_query):
+                    candidate_filters["customer_segment"] = seg
+
+        if "main warehouse" in clean_query:
+            candidate_filters["warehouse"] = "Main Warehouse"
+
+        temporal_ctx: dict[str, Any] | None = None
+        try:
+            from app.agents.tools.date_interpreter import DateInterpreter
+            date_res = DateInterpreter.interpret(query, fiscal_year_start=fiscal_start)
+            if date_res.get("matched_expression") is not None or date_res.get("date_from") is not None:
+                temporal_ctx = dict(date_res)
+                temporal_ctx["fiscal_calendar"] = {
+                    "fiscal_year_start_month": fiscal_start,
+                    "timezone": biz_timezone,
+                    "currency": biz_currency,
+                }
+                if date_res.get("date_from"):
+                    candidate_filters["date_from"] = str(date_res["date_from"])
+                if date_res.get("date_to"):
+                    candidate_filters["date_to"] = str(date_res["date_to"])
+                if date_res.get("granularity") and "time_granularity" not in candidate_dimensions:
+                    candidate_dimensions.append("time_granularity")
+        except (ValueError, TypeError, KeyError, AttributeError):
+            temporal_ctx = None
+
+        # Validate candidate dimensions against KPI's supported dimensions
+        validated_resolved_dims: list[str] = []
+        unsupported_dims_requested: list[str] = []
+        for d in candidate_dimensions:
+            if not supported_dims_for_kpi or d in supported_dims_for_kpi:
+                validated_resolved_dims.append(d)
+            else:
+                unsupported_dims_requested.append(d)
+
+        # Validate candidate filters against KPI's supported filters
+        validated_extracted_filters: dict[str, Any] = {}
+        unsupported_filters_requested: dict[str, Any] = {}
+        for f_key, f_val in candidate_filters.items():
+            if not supported_filters_for_kpi or f_key in supported_filters_for_kpi or f_key in ("date_from", "date_to"):
+                validated_extracted_filters[f_key] = f_val
+            else:
+                unsupported_filters_requested[f_key] = f_val
+
+        # 5. If canonical KPI was resolved, evaluate availability against tenant database state
         if matched_canonical and matched_canonical in metrics_dict:
             m_info = dict(metrics_dict[matched_canonical])
             canon_spec = cls.CANONICAL_METRIC_SPECS.get(matched_canonical)
@@ -1586,6 +1722,22 @@ class TenantSemanticService:
                 unsupp_msg = f"{m_info.get('display_name')} requires at least 90 days of transaction history."
             elif status == "UNAVAILABLE":
                 unsupp_msg = f"{m_info.get('display_name')} is not available based on your currently uploaded records."
+            elif unsupported_dims_requested and unsupported_filters_requested:
+                unsupp_msg = (
+                    f"Requested dimension(s) {unsupported_dims_requested} and filter(s) "
+                    f"{list(unsupported_filters_requested.keys())} are not supported for metric "
+                    f"'{matched_canonical}' and were omitted from resolution."
+                )
+            elif unsupported_dims_requested:
+                unsupp_msg = (
+                    f"Requested dimension(s) {unsupported_dims_requested} are not supported for metric "
+                    f"'{matched_canonical}' and were omitted from resolution."
+                )
+            elif unsupported_filters_requested:
+                unsupp_msg = (
+                    f"Requested filter(s) {list(unsupported_filters_requested.keys())} are not supported for metric "
+                    f"'{matched_canonical}' and were omitted from resolution."
+                )
 
             sem_ver = None
             sem_id = None
@@ -1605,15 +1757,34 @@ class TenantSemanticService:
                 elif id_val is not None and not type(id_val).__name__.startswith("MagicMock"):
                     sem_id = str(id_val)
 
-            provenance = {
-                "source_data": m_info.get("source_table", "sales"),
-                "semantic_definition": f"{m_info.get('source_table')}.{m_info.get('source_field')}",
-                "calculation": m_info.get("calculation_formula"),
-                "availability": status,
-                "tenant_scoped": True,
-                "semantic_version": sem_ver,
-                "semantic_revision_id": sem_id,
-            }
+            if status == "AVAILABLE":
+                provenance = {
+                    "source_data": m_info.get("source_table", "sales"),
+                    "semantic_definition": f"{m_info.get('source_table')}.{m_info.get('source_field')}",
+                    "calculation": m_info.get("calculation_formula"),
+                    "availability": status,
+                    "tenant_scoped": True,
+                    "semantic_version": sem_ver,
+                    "semantic_revision_id": sem_id,
+                }
+                rule_id = cls.KPI_ACCOUNTING_RULES.get(matched_canonical)
+                if rule_id:
+                    rule = kpi_ontology.get_rule(rule_id)
+                    if rule:
+                        provenance["accounting_rule_id"] = rule.rule_id
+                        provenance["policy_reference"] = rule.policy_reference
+                        provenance["rule_name"] = rule.name
+            else:
+                provenance = {}
+
+            if status != "AVAILABLE":
+                conf = 0.0
+            elif unsupported_dims_requested:
+                conf = 0.80
+            elif is_exact_match or clean_query == matched_canonical.replace("_", " ") or clean_query == matched_canonical:
+                conf = 1.0
+            else:
+                conf = 0.95
 
             return SemanticResolveResponse(
                 query=query,
@@ -1634,10 +1805,63 @@ class TenantSemanticService:
                 evidence_provenance=provenance,
                 semantic_version=sem_ver,
                 semantic_revision_id=sem_id,
+                confidence=conf,
+                resolved_dimensions=validated_resolved_dims,
+                extracted_filters=validated_extracted_filters,
+                temporal_context=temporal_ctx,
+                supported_dimensions=supported_dims_for_kpi,
+                unsupported_dimensions=unsupported_dims_requested,
+                unsupported_filters=unsupported_filters_requested,
             )
 
-        # 5. Fallback clean canonical resolution if no tenant match
+        # 6. Fallback clean canonical resolution if no tenant match
         canon = semantic_resolver.resolve(query)
+        canon_kpi = canon.resolved_kpi
+        supported_dims = canon_kpi.supported_dimensions if canon_kpi else []
+        supported_filters = canon_kpi.supported_filters if canon_kpi else []
+
+        val_dims = [d for d in canon.resolved_dimensions if not supported_dims or d in supported_dims]
+        unsupp_canon_dims = [d for d in canon.resolved_dimensions if supported_dims and d not in supported_dims]
+        val_filters = {k: v for k, v in canon.extracted_filters.items() if not supported_filters or k in supported_filters or k in ("date_from", "date_to")}
+        unsupp_canon_filters = {k: v for k, v in canon.extracted_filters.items() if supported_filters and k not in supported_filters and k not in ("date_from", "date_to")}
+
+        all_unsupp_dims = list(dict.fromkeys(unsupported_dims_requested + unsupp_canon_dims))
+        all_unsupp_filters = {**unsupported_filters_requested, **unsupp_canon_filters}
+
+        is_avail = bool(canon.is_supported and canon.canonical_name)
+        canon_conf = canon.confidence if is_avail else 0.0
+        if is_avail and (unsupported_dims_requested or unsupp_canon_dims):
+            canon_conf = 0.80
+
+        prov = dict(canon.evidence_provenance or {}) if is_avail else {}
+        if is_avail and canon.canonical_name and prov:
+            rule_id = cls.KPI_ACCOUNTING_RULES.get(canon.canonical_name)
+            if rule_id:
+                rule = kpi_ontology.get_rule(rule_id)
+                if rule and "accounting_rule_id" not in prov:
+                    prov["accounting_rule_id"] = rule.rule_id
+                    prov["policy_reference"] = rule.policy_reference
+                    prov["rule_name"] = rule.name
+
+        fallback_unsupp_msg = canon.unsupported_message
+        if not fallback_unsupp_msg and is_avail:
+            if all_unsupp_dims and all_unsupp_filters:
+                fallback_unsupp_msg = (
+                    f"Requested dimension(s) {all_unsupp_dims} and filter(s) "
+                    f"{list(all_unsupp_filters.keys())} are not supported for metric "
+                    f"'{canon.canonical_name}' and were omitted from resolution."
+                )
+            elif all_unsupp_dims:
+                fallback_unsupp_msg = (
+                    f"Requested dimension(s) {all_unsupp_dims} are not supported for metric "
+                    f"'{canon.canonical_name}' and were omitted from resolution."
+                )
+            elif all_unsupp_filters:
+                fallback_unsupp_msg = (
+                    f"Requested filter(s) {list(all_unsupp_filters.keys())} are not supported for metric "
+                    f"'{canon.canonical_name}' and were omitted from resolution."
+                )
+
         return SemanticResolveResponse(
             query=query,
             canonical_name=canon.canonical_name,
@@ -1647,7 +1871,15 @@ class TenantSemanticService:
             is_ambiguous=canon.is_ambiguous,
             clarification_prompt=canon.clarification_prompt,
             is_supported=canon.is_supported,
-            unsupported_message=canon.unsupported_message,
+            unsupported_message=fallback_unsupp_msg,
             matched_synonym=canon.matched_synonym,
-            availability_status="AVAILABLE",
+            availability_status="AVAILABLE" if is_avail else "UNAVAILABLE",
+            confidence=canon_conf,
+            resolved_dimensions=val_dims,
+            extracted_filters=val_filters,
+            temporal_context=temporal_ctx or canon.temporal_context,
+            evidence_provenance=prov,
+            supported_dimensions=supported_dims,
+            unsupported_dimensions=all_unsupp_dims,
+            unsupported_filters=all_unsupp_filters,
         )

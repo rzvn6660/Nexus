@@ -1,6 +1,7 @@
 """Data models and schemas for the NEXUS Semantic Layer and KPI Ontology."""
 
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -39,11 +40,15 @@ class BusinessRule(BaseModel):
 
 class Dimension(BaseModel):
     """Analytical dimension model for slicing business metrics."""
-    dimension_name: str
-    display_name: str
-    source_table: str
-    column_name: str
-    allowed_values: list[str] | None = None
+    dimension_name: str = Field(description="Canonical dimension identifier (e.g. 'product', 'category')")
+    display_name: str = Field(description="Human-readable business display title")
+    source_table: str = Field(description="Underlying database source table")
+    column_name: str = Field(description="Underlying database column name")
+    allowed_values: list[str] | None = Field(default=None, description="Enumerated valid values if constrained")
+    aliases: list[str] = Field(default_factory=list, description="Alternative phrasing, abbreviations, or synonyms")
+    applicable_tools: list[str] = Field(default_factory=list, description="Tools in ToolRegistry supporting this dimension")
+    filter_key: str | None = Field(default=None, description="Parameter key when filtering by this dimension in tools")
+    description: str = Field(default="", description="Business explanation of this analytical dimension")
 
 
 class KPI(BaseModel):
@@ -63,6 +68,9 @@ class KPI(BaseModel):
     unit: MetricUnit
     business_domain: BusinessDomain
     status: str = Field(default="active", description="'active', 'deprecated', or 'preview'")
+    supported_dimensions: list[str] = Field(default_factory=list, description="Canonical dimensions along which this metric can be sliced")
+    supported_filters: list[str] = Field(default_factory=list, description="Tool parameter filter keys supported for this metric")
+    default_dimension: str | None = Field(default=None, description="Default slicing dimension if breakdown requested without dimension")
 
 
 BusinessMetric = KPI
@@ -81,3 +89,11 @@ class SemanticResolutionResult(BaseModel):
     unsupported_message: str | None = None
     clarification_prompt: str | None = None
     matched_synonym: str | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Confidence score for this semantic resolution (0.0 to 1.0)")
+    resolved_dimensions: list[str] = Field(default_factory=list, description="Identified analytical dimensions in the query")
+    extracted_filters: dict[str, Any] = Field(default_factory=dict, description="Identified categorical filters or entity constraints")
+    temporal_context: dict[str, Any] | None = Field(default=None, description="Temporal interval and granularity context from DateInterpreter")
+    evidence_provenance: dict[str, Any] | None = Field(default=None, description="Lineage metadata linking to source table, calculation reference, and accounting rule")
+    matched_dimension_aliases: dict[str, str] = Field(default_factory=dict, description="Mapping of query phrases to canonical dimensions")
+    unsupported_dimensions: list[str] = Field(default_factory=list, description="Requested analytical dimensions that are unsupported for this metric")
+    unsupported_filters: dict[str, Any] = Field(default_factory=dict, description="Requested filter criteria that are unsupported for this metric")

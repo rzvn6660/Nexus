@@ -300,7 +300,7 @@ Other integrated views include:
 | **Scientific Analytics** | Pandas, NumPy, SciPy, scikit-learn | Deterministic metric aggregation, statistical tests, PVM decomposition |
 | **Forecasting** | `statsmodels`, Exponential Smoothing, ARIMA | Backtested multi-horizon time-series forecasting with prediction intervals |
 | **Container & Proxy** | Docker, Docker Compose, Nginx | Multi-stage production containerization and reverse-proxy routing |
-| **Quality & CI/CD** | Pytest, TypeScript Compiler (`tsc`), GitHub Actions | Automated linting, type-checking, and 206 backend tests |
+| **Quality & CI/CD** | Pytest, TypeScript Compiler (`tsc`), GitHub Actions | Automated linting, type-checking, and 826 backend tests (6 skipped pgvector) |
 
 ---
 
@@ -316,14 +316,14 @@ nexus/
 │   │   ├── schemas/         # Pydantic validation & response schemas
 │   │   ├── services/        # Business logic services & history tracking
 │   │   ├── agents/          # LangGraph graph, nodes, deterministic tools, state machine
-│   │   ├── analytics/       # Descriptive, diagnostic (PVM), and predictive engines
+│   │   ├── analytics/       # Descriptive, diagnostic (PVM), predictive, and prescriptive engines
 │   │   ├── data/            # Ingestion, profiling, quality rules, external connectors
 │   │   ├── rag/             # Vector store (pgvector), embeddings, semantic layer
-│   │   ├── evaluation/      # 57 benchmark test cases, scoring harness, automated graders
+│   │   ├── evaluation/      # Benchmark test cases, scoring harness, automated graders
 │   │   ├── security/        # Query sanitization, rate limits, guardrails
 │   │   └── observability/   # Tracing, structured logs, request correlation IDs
 │   ├── alembic/             # Database migration versions
-│   └── tests/               # 406 automated backend tests (100% pass)
+│   └── tests/               # 826 automated backend tests (100% pass, 6 skipped pgvector)
 │
 ├── frontend/
 │   ├── src/                 # React 18, TypeScript, Tailwind CSS
@@ -425,10 +425,11 @@ To maintain technical honesty, NEXUS explicitly delineates between verified V1 c
 | **Tenancy Architecture** | Dedicated single-tenant container instance | Shared multi-tenancy with logical tenant isolation |
 | **Authentication** | API Key & Bearer token perimeter protection | Enterprise SSO (SAML 2.0, Okta, Azure AD) |
 | **Data Connectors** | CSV Ingestion & PostgreSQL Relational Connector | Live Snowflake, BigQuery, and Databricks connectors |
-| **Agent Reasoning** | Stateful LangGraph orchestrator with 16 tools | Multi-agent autonomous debate & custom agent plugins |
-| **Analytics & Forecast** | 12 GAAP metrics, PVM waterfall, ARIMA/Holt models | Hierarchical reconciliation forecasting & causal ML |
-| **Human Governance** | Persistent Approve, Reject, Modify review ledger | Multi-tier organizational role approvals & Slack alerts |
-| **Action Execution** | Decision logging & audit trail | Outbound ERP webhooks & automated operational actions |
+| **Agent Reasoning** | Stateful LangGraph orchestrator with typed tools | Multi-agent autonomous debate & custom agent plugins |
+| **Analytics & Forecast** | 12 GAAP metrics, PVM waterfall, Phase 26 predictive suite (Holt-Winters, Croston, Ridge) | Hierarchical reconciliation forecasting & causal ML |
+| **Prescriptive Engine** | Phase 27 deterministic replenishment (EOQ/ROP), clearance markdown break-even lift, multi-alternative evaluation | Automated autonomous order placement & dynamic repricing |
+| **Human Governance** | Persistent Approve, Reject, Modify review ledger & advisory review gating | Multi-tier organizational role approvals & Slack alerts |
+| **Action Execution** | Decision logging & audit trail (Phase 28 Decision Memory) | Outbound ERP webhooks & automated operational actions |
 | **Compliance** | Traceable evidence logging & correlation IDs | Formal SOC2 Type II, ISO 27001, and HIPAA compliance |
 
 ---

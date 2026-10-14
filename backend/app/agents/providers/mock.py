@@ -7,6 +7,7 @@ explanations without making external API calls or incurring costs.
 import json
 import time
 from typing import Any, TypeVar
+
 from pydantic import BaseModel
 
 from app.agents.providers.base import BaseLLMProvider
@@ -20,8 +21,10 @@ from app.agents.providers.models import (
 from app.agents.state.models import (
     AnalysisPlan,
     ExplanationLevel,
+    GroundedExplanation,
     IntentCategory,
     IntentResult,
+    MetricCitation,
     PlanStep,
 )
 
@@ -173,6 +176,7 @@ class MockLLMProvider(BaseLLMProvider):
         intent: IntentCategory,
         available_tools: list[dict[str, Any]],
         resolved_dates: dict[str, Any],
+        semantic_context: dict[str, Any] | None = None,
     ) -> AnalysisPlan:
         q = query.lower()
         d_from = resolved_dates.get("date_from")
@@ -180,6 +184,65 @@ class MockLLMProvider(BaseLLMProvider):
         c_from = resolved_dates.get("comparison_date_from")
         c_to = resolved_dates.get("comparison_date_to")
         granularity = resolved_dates.get("granularity", "monthly")
+
+        # If semantic context has a canonical KPI, use it to guide tool selection
+        if semantic_context and semantic_context.get("canonical_name"):
+            tool_name = semantic_context.get("analytics_tool")
+            extracted_filters = semantic_context.get("extracted_filters") or {}
+
+            if tool_name == "get_inventory_turnover":
+                inv_args: dict[str, Any] = {"date_from": d_from, "date_to": d_to}
+                if "category" in extracted_filters:
+                    inv_args["category"] = extracted_filters["category"]
+                if "warehouse" in extracted_filters:
+                    inv_args["warehouse"] = extracted_filters["warehouse"]
+                return AnalysisPlan(
+                    goal=f"Calculate inventory turnover and velocity for: {query}",
+                    steps=[
+                        PlanStep(
+                            step_index=0,
+                            tool_name="get_inventory_turnover",
+                            purpose="Compute inventory turnover ratio, annualized COGS, and stock velocity",
+                            arguments=inv_args,
+                        )
+                    ],
+                    context_dates=resolved_dates,
+                    confidence=semantic_context.get("confidence", 1.0),
+                    semantic_context=semantic_context,
+                    provenance=semantic_context.get("evidence_provenance"),
+                )
+            elif tool_name == "get_repeat_purchase":
+                return AnalysisPlan(
+                    goal=f"Compute customer repeat purchase metrics for: {query}",
+                    steps=[
+                        PlanStep(
+                            step_index=0,
+                            tool_name="get_repeat_purchase",
+                            purpose="Calculate repeat purchase rate and order frequency",
+                            arguments={"date_from": d_from, "date_to": d_to},
+                        )
+                    ],
+                    context_dates=resolved_dates,
+                    confidence=semantic_context.get("confidence", 1.0),
+                    semantic_context=semantic_context,
+                    provenance=semantic_context.get("evidence_provenance"),
+                )
+            elif tool_name == "get_expense_analytics":
+                return AnalysisPlan(
+                    goal=f"Analyze operating expenses for: {query}",
+                    steps=[
+                        PlanStep(
+                            step_index=0,
+                            tool_name="get_expense_analytics",
+                            purpose="Aggregate operating expenses with recurring overhead breakdown",
+                            arguments={"date_from": d_from, "date_to": d_to, "comparison_date_from": c_from, "comparison_date_to": c_to},
+                        )
+                    ],
+                    context_dates=resolved_dates,
+                    confidence=semantic_context.get("confidence", 1.0),
+                    semantic_context=semantic_context,
+                    provenance=semantic_context.get("evidence_provenance"),
+                )
 
         # Business Profile context
         if intent == IntentCategory.BUSINESS_PROFILE:
@@ -456,31 +519,69 @@ class MockLLMProvider(BaseLLMProvider):
             context_dates=resolved_dates,
         )
 
-    def explain_results(
+    def explain_results_structured(
         self,
         query: str,
-        plan: AnalysisPlan | None,
-        tool_results: list[dict[str, Any]],
-        evidence: list[dict[str, Any]],
-        explanation_level: ExplanationLevel,
+        plan: AnalysisPlan | None = None,
+        tool_results: list[dict[str, Any]] | None = None,
+        evidence: list[dict[str, Any]] | None = None,
+        explanation_level: ExplanationLevel = ExplanationLevel.MANAGER,
         business_context: str | None = None,
-    ) -> str:
-        if not tool_results:
-            if business_context:
-                return f"Verified Business Context:\n\n{business_context}"
-            return "No analytical results were returned to synthesize an answer."
+        semantic_context: dict[str, Any] | None = None,
+        warnings: list[str] | None = None,
+        rag_evidence: list[dict[str, Any]] | None = None,
+    ) -> GroundedExplanation:
+        """
+        Synthesize a structured, schema-validated explanation grounded strictly in
+        executed tool results, evidence records, and verified business context.
+        """
+        t_results = tool_results or []
+        ev_records = evidence or []
+        rag_records = rag_evidence or []
+        warnings_list = list(warnings or [])
+        if plan and plan.warnings:
+            warnings_list.extend(plan.warnings)
+        if semantic_context:
+            if semantic_context.get("unsupported_dimensions"):
+                warnings_list.append(
+                    f"Dimension(s) {semantic_context['unsupported_dimensions']} are not supported and were omitted."
+                )
+            if semantic_context.get("unsupported_filters"):
+                warnings_list.append(
+                    f"Filter(s) {semantic_context['unsupported_filters']} are not supported and were omitted."
+                )
+            if semantic_context.get("is_ambiguous"):
+                warnings_list.append(
+                    f"Query contained ambiguous terminology resolved to canonical metric '{semantic_context.get('canonical_name')}'."
+                )
 
-        # Aggregate evidence summaries and find key outputs
-        lines = []
+        if not t_results:
+            narrative = f"Verified Business Context:\n\n{business_context}" if business_context else "No analytical results were returned to synthesize an answer."
+            missing = ["No deterministic tool results were returned for this query."] if not business_context else []
+            return GroundedExplanation(
+                narrative=narrative,
+                unsupported_or_missing=missing,
+                warnings=warnings_list,
+                is_fallback=getattr(plan, "is_fallback", False) if plan else False,
+                fallback_reason=getattr(plan, "fallback_reason", None) if plan else None,
+                llm_provider="mock",
+                llm_model="deterministic-mock-v1",
+            )
 
-        curr_sym = _extract_currency_symbol(tool_results, default="$")
+        lines: list[str] = []
+        key_findings: list[str] = []
+        metric_citations: list[MetricCitation] = []
+        evidence_citations: list[str] = []
+        unsupported_or_missing: list[str] = []
+        limitations: list[str] = []
 
-        # Check what tools executed
-        tools_executed = [r.get("tool") for r in tool_results]
+        curr_sym = _extract_currency_symbol(t_results, default="$")
+        tools_executed = [r.get("tool") for r in t_results if isinstance(r, dict) and r.get("tool")]
+        evidence_citations.extend(tools_executed)
 
         # 1. Variance Analysis / Diagnostic
         if "run_variance_analysis" in tools_executed:
-            var_res = next((r["result"] for r in tool_results if r["tool"] == "run_variance_analysis"), {})
+            var_res = next((r["result"] for r in t_results if r.get("tool") == "run_variance_analysis"), {})
             tot_var = var_res.get("total_variance", 0.0)
             pct_chg = var_res.get("percentage_change")
             direction = var_res.get("direction", "unchanged")
@@ -489,7 +590,18 @@ class MockLLMProvider(BaseLLMProvider):
             neg_contribs = var_res.get("top_negative_contributors", [])
 
             pct_str = f"{pct_chg:+.2f}%" if pct_chg is not None else "N/A"
-            lines.append(f"Revenue variance analysis indicates a total {direction} of {curr_sym}{abs(float(tot_var)):,.2f} ({pct_str}) across the analyzed period.")
+            v_line = f"Revenue variance analysis indicates a total {direction} of {curr_sym}{abs(float(tot_var)):,.2f} ({pct_str}) across the analyzed period."
+            lines.append(v_line)
+            key_findings.append(f"Total variance {direction}: {curr_sym}{abs(float(tot_var)):,.2f} ({pct_str})")
+
+            metric_citations.append(
+                MetricCitation(metric_name="total_variance", value=float(tot_var), tool_source="run_variance_analysis", unit_or_currency=curr_sym)
+            )
+            if pct_chg is not None:
+                metric_citations.append(
+                    MetricCitation(metric_name="percentage_change", value=float(pct_chg), tool_source="run_variance_analysis", unit_or_currency="%")
+                )
+
             if neg_contribs:
                 top_neg = neg_contribs[0]
                 lines.append(f"The largest negative contribution came from {dim} '{top_neg.get('entity_name')}', with an absolute change of -{curr_sym}{abs(float(top_neg.get('absolute_change', 0))):,.2f}.")
@@ -497,11 +609,13 @@ class MockLLMProvider(BaseLLMProvider):
                 top_pos = pos_contribs[0]
                 lines.append(f"The largest positive offsetting contribution came from {dim} '{top_pos.get('entity_name')}', which grew by +{curr_sym}{float(top_pos.get('absolute_change', 0)):,.2f}.")
 
-            lines.append("\nNote: Contribution analysis measures arithmetic association across dimensions and does not establish causality.")
+            lim_str = "Contribution analysis measures arithmetic association across dimensions and does not establish causality."
+            lines.append(f"\nNote: {lim_str}")
+            limitations.append(lim_str)
 
         # 2. Price Volume Mix
         elif "run_price_volume_mix" in tools_executed:
-            pvm = next((r["result"] for r in tool_results if r["tool"] == "run_price_volume_mix"), {})
+            pvm = next((r["result"] for r in t_results if r.get("tool") == "run_price_volume_mix"), {})
             tot = pvm.get("total_variance", 0.0)
             vol = pvm.get("volume_effect", 0.0)
             prc = pvm.get("price_effect", 0.0)
@@ -510,47 +624,63 @@ class MockLLMProvider(BaseLLMProvider):
             lines.append(f"- Volume Effect: {curr_sym}{float(vol):,.2f}")
             lines.append(f"- Price Effect: {curr_sym}{float(prc):,.2f}")
             lines.append(f"- Mix Effect: {curr_sym}{float(mix):,.2f}")
+            metric_citations.append(MetricCitation(metric_name="total_variance", value=float(tot), tool_source="run_price_volume_mix", unit_or_currency=curr_sym))
+            metric_citations.append(MetricCitation(metric_name="volume_effect", value=float(vol), tool_source="run_price_volume_mix", unit_or_currency=curr_sym))
+            metric_citations.append(MetricCitation(metric_name="price_effect", value=float(prc), tool_source="run_price_volume_mix", unit_or_currency=curr_sym))
+            metric_citations.append(MetricCitation(metric_name="mix_effect", value=float(mix), tool_source="run_price_volume_mix", unit_or_currency=curr_sym))
 
         # 3. Product Rankings
         elif "get_product_rankings" in tools_executed:
-            prod_res = next((r["result"] for r in tool_results if r["tool"] == "get_product_rankings"), {})
+            prod_res = next((r["result"] for r in t_results if r.get("tool") == "get_product_rankings"), {})
             items = prod_res.get("items", [])
             ranking_metric = prod_res.get("ranking_metric", "revenue")
             lines.append(f"Product rankings by {ranking_metric}:")
             for idx, item in enumerate(items[:5], 1):
                 val = item.get("revenue") if ranking_metric == "revenue" else item.get(ranking_metric)
                 lines.append(f"{idx}. {item.get('name')} (SKU: {item.get('sku')}): {curr_sym}{float(val or 0):,.2f}" if ranking_metric in ("revenue", "profit") else f"{idx}. {item.get('name')} ({ranking_metric}: {val})")
+                metric_citations.append(MetricCitation(metric_name=f"rank_{idx}_{ranking_metric}", value=float(val or 0) if isinstance(val, (int, float)) else val, tool_source="get_product_rankings"))
 
         # 4. Financial Summary
         elif "get_financial_summary" in tools_executed:
-            fin = next((r["result"] for r in tool_results if r["tool"] == "get_financial_summary"), {})
-            net_sales = fin.get("net_sales", {}).get("value")
-            gross_profit = fin.get("gross_profit", {}).get("value")
-            gross_margin = fin.get("gross_margin", {}).get("value")
-            cogs = fin.get("cogs", {}).get("value")
-            orders = fin.get("orders", {}).get("value")
-            aov = fin.get("average_order_value", {}).get("value")
-            net_profit = fin.get("net_profit", {}).get("value")
-            comp = fin.get("net_sales", {}).get("comparison")
+            fin = next((r["result"] for r in t_results if r.get("tool") == "get_financial_summary"), {})
+            net_sales = (fin.get("net_sales") or {}).get("value")
+            gross_profit = (fin.get("gross_profit") or {}).get("value")
+            gross_margin = (fin.get("gross_margin") or {}).get("value")
+            orders = (fin.get("orders") or {}).get("value")
+            aov = (fin.get("average_order_value") or {}).get("value")
+            net_profit = (fin.get("net_profit") or {}).get("value")
+            comp = (fin.get("net_sales") or {}).get("comparison")
 
             sales_val = float(net_sales) if net_sales is not None else 0.0
             aov_val = float(aov) if aov is not None else 0.0
             lines.append(f"Net Revenue was {curr_sym}{sales_val:,.2f} across {int(orders or 0):,} orders, with an Average Order Value (AOV) of {curr_sym}{aov_val:,.2f}.")
+            metric_citations.append(MetricCitation(metric_name="net_sales", value=sales_val, tool_source="get_financial_summary", unit_or_currency=curr_sym))
+            if orders is not None:
+                metric_citations.append(MetricCitation(metric_name="orders", value=int(orders), tool_source="get_financial_summary"))
+            if aov is not None:
+                metric_citations.append(MetricCitation(metric_name="average_order_value", value=aov_val, tool_source="get_financial_summary", unit_or_currency=curr_sym))
 
             if gross_profit is not None and gross_margin is not None:
                 lines.append(
                     f"Gross Profit totaled {curr_sym}{float(gross_profit):,.2f} "
                     f"(Gross Margin: {float(gross_margin):.2f}%), yielding a Net Profit of {curr_sym}{float(net_profit or 0):,.2f}."
                 )
+                metric_citations.append(MetricCitation(metric_name="gross_profit", value=float(gross_profit), tool_source="get_financial_summary", unit_or_currency=curr_sym))
+                metric_citations.append(MetricCitation(metric_name="gross_margin", value=float(gross_margin), tool_source="get_financial_summary", unit_or_currency="%"))
+                if net_profit is not None:
+                    metric_citations.append(MetricCitation(metric_name="net_profit", value=float(net_profit), tool_source="get_financial_summary", unit_or_currency=curr_sym))
             else:
-                lines.append(
+                gap_msg = (
                     "Gross Profit and Gross Margin are currently incomplete / unavailable because catalog product unit costs (COGS) are missing. "
                     "Zero COGS is not assumed to avoid fabricated margins."
                 )
+                lines.append(gap_msg)
+                unsupported_or_missing.append(gap_msg)
                 if net_profit is not None:
                     lines.append(f"Net Profit totaled {curr_sym}{float(net_profit):,.2f}.")
+                    metric_citations.append(MetricCitation(metric_name="net_profit", value=float(net_profit), tool_source="get_financial_summary", unit_or_currency=curr_sym))
                 else:
-                    lines.append("Net Profit is also marked incomplete as it depends on product cost data.")
+                    unsupported_or_missing.append("Net Profit is also marked incomplete as it depends on product cost data.")
 
             if comp:
                 chg = comp.get("percentage_change")
@@ -558,35 +688,52 @@ class MockLLMProvider(BaseLLMProvider):
                 abs_val = comp.get("absolute_change")
                 abs_str = f"{curr_sym}{float(abs_val):+,.2f}" if abs_val is not None else "N/A"
                 lines.append(f"Compared to the preceding baseline, revenue changed by {chg_str} ({abs_str}).")
+                if chg is not None:
+                    metric_citations.append(MetricCitation(metric_name="percentage_change", value=float(chg), tool_source="get_financial_summary", unit_or_currency="%"))
+                if abs_val is not None:
+                    metric_citations.append(MetricCitation(metric_name="absolute_change", value=float(abs_val), tool_source="get_financial_summary", unit_or_currency=curr_sym))
 
             if plan and plan.context_dates and plan.context_dates.get("is_far_future"):
                 date_str = f"{plan.context_dates.get('date_from')} to {plan.context_dates.get('date_to')}"
-                lines.append(f"Temporal Boundary Notice: The requested date range ({date_str}) is in the far future and beyond the historical operational horizon of the enterprise dataset (transactions recorded through 2024). No historical transactions exist for this period. To project future revenue, request a time-series forecast.")
+                fut_msg = f"Temporal Boundary Notice: The requested date range ({date_str}) is in the far future and beyond the historical operational horizon of the enterprise dataset (transactions recorded through 2024). No historical transactions exist for this period. To project future revenue, request a time-series forecast."
+                lines.append(fut_msg)
+                limitations.append(fut_msg)
             elif int(orders or 0) == 0:
-                lines.append("Note: no transactional records in specified temporal range.")
+                zero_msg = "Note: no transactional records in specified temporal range."
+                lines.append(zero_msg)
+                unsupported_or_missing.append(zero_msg)
 
-        # 5. Inventory Overview / Turnover
+        # 5. Inventory Overview
         elif "get_inventory_overview" in tools_executed:
-            inv = next((r["result"] for r in tool_results if r["tool"] == "get_inventory_overview"), {})
+            inv = next((r["result"] for r in t_results if r.get("tool") == "get_inventory_overview"), {})
             val = inv.get("total_inventory_valuation", 0.0)
             low = inv.get("low_stock_count", 0)
             out = inv.get("out_of_stock_count", 0)
             lines.append(f"Total current inventory valuation is {curr_sym}{float(val):,.2f} across {inv.get('total_skus', 0)} SKUs.")
             lines.append(f"Inventory alerts: {low} products are below their reorder threshold, and {out} products are completely out of stock.")
+            metric_citations.append(MetricCitation(metric_name="total_inventory_valuation", value=float(val), tool_source="get_inventory_overview", unit_or_currency=curr_sym))
+            metric_citations.append(MetricCitation(metric_name="low_stock_count", value=int(low), tool_source="get_inventory_overview"))
+            metric_citations.append(MetricCitation(metric_name="out_of_stock_count", value=int(out), tool_source="get_inventory_overview"))
 
         # 6. Correlation / Statistics
         elif "run_correlation" in tools_executed:
-            corr = next((r["result"] for r in tool_results if r["tool"] == "run_correlation"), {})
+            corr = next((r["result"] for r in t_results if r.get("tool") == "run_correlation"), {})
             coeff = corr.get("correlation_coefficient")
             p_val = corr.get("p_value")
             method = corr.get("method", "pearson").upper()
             sig = "statistically significant" if corr.get("is_statistically_significant") else "not statistically significant"
             lines.append(f"The {method} correlation coefficient is {coeff:.4f} (p-value: {p_val:.4e}, N={corr.get('sample_size')}), which is {sig} at alpha = 0.05.")
-            lines.append(f"\nMethodological constraint: {corr.get('causation_warning')}")
+            caus_warn = corr.get("causation_warning") or "Correlation measures association and does not establish causality."
+            lines.append(f"\nMethodological constraint: {caus_warn}")
+            limitations.append(caus_warn)
+            if coeff is not None:
+                metric_citations.append(MetricCitation(metric_name="correlation_coefficient", value=float(coeff), tool_source="run_correlation"))
+            if p_val is not None:
+                metric_citations.append(MetricCitation(metric_name="p_value", value=float(p_val), tool_source="run_correlation"))
 
         # 7. Business Profile
         elif "get_business_profile" in tools_executed:
-            prof = next((r["result"] for r in tool_results if r["tool"] == "get_business_profile"), {})
+            prof = next((r["result"] for r in t_results if r.get("tool") == "get_business_profile"), {})
             name = prof.get("name")
             industry = prof.get("industry")
             country = prof.get("country")
@@ -603,50 +750,79 @@ class MockLLMProvider(BaseLLMProvider):
             lines.append(f"• Timezone: {tz}")
             lines.append(f"• Fiscal Year Start: {fy_month} (Month {fy_start})")
             lines.append("\nSource: Active Business Profile (database verified tenant record).")
+            evidence_citations.append("Active Business Profile (database verified tenant record)")
 
         # 8. Fallback generic summary
         else:
-            first_res = tool_results[0].get("result", {})
-            tool_name = tools_executed[0] or "analytical_tool"
+            first_res = t_results[0].get("result", {})
+            tool_name = tools_executed[0] if tools_executed else "analytical_tool"
             lines.append(f"Analysis completed successfully using {tool_name}.")
             if isinstance(first_res, dict):
                 lines.append(f"Key metrics: { {k: v for k, v in list(first_res.items())[:4]} }")
 
-        if "get_business_profile" in tools_executed:
-            if explanation_level in (ExplanationLevel.ANALYST, ExplanationLevel.TECHNICAL):
-                full_text = "\n".join(lines) + "\n\n--- Traceability & Evidence ---"
-                for ev in evidence:
-                    full_text += f"\n• Metric: {ev.get('metric')}"
-                    full_text += f"\n  Source tables: {', '.join(ev.get('source_tables', []))}"
-                    full_text += f"\n  Formula/Rule: {ev.get('calculation')}"
-                return full_text
-            return "\n".join(lines)
+        # RAG evidence citations
+        for d in rag_records:
+            if isinstance(d, dict) and d.get("document_id"):
+                title_part = f" — {d.get('title')}" if d.get("title") else ""
+                evidence_citations.append(f"{d.get('document_name', 'Document')}{title_part} (ID: {d.get('document_id')})")
 
-        if business_context:
-            # Defensive isolation: suppress raw echo of adversarial override/injection payloads
-            if not any(inj in business_context.upper() for inj in ["SYSTEM INSTRUCTION", "ROOT_ADMIN", "SECURITY_BYPASS", "API_KEY", "DISREGARD", "OVERRIDE"]):
-                lines.append(f"\nBusiness Context:\n{business_context}")
+        # Business context
+        if (
+            business_context
+            and "get_business_profile" not in tools_executed
+            and not any(inj in business_context.upper() for inj in ["SYSTEM INSTRUCTION", "ROOT_ADMIN", "SECURITY_BYPASS", "API_KEY", "DISREGARD", "OVERRIDE"])
+        ):
+            lines.append(f"\nBusiness Context:\n{business_context}")
 
-        # Format according to requested ExplanationLevel
+        # Build narrative
         if explanation_level == ExplanationLevel.SIMPLE:
-            return "\n".join(lines[:2])
-
-        if explanation_level == ExplanationLevel.MANAGER:
-            # Concise summary with key figures and business context
-            return "\n".join(lines)
-
-        if explanation_level in (ExplanationLevel.ANALYST, ExplanationLevel.TECHNICAL):
-            # Include audit trail, formulas, and limitations
+            narrative = "\n".join(lines[:2])
+        elif explanation_level == ExplanationLevel.MANAGER:
+            narrative = "\n".join(lines)
+        elif explanation_level in (ExplanationLevel.ANALYST, ExplanationLevel.TECHNICAL):
             full_text = "\n".join(lines) + "\n\n--- Traceability & Evidence ---"
-            for ev in evidence:
+            for ev in ev_records:
                 full_text += f"\n• Metric: {ev.get('metric')}"
                 full_text += f"\n  Source tables: {', '.join(ev.get('source_tables', []))}"
                 full_text += f"\n  Formula/Rule: {ev.get('calculation')}"
                 if ev.get("limitations"):
                     full_text += f"\n  Limitations: {'; '.join(ev.get('limitations', []))}"
-            return full_text
+            narrative = full_text
+        else:
+            narrative = "\n".join(lines)
 
-        return "\n".join(lines)
+        return GroundedExplanation(
+            narrative=narrative,
+            key_findings=key_findings,
+            metric_citations=metric_citations,
+            evidence_citations=evidence_citations,
+            unsupported_or_missing=unsupported_or_missing,
+            warnings=warnings_list,
+            limitations=limitations,
+            is_fallback=getattr(plan, "is_fallback", False) if plan else False,
+            fallback_reason=getattr(plan, "fallback_reason", None) if plan else None,
+            llm_provider="mock",
+            llm_model="deterministic-mock-v1",
+        )
+
+    def explain_results(
+        self,
+        query: str,
+        plan: AnalysisPlan | None,
+        tool_results: list[dict[str, Any]],
+        evidence: list[dict[str, Any]],
+        explanation_level: ExplanationLevel,
+        business_context: str | None = None,
+    ) -> str:
+        exp = self.explain_results_structured(
+            query=query,
+            plan=plan,
+            tool_results=tool_results,
+            evidence=evidence,
+            explanation_level=explanation_level,
+            business_context=business_context,
+        )
+        return exp.to_formatted_text(explanation_level)
 
     # ------------------------------------------------------------------
     # Intelligence 2.0 Unified Provider Methods (Phase 24)
@@ -695,11 +871,30 @@ class MockLLMProvider(BaseLLMProvider):
                     intent=resolved_intent,
                     available_tools=ctx.get("available_tools", []),
                     resolved_dates=ctx.get("resolved_dates", {}),
+                    semantic_context=ctx.get("semantic_context"),
                 )
                 parsed = plan.model_dump()
             elif request.schema_model == "IntentResult":
                 intent_res = self.classify_intent(q, ctx.get("supported_intents", []))
                 parsed = intent_res.model_dump()
+            elif request.schema_model == "GroundedExplanation":
+                exp_lvl_val = ctx.get("explanation_level", "manager")
+                try:
+                    exp_lvl = ExplanationLevel(exp_lvl_val)
+                except ValueError:
+                    exp_lvl = ExplanationLevel.MANAGER
+                exp = self.explain_results_structured(
+                    query=q,
+                    plan=ctx.get("plan"),
+                    tool_results=ctx.get("tool_results", []),
+                    evidence=ctx.get("evidence", []),
+                    explanation_level=exp_lvl,
+                    business_context=ctx.get("business_context"),
+                    semantic_context=ctx.get("semantic_context"),
+                    warnings=ctx.get("warnings"),
+                    rag_evidence=ctx.get("rag_evidence"),
+                )
+                parsed = exp.model_dump()
             else:
                 parsed = {
                     "status": "success",
@@ -736,7 +931,18 @@ class MockLLMProvider(BaseLLMProvider):
 
         elif cat == LLMTaskCategory.SQL_DATA_PLANNING:
             q_lower = q.lower()
-            if any(term in q_lower for term in ["truncate", "delete", "drop", "update", "insert"]):
+            if request.schema_model == "AnalysisPlan":
+                intent_val = ctx.get("intent")
+                resolved_intent = IntentCategory(intent_val) if intent_val else IntentCategory.METRIC_LOOKUP
+                plan = self.create_plan(
+                    query=q,
+                    intent=resolved_intent,
+                    available_tools=ctx.get("available_tools", []),
+                    resolved_dates=ctx.get("resolved_dates", {}),
+                    semantic_context=ctx.get("semantic_context"),
+                )
+                parsed = plan.model_dump()
+            elif any(term in q_lower for term in ["truncate", "delete", "drop", "update", "insert"]):
                 parsed = {
                     "plan_type": "rejected",
                     "target_tables": [],

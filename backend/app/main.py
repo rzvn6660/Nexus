@@ -4,17 +4,18 @@ Starts backend API server with structured logging, CORS handling,
 request correlation tracking, production error shielding, and versioned routing.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.core.config import settings
-from app.core.logging import setup_logging, get_logger
-from app.core.database import engine, check_database_connection
-from app.core.middleware import RequestCorrelationMiddleware, SecurityHeadersMiddleware
 from app.api.router import root_api_router
+from app.core.config import settings
+from app.core.database import check_database_connection, engine
+from app.core.logging import get_logger, setup_logging
+from app.core.middleware import RequestCorrelationMiddleware, SecurityHeadersMiddleware
 
 # Initialize structured logging
 setup_logging()
@@ -41,9 +42,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "Ensure PostgreSQL is running via Docker or local service."
         )
 
+    # Phase 29: Continuous Intelligence Background Scheduler
+    from app.analytics.continuous.scheduler import continuous_scheduler
+
+    if settings.CONTINUOUS_SCHEDULER_ENABLED:
+        continuous_scheduler.start()
+
     yield
 
     logger.info(f"Shutting down {settings.APP_NAME}...")
+    if continuous_scheduler.is_running:
+        await continuous_scheduler.stop(timeout_seconds=5.0)
+
     engine.dispose()
     logger.info("Database engine connections disposed cleanly.")
 
@@ -85,11 +95,11 @@ def create_application() -> FastAPI:
         correlation_id = getattr(request.state, "correlation_id", "-")
         logger.error(
             f"Unhandled server exception on {request.method} {request.url.path}: {exc}",
-            exc_info=True,
+            exc_info=exc,
             extra={"correlation_id": correlation_id},
         )
         if settings.DEBUG:
-            detail_msg = f"Internal server error: {str(exc)}"
+            detail_msg = f"Internal server error: {exc!s}"
         else:
             detail_msg = (
                 f"An internal error occurred. Please contact system support "

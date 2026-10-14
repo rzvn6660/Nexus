@@ -1,6 +1,11 @@
 """ORM models package for NEXUS business domain."""
 
 from app.models.base import Base, TimestampMixin
+from app.models.continuous import (
+    ContinuousFinding,
+    FindingFeedback,
+    FindingScanRun,
+)
 from app.models.customer import Customer
 from app.models.expense import Expense
 from app.models.history import AnalysisRun, DecisionRecord
@@ -24,9 +29,12 @@ __all__ = [
     "AnalysisRun",
     "Base",
     "Business",
+    "ContinuousFinding",
     "Customer",
     "DecisionRecord",
     "Expense",
+    "FindingFeedback",
+    "FindingScanRun",
     "IngestionJob",
     "Inventory",
     "KnowledgeChunk",

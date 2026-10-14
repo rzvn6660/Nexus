@@ -44,6 +44,22 @@ class QualityGateResult(tuple):
         return self[0].outliers_detected
 
     @property
+    def zero_demand_ratio(self) -> float:
+        return self[0].zero_demand_ratio
+
+    @property
+    def demand_pattern(self) -> str:
+        return self[0].demand_pattern
+
+    @property
+    def has_seasonality(self) -> bool:
+        return self[0].has_seasonality
+
+    @property
+    def cycle_count(self) -> float:
+        return self[0].cycle_count
+
+    @property
     def warnings(self) -> list[str]:
         return self[0].warnings
 
@@ -124,10 +140,29 @@ class TimeSeriesQualityGate:
 
         values = df_sorted[value_col].fillna(0.0).to_numpy(dtype=np.float64)
 
-        # 4. Zero activity periods
-        zero_count = int(np.sum(values == 0.0))
-        if zero_count > (obs_count * 0.5) and obs_count >= 4:
-            warnings.append(f"{zero_count} of {obs_count} periods have zero activity (intermittent demand).")
+        # 4. Zero activity periods and demand pattern classification
+        zero_count = int(np.sum(np.abs(values) < 1e-5))
+        zero_ratio = float(zero_count / obs_count) if obs_count > 0 else 0.0
+        demand_pattern = "intermittent" if zero_ratio >= 0.25 else "smooth"
+
+        if zero_ratio >= 0.25 and obs_count >= 4:
+            warnings.append(
+                f"{zero_count} of {obs_count} periods have zero activity ({zero_ratio * 100:.1f}%), "
+                "indicating an intermittent demand profile. Activating intermittent demand estimators."
+            )
+
+        # Seasonality assessment
+        freq_str = str(frequency).lower().strip()
+        m = 7 if "d" in freq_str else (4 if "w" in freq_str else 12)
+        cycle_count = round(float(obs_count) / float(m), 2)
+        has_seasonality = False
+
+        if obs_count >= 2 * m:
+            centered = values - np.mean(values)
+            denom = float(np.sum(centered ** 2))
+            if denom > 1e-4:
+                autocorr_m = float(np.sum(centered[m:] * centered[:-m]) / denom)
+                has_seasonality = autocorr_m >= 0.20
 
         # 5. Constant series check (zero variance)
         val_std = float(np.std(values)) if obs_count > 1 else 0.0
@@ -165,7 +200,11 @@ class TimeSeriesQualityGate:
             date_to=last_date,
             missing_values=missing_vals,
             zero_periods_count=zero_count,
+            zero_demand_ratio=round(zero_ratio, 3),
             outliers_detected=outliers_count,
+            demand_pattern=demand_pattern,
+            has_seasonality=has_seasonality,
+            cycle_count=cycle_count,
             warnings=warnings,
             blocking_reasons=blocking,
         )

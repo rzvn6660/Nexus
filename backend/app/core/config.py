@@ -184,6 +184,13 @@ class Settings(BaseSettings):
     METRICS_ENABLED: bool = True
     UPLOAD_DIR: str = "./data/uploads"
 
+    # Phase 29 — Continuous Intelligence Scheduled Execution
+    CONTINUOUS_SCHEDULER_ENABLED: bool = True
+    CONTINUOUS_SCHEDULER_INTERVAL_SECONDS: int = 60
+    CONTINUOUS_SCHEDULER_BATCH_SIZE: int = 10
+    CONTINUOUS_SCHEDULER_STARTUP_DELAY_SECONDS: int = 5
+    CONTINUOUS_SCHEDULER_MAX_BUSINESSES_PER_TICK: int = 50
+
     @property
     def is_production(self) -> bool:
         """Helper to verify if running in production mode."""

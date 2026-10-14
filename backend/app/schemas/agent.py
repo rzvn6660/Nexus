@@ -31,7 +31,7 @@ class AgentAnalyzeRequest(BaseModel):
 
 
 class AgentExecutionMetadata(BaseModel):
-    """Audit and evaluation metadata capturing execution performance for Phase 9."""
+    """Audit and evaluation metadata capturing execution performance for Phase 9 and Phase 25E."""
     request_id: str
     elapsed_ms: float
     iterations: int
@@ -39,6 +39,10 @@ class AgentExecutionMetadata(BaseModel):
     tools_executed: list[str]
     evidence_status: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    is_fallback: bool = Field(default=False, description="True if LLM execution fell back to deterministic baseline rules")
+    fallback_reason: str | None = Field(default=None, description="Sanitized reason for fallback execution if applicable")
+    llm_provider: str | None = Field(default=None, description="Active LLM provider name")
+    llm_model: str | None = Field(default=None, description="Active LLM model name")
 
 
 class AgentResponse(BaseModel):
@@ -101,3 +105,16 @@ class AgentResponse(BaseModel):
     execution_metadata: AgentExecutionMetadata = Field(
         description="Execution trace metrics for performance monitoring and Phase 9 evaluation"
     )
+    grounded_explanation: dict[str, Any] | None = Field(
+        default=None,
+        description="Structured explanation synthesis with verified metric citations and evidence provenance"
+    )
+    historical_decisions: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Retrieved historical decision context items with maturity and provenance (Phase 28 Stage 3)"
+    )
+    historical_decision_context: str | None = Field(
+        default=None,
+        description="Structured passive historical decision context provided during planning (Phase 28 Stage 3)"
+    )
+

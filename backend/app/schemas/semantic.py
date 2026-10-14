@@ -16,6 +16,22 @@ class KPIResponse(BaseModel):
     unit: str
     business_domain: str
     status: str
+    supported_dimensions: List[str] = Field(default_factory=list)
+    supported_filters: List[str] = Field(default_factory=list)
+    default_dimension: Optional[str] = None
+
+
+class DimensionResponse(BaseModel):
+    """Schema for individual analytical dimension details from canonical ontology."""
+    dimension_name: str
+    display_name: str
+    source_table: str
+    column_name: str
+    allowed_values: Optional[List[str]] = None
+    aliases: List[str] = Field(default_factory=list)
+    applicable_tools: List[str] = Field(default_factory=list)
+    filter_key: Optional[str] = None
+    description: str = ""
 
 
 class MetricAvailability(BaseModel):
@@ -137,6 +153,13 @@ class SemanticResolveResponse(BaseModel):
     evidence_provenance: Dict[str, Any] = Field(default_factory=dict)
     semantic_version: Optional[int] = None
     semantic_revision_id: Optional[str] = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Semantic resolution confidence score (0.0 to 1.0)")
+    resolved_dimensions: List[str] = Field(default_factory=list, description="Resolved analytical slicing dimensions")
+    extracted_filters: Dict[str, Any] = Field(default_factory=dict, description="Validated filter criteria extracted from query")
+    temporal_context: Optional[Dict[str, Any]] = Field(default=None, description="Temporal interval and granularity context")
+    supported_dimensions: List[str] = Field(default_factory=list, description="Supported dimensions for the resolved KPI")
+    unsupported_dimensions: List[str] = Field(default_factory=list, description="Requested analytical dimensions that are unsupported for this metric")
+    unsupported_filters: Dict[str, Any] = Field(default_factory=dict, description="Requested filter criteria that are unsupported for this metric")
 
 
 class MetricDiffItem(BaseModel):

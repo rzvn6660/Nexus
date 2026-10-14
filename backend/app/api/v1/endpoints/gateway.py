@@ -7,27 +7,21 @@ Provides:
 - Ingestion of validated datasets into unified analytical models
 """
 
-from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, status
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db_session
 from app.core.auth import (
-    TenantContext,
-    get_auth_context,
     get_current_user,
-    get_optional_current_user,
     verify_user_business_access,
 )
 from app.models.tenant import Business, UploadedDataset, UserIdentity
 from app.schemas.data_gateway import (
     DataPreviewResponse,
-    DataReadinessSummary,
-    DatasetDetailResponse,
     DatasetIngestRequest,
-    DateCoverage,
-    SchemaMappingProposal,
 )
 from app.services.data_gateway_service import DataGatewayService
 
@@ -45,7 +39,7 @@ async def upload_dataset(
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
     current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Upload and process tabular business dataset."""
     target_biz_id = x_business_id
     if not target_biz_id:
@@ -98,7 +92,7 @@ def list_datasets(
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
     current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """List datasets belonging to the authorized business workspace."""
     target_biz_id = x_business_id
     if not target_biz_id:
@@ -135,6 +129,8 @@ def list_datasets(
             "readiness_score": quality.get("readiness_score", 75),
             "target_entity": mapping.get("target_entity"),
             "ingestion_status": schema.get("ingestion_status", "COMPLETED"),
+            "ingestion_errors": schema.get("ingestion_errors", []),
+            "total_validation_errors": schema.get("total_validation_errors", 0),
             "created_at": d.created_at.isoformat() if d.created_at else None,
         })
     return results
@@ -149,7 +145,7 @@ def get_dataset_detail(
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
     current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieve full profiling, quality audit, and schema mapping for a dataset."""
     dataset = db.execute(
         select(UploadedDataset).where(UploadedDataset.id == dataset_id)
@@ -182,6 +178,8 @@ def get_dataset_detail(
         "column_count": dataset.column_count,
         "content_hash": dataset.content_hash,
         "ingestion_status": schema_json.get("ingestion_status", "COMPLETED"),
+        "ingestion_errors": schema_json.get("ingestion_errors", []),
+        "total_validation_errors": schema_json.get("total_validation_errors", 0),
         "readiness_status": dataset.readiness_status,
         "readiness_score": quality_json.get("readiness_score", 75),
         "date_coverage": schema_json.get("date_coverage"),
@@ -238,7 +236,7 @@ def ingest_dataset_to_core(
     x_business_id: str | None = Header(None, alias="X-Business-ID"),
     current_user: UserIdentity = Depends(get_current_user),
     db: Session = Depends(get_db_session),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Commit mapped tabular records into unified NEXUS domain models."""
     dataset = db.execute(
         select(UploadedDataset).where(UploadedDataset.id == dataset_id)

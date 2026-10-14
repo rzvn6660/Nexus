@@ -102,9 +102,12 @@ Every business intelligence request in NEXUS traverses a closed-loop 11-step pip
 | **Database Migrations** | **Implemented (Phase 1)** | Alembic setup with `alembic.ini`, `env.py`, and version registry |
 | **Docker & Compose** | **Implemented (Phase 1)** | Multi-service Compose (`postgres`, `backend`, `frontend`) |
 | **Frontend Foundation** | **Implemented (Phase 1)** | React 18, TypeScript, Vite, Tailwind CSS, live health telemetry dashboard |
-| **Test Suite** | **Implemented (Phase 1)** | Pytest test runner validating health endpoints, config, and DB fallbacks |
-| **Retail Data Schemas** | *Planned (Phase 2)* | Sales, Customers, Products, Inventory, Expenses schema & seed data |
-| **Deterministic Analytics** | *Planned (Phase 2)* | Mathematical computation modules (SciPy, Pandas, scikit-learn) |
-| **LangGraph Agent Layer** | *Planned (Phase 3)* | Stateful multi-node cyclic workflow with checkpointing |
-| **Semantic KPI Layer** | *Planned (Phase 3)* | Standardized business metric formulas and metric catalog |
-| **Evidence Engine** | *Future (Phase 4)* | Cryptographic SQL hashing, data slice proof generation, and verification |
+| **Retail Data Schemas** | **Implemented (Phase 2)** | Sales, Customers, Products, Inventory, Expenses schema & seed data |
+| **Deterministic Analytics** | **Implemented (Phase 3)** | Mathematical computation modules (SciPy, Pandas, scikit-learn) |
+| **LangGraph Agent Layer** | **Implemented (Phase 4)** | Stateful multi-node cyclic workflow with checkpointing |
+| **Semantic KPI Layer** | **Implemented (Phase 25D)** | Standardized business metric formulas, catalog, and tenant semantic service |
+| **Agent Intelligence & Safety** | **Implemented (Phase 25E)** | Prompt framing, live provider strategy, grounded explanation, safety harness |
+| **Predictive Intelligence** | **Implemented (Phase 26)** | Holt-Winters, Croston/SBA, Ridge lagged forecasting with backtesting |
+| **Prescriptive Engine** | **Implemented (Phase 27)** | Deterministic replenishment (EOQ/ROP), markdown break-even lift, multi-alternative evaluation |
+| **Decision Memory & Outcome Loop** | *Planned (Phase 28)* | Persistent decision provenance, feedback loop, pre/post observation tracking, and causal claim protection |
+| **Test Suite** | **Verified (Phase 27)** | 826 passed, 6 skipped pgvector integration tests, 0 failed |

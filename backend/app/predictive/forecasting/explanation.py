@@ -1,5 +1,6 @@
 """Forecast explanation formulation adhering strictly to the Section 27 schema."""
 
+import numpy as np
 from app.investigation.validators import CausalitySafeguard
 from app.predictive.schemas import (
     EvaluationMetrics,
@@ -83,13 +84,17 @@ class ForecastExplainer:
         # 1. ### Forecast
         forecast_lines: list[str] = []
         metric_name = target_metric.replace("_", " ").title()
+        is_currency = target_metric.lower() in ("revenue", "sales", "net_revenue", "gross_sales")
+        sym = "$" if is_currency else ""
+        unit_suff = "" if is_currency else f" {metric_name.lower()}"
+
         if predictions:
             first_p = predictions[0]
             last_p = predictions[-1]
             if len(predictions) == 1:
                 forecast_lines.append(
-                    f"Projected {metric_name} for {first_p.period} is **${first_p.point_forecast:,.2f}** "
-                    f"(estimated prediction interval: **${first_p.lower_bound:,.2f} – ${first_p.upper_bound:,.2f}** at {int(first_p.confidence_level * 100)}% coverage)."
+                    f"Projected {metric_name} for {first_p.period} is **{sym}{first_p.point_forecast:,.2f}{unit_suff}** "
+                    f"(estimated prediction interval: **{sym}{first_p.lower_bound:,.2f} – {sym}{first_p.upper_bound:,.2f}{unit_suff}** at {int(first_p.confidence_level * 100)}% coverage)."
                 )
             else:
                 forecast_lines.append(
@@ -98,7 +103,7 @@ class ForecastExplainer:
                 )
                 for p in predictions:
                     forecast_lines.append(
-                        f"- **{p.period}**: Expected **${p.point_forecast:,.2f}** (Interval: ${p.lower_bound:,.2f} – ${p.upper_bound:,.2f})"
+                        f"- **{p.period}**: Expected **{sym}{p.point_forecast:,.2f}{unit_suff}** (Interval: {sym}{p.lower_bound:,.2f} – {sym}{p.upper_bound:,.2f}{unit_suff})"
                     )
         else:
             forecast_lines.append(f"No quantitative forecast could be generated for {metric_name}.")
@@ -138,11 +143,22 @@ class ForecastExplainer:
         sections.append("### Accuracy\n" + "\n".join(acc_lines))
 
         # 5. ### Uncertainty
+        avg_unc = (
+            float(np.mean([p.uncertainty_ratio for p in predictions]))
+            if predictions and hasattr(predictions[0], "uncertainty_ratio")
+            else 0.0
+        )
+        conf_pct = int((predictions[0].confidence_level if predictions else 0.95) * 100)
         uncert_lines = [
-            "Prediction intervals represent model and residual uncertainty derived from historical error variance.",
-            f"The bounds represent an estimated {int((predictions[0].confidence_level if predictions else 0.95) * 100)}% coverage interval.",
+            f"Prediction intervals represent nominal {conf_pct}% statistical dispersion derived from historical residual variance under normality assumptions; they do not represent empirically calibrated probabilities.",
+            "Point forecasts represent statistical expectations and must not be treated as certainties. Commercial decisions should evaluate the entire interval range.",
             "As the forecast horizon extends further into the future, uncertainty bounds widen proportionately.",
         ]
+        if avg_unc > 0.40:
+            uncert_lines.append(
+                f"**High Uncertainty Alert**: Prediction interval width averages {avg_unc * 100:.1f}% of central point estimates. "
+                "Demand exhibits elevated volatility or intermittent ordering patterns; maintain operational buffer stock."
+            )
         sections.append("### Uncertainty\n" + "\n".join(uncert_lines))
 
         # 6. ### Important assumptions

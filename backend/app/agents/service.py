@@ -12,11 +12,12 @@ Phase 19: Tenant-Aware Intelligence Runs
 
 import time
 from datetime import UTC, date, datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from pydantic import ValidationError
 from sqlalchemy import desc, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.agents.graph.workflow import agent_graph
@@ -26,7 +27,6 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.history import AnalysisRun, DecisionRecord
 from app.models.tenant import (
-    Business,
     IngestionJob,
     TenantSemanticModel,
     UploadedDataset,
@@ -65,7 +65,7 @@ def _resolve_workspace_snapshot(
     # ------------------------------------------------------------------ #
     # 1. Semantic snapshot — only ACTIVE model is permitted               #
     # ------------------------------------------------------------------ #
-    active_model: Optional[TenantSemanticModel] = db.execute(
+    active_model: TenantSemanticModel | None = db.execute(
         select(TenantSemanticModel)
         .where(
             TenantSemanticModel.business_id == business_id,
@@ -86,7 +86,7 @@ def _resolve_workspace_snapshot(
     # ------------------------------------------------------------------ #
     # 2. Dataset snapshot — find the latest ready dataset                 #
     # ------------------------------------------------------------------ #
-    latest_dataset: Optional[UploadedDataset] = db.execute(
+    latest_dataset: UploadedDataset | None = db.execute(
         select(UploadedDataset)
         .where(
             UploadedDataset.business_id == business_id,
@@ -107,7 +107,7 @@ def _resolve_workspace_snapshot(
     # ------------------------------------------------------------------ #
     # 3. Ingestion job snapshot — latest completed job for the dataset    #
     # ------------------------------------------------------------------ #
-    latest_job: Optional[IngestionJob] = db.execute(
+    latest_job: IngestionJob | None = db.execute(
         select(IngestionJob)
         .where(
             IngestionJob.dataset_id == latest_dataset.id,
@@ -119,7 +119,7 @@ def _resolve_workspace_snapshot(
     # ------------------------------------------------------------------ #
     # 4. Date coverage from schema_json if available                      #
     # ------------------------------------------------------------------ #
-    date_coverage: Optional[dict[str, Any]] = None
+    date_coverage: dict[str, Any] | None = None
     schema = latest_dataset.schema_json or {}
     if schema.get("date_range_start") or schema.get("date_range_end"):
         date_coverage = {
@@ -205,8 +205,8 @@ class NexusAgentService:
             enforce_readiness = False
 
         snapshot: dict[str, Any] = {}
-        readiness_error: Optional[str] = None
-        readiness_stage: Optional[str] = None
+        readiness_error: str | None = None
+        readiness_stage: str | None = None
 
         if business_id and enforce_readiness:
             try:
@@ -320,6 +320,9 @@ class NexusAgentService:
             "is_definitional_only": False,
             "iteration_count": 0,
             "max_iterations": max_iters,
+            "historical_decisions": None,
+            "historical_decision_context": None,
+            "historical_decision_provenance": None,
         }
 
         # Invoke the compiled LangGraph workflow with session bound to config
@@ -379,7 +382,7 @@ class NexusAgentService:
         intent_dict = final_state.get("intent") or {}
         intent_label = intent_dict.get("category", "unsupported")
 
-        # Execution metadata for audit and Phase 9 evaluation
+        # Execution metadata for audit and Phase 9/25E evaluation
         metadata = AgentExecutionMetadata(
             request_id=request_id,
             elapsed_ms=elapsed_ms,
@@ -388,6 +391,10 @@ class NexusAgentService:
             tools_executed=final_state.get("tools_used", []),
             evidence_status=final_state.get("evidence_status", "INSUFFICIENT"),
             timestamp=datetime.now(UTC),
+            is_fallback=bool(final_state.get("is_fallback", False)),
+            fallback_reason=final_state.get("fallback_reason"),
+            llm_provider=final_state.get("llm_provider_name"),
+            llm_model=final_state.get("llm_model_name"),
         )
 
         logger.info(
@@ -435,15 +442,18 @@ class NexusAgentService:
             clarification_prompt=final_state.get("clarification_question"),
             status=run_status,
             execution_metadata=metadata,
+            grounded_explanation=final_state.get("grounded_explanation"),
+            historical_decisions=final_state.get("historical_decisions"),
+            historical_decision_context=final_state.get("historical_decision_context"),
         )
 
     def _persist_run(
         self,
         *,
         request_id: str,
-        organization_id: Optional[str],
-        business_id: Optional[str],
-        user_id: Optional[str],
+        organization_id: str | None,
+        business_id: str | None,
+        user_id: str | None,
         query: str,
         intent: str,
         run_status: str,
@@ -506,12 +516,11 @@ class NexusAgentService:
 
             self.session.commit()
             logger.info(f"Persisted AnalysisRun #{run_record.id} for request {request_id}")
-        except Exception as db_err:
-            logger.error(
-                f"Failed to persist AnalysisRun audit record for request {request_id}: {db_err}",
-                exc_info=True,
+        except Exception:
+            logger.exception(
+                f"Failed to persist AnalysisRun audit record for request {request_id}"
             )
             try:
                 self.session.rollback()
-            except Exception:
-                pass
+            except SQLAlchemyError as rollback_err:
+                logger.debug(f"Rollback encountered error: {rollback_err}")
