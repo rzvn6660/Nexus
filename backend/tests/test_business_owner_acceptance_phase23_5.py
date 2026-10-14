@@ -104,10 +104,12 @@ def _generate_realistic_retail_csv() -> str:
     ]
 
     for month_str, count, instore_val, online_val in dates_months:
-        for day in range(1, count + 1):
+        max_days = 30 if month_str in ("2025-09", "2025-11") else 31
+        for i in range(count):
+            day = (i % max_days) + 1
             day_str = f"{day:02d}"
             date_val = f"{month_str}-{day_str}"
-            is_online = (day % 3 == 0)
+            is_online = (i % 3 == 0)
             channel = "Online" if is_online else "In-Store"
             base_amt = online_val if is_online else instore_val
             # Add variation

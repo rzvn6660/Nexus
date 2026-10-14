@@ -261,7 +261,7 @@ class DataGatewayService:
             except UnicodeDecodeError as ude:
                 last_error = ude
                 continue
-            except Exception as exc:  # noqa: BLE001
+            except (pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Malformed CSV content: {str(exc).splitlines()[0]}",
@@ -1828,9 +1828,10 @@ class DataGatewayService:
                 failed_job.completed_at = datetime.now(UTC)
                 failed_job.error_message = safe_msg[:500]
                 db.commit()
-            logger.exception(
+            logger.error(
                 "Ingestion job FAILED (exception): business_id=%s dataset_id=%s entity=%s job_id=%s error=%s",
                 business_id, dataset_id, entity, job_id, safe_msg,
+                exc_info=True,
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
