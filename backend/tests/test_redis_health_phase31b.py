@@ -352,11 +352,13 @@ def test_liveness_probe_independent_of_redis_and_database_outages() -> None:
 
 def test_low_noise_logging_and_url_redaction(caplog: pytest.LogCaptureFixture) -> None:
     """Verify failure transitions log at WARNING once, then DEBUG, and recovery logs at INFO with redacted URL."""
+    cache_logger = logging.getLogger("app.core.cache")
+    cache_logger.disabled = False
     caplog.set_level(logging.DEBUG, logger="app.core.cache")
     if caplog.handler not in logging.getLogger().handlers:
         logging.getLogger().addHandler(caplog.handler)
-    if caplog.handler not in logging.getLogger("app.core.cache").handlers:
-        logging.getLogger("app.core.cache").addHandler(caplog.handler)
+    if caplog.handler not in cache_logger.handlers:
+        cache_logger.addHandler(caplog.handler)
 
     secret_url = "redis://admin:my_secret_pw@10.0.0.5:6379/0"
     client = CacheClient(redis_url=None)  # Start unconfigured
@@ -365,7 +367,8 @@ def test_low_noise_logging_and_url_redaction(caplog: pytest.LogCaptureFixture) -
     # First failure -> logs warning with redacted URL
     client._record_failure(ConnectionError("First fail"))
     assert "my_secret_pw" not in caplog.text
-    assert "WARNING" in caplog.text
+    first_warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(first_warnings) >= 1
 
     # Second failure -> logs debug, not warning
     caplog.clear()

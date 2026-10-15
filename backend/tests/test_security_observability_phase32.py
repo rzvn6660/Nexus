@@ -56,11 +56,13 @@ def test_idor_cross_tenant_access_blocked_and_logged(db_session, caplog) -> None
 
     user_b = UserIdentity(id=user_b_id, email="user_b@example.com")
 
+    auth_logger = logging.getLogger("app.core.auth")
+    auth_logger.disabled = False
     caplog.set_level(logging.WARNING, logger="app.core.auth")
     if caplog.handler not in logging.getLogger().handlers:
         logging.getLogger().addHandler(caplog.handler)
-    if caplog.handler not in logging.getLogger("app.core.auth").handlers:
-        logging.getLogger("app.core.auth").addHandler(caplog.handler)
+    if caplog.handler not in auth_logger.handlers:
+        auth_logger.addHandler(caplog.handler)
 
     # User B tries to access Biz A
     with pytest.raises(HTTPException) as exc_info:
