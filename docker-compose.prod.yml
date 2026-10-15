@@ -64,6 +64,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    volumes:
+      - nexus_backend_data:/app/data
     networks:
       - nexus-prod-network
 
@@ -86,6 +88,10 @@ services:
 volumes:
   nexus_postgres_prod_data:
     name: nexus_postgres_prod_data
+    driver: local
+  # Phase 31B: Persistent tenant-file volume shared by backend and background worker/scheduler
+  nexus_backend_data:
+    name: nexus_backend_data
     driver: local
 
 networks:

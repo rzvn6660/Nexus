@@ -188,6 +188,7 @@ class Settings(BaseSettings):
     REQUEST_TIMEOUT_SECONDS: int = 60
     METRICS_ENABLED: bool = True
     UPLOAD_DIR: str = "./data/uploads"
+    DATA_DIR: str = "data"
 
     # Phase 29 & 31 — Continuous Intelligence Scheduled Execution
     CONTINUOUS_SCHEDULER_ENABLED: bool = True

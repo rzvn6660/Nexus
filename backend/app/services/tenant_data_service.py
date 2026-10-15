@@ -22,7 +22,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.models.tenant import Business, UploadedDataset
+
+logger = get_logger(__name__)
 
 
 class TenantDataService:
@@ -196,10 +199,33 @@ class TenantDataService:
 
         # Secure Storage Path
         dataset_id = str(uuid4())
-        storage_rel_dir = Path("data") / "tenants" / organization_id / business_id / dataset_id
-        storage_rel_dir.mkdir(parents=True, exist_ok=True)
+        base_dir = Path(getattr(settings, "DATA_DIR", "data"))
+        clean_org = re.sub(r"[^a-zA-Z0-9_-]", "_", str(organization_id)).strip("._") or "default_org"
+        clean_biz = re.sub(r"[^a-zA-Z0-9_-]", "_", str(business_id)).strip("._") or "default_biz"
+        storage_rel_dir = base_dir / "tenants" / clean_org / clean_biz / dataset_id
         storage_file_path = storage_rel_dir / clean_name
-        storage_file_path.write_bytes(content)
+
+        try:
+            if not storage_file_path.resolve().is_relative_to(base_dir.resolve()):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Security violation: storage path escapes configured storage root.",
+                )
+        except (ValueError, RuntimeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security violation: invalid storage root path traversal.",
+            )
+
+        try:
+            storage_rel_dir.mkdir(parents=True, exist_ok=True)
+            storage_file_path.write_bytes(content)
+        except OSError as exc:
+            logger.error("Failed to persist tenant file to persistent storage at %s: %s", storage_rel_dir, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Storage error: unable to save file to persistent volume: {exc}",
+            )
 
         dataset = UploadedDataset(
             id=dataset_id,
@@ -225,8 +251,19 @@ class TenantDataService:
             biz.data_readiness_status = readiness_status
             biz.onboarding_step = "completed"
 
-        session.commit()
-        session.refresh(dataset)
+        try:
+            session.commit()
+            session.refresh(dataset)
+        except Exception as db_exc:
+            session.rollback()
+            try:
+                if storage_file_path.exists():
+                    storage_file_path.unlink()
+                if storage_rel_dir.exists() and not any(storage_rel_dir.iterdir()):
+                    storage_rel_dir.rmdir()
+            except OSError as cleanup_err:
+                logger.warning("Failed to clean up unindexed storage file %s: %s", storage_file_path, cleanup_err)
+            raise db_exc
         return dataset
 
     @classmethod
@@ -265,10 +302,33 @@ class TenantDataService:
         schema_json, quality_report_json, readiness_status = cls.profile_dataset(df, clean_name)
 
         dataset_id = str(uuid4())
-        storage_rel_dir = Path("data") / "tenants" / organization_id / business_id / dataset_id
-        storage_rel_dir.mkdir(parents=True, exist_ok=True)
+        base_dir = Path(getattr(settings, "DATA_DIR", "data"))
+        clean_org = re.sub(r"[^a-zA-Z0-9_-]", "_", str(organization_id)).strip("._") or "default_org"
+        clean_biz = re.sub(r"[^a-zA-Z0-9_-]", "_", str(business_id)).strip("._") or "default_biz"
+        storage_rel_dir = base_dir / "tenants" / clean_org / clean_biz / dataset_id
         storage_file_path = storage_rel_dir / clean_name
-        storage_file_path.write_bytes(content)
+
+        try:
+            if not storage_file_path.resolve().is_relative_to(base_dir.resolve()):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Security violation: storage path escapes configured storage root.",
+                )
+        except (ValueError, RuntimeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security violation: invalid storage root path traversal.",
+            )
+
+        try:
+            storage_rel_dir.mkdir(parents=True, exist_ok=True)
+            storage_file_path.write_bytes(content)
+        except OSError as exc:
+            logger.error("Failed to persist tenant file to persistent storage at %s: %s", storage_rel_dir, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Storage error: unable to save file to persistent volume: {exc}",
+            )
 
         dataset = UploadedDataset(
             id=dataset_id,
@@ -293,8 +353,19 @@ class TenantDataService:
             biz.data_readiness_status = readiness_status
             biz.onboarding_step = "completed"
 
-        s.commit()
-        s.refresh(dataset)
+        try:
+            s.commit()
+            s.refresh(dataset)
+        except Exception as db_exc:
+            s.rollback()
+            try:
+                if storage_file_path.exists():
+                    storage_file_path.unlink()
+                if storage_rel_dir.exists() and not any(storage_rel_dir.iterdir()):
+                    storage_rel_dir.rmdir()
+            except OSError as cleanup_err:
+                logger.warning("Failed to clean up unindexed storage file %s: %s", storage_file_path, cleanup_err)
+            raise db_exc
         return dataset, quality_report_json
 
     @classmethod

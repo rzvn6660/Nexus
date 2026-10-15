@@ -31,6 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.customer import Customer
 from app.models.expense import Expense
@@ -360,10 +361,33 @@ class DataGatewayService:
         dataset_version = existing_versions_count + 1
 
         dataset_id = str(uuid4())
-        storage_rel_dir = Path("data") / "tenants" / organization_id / business_id / dataset_id
-        storage_rel_dir.mkdir(parents=True, exist_ok=True)
+        base_dir = Path(getattr(settings, "DATA_DIR", "data"))
+        clean_org = re.sub(r"[^a-zA-Z0-9_-]", "_", str(organization_id)).strip("._") or "default_org"
+        clean_biz = re.sub(r"[^a-zA-Z0-9_-]", "_", str(business_id)).strip("._") or "default_biz"
+        storage_rel_dir = base_dir / "tenants" / clean_org / clean_biz / dataset_id
         storage_file_path = storage_rel_dir / clean_name
-        storage_file_path.write_bytes(content)
+
+        try:
+            if not storage_file_path.resolve().is_relative_to(base_dir.resolve()):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Security violation: storage path escapes configured storage root.",
+                )
+        except (ValueError, RuntimeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Security violation: invalid storage root path traversal.",
+            )
+
+        try:
+            storage_rel_dir.mkdir(parents=True, exist_ok=True)
+            storage_file_path.write_bytes(content)
+        except OSError as exc:
+            logger.error("Failed to persist dataset file to persistent volume at %s: %s", storage_rel_dir, exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Storage error: unable to save file to persistent volume: {exc}",
+            )
 
         ingestion_status = "PENDING"
         if quality_summary.overall_status in ["REQUIRES_REVIEW", "INSUFFICIENT_DATA"]:
@@ -418,8 +442,20 @@ class DataGatewayService:
             if quality_summary.can_open_workspace:
                 biz.onboarding_step = "completed"
 
-        db.commit()
-        db.refresh(dataset)
+        try:
+            db.commit()
+            db.refresh(dataset)
+        except Exception as db_exc:
+            db.rollback()
+            try:
+                if storage_file_path.exists():
+                    storage_file_path.unlink()
+                if storage_rel_dir.exists() and not any(storage_rel_dir.iterdir()):
+                    storage_rel_dir.rmdir()
+            except OSError as cleanup_err:
+                logger.warning("Failed to clean up unindexed storage file %s: %s", storage_file_path, cleanup_err)
+            raise db_exc
+
         logger.info(
             "Dataset upload accepted: business_id=%s dataset_id=%s filename='%s' "
             "rows=%d cols=%d readiness=%s",
@@ -771,6 +807,31 @@ class DataGatewayService:
         )
 
     @classmethod
+    def resolve_storage_path(cls, storage_key: str) -> Path:
+        """
+        Resolve filesystem path for a storage key.
+        Checks the literal storage_key path, and if not found, checks relative to
+        the configured settings.DATA_DIR.
+        """
+        p = Path(storage_key)
+        if p.exists():
+            return p
+        base_dir = Path(getattr(settings, "DATA_DIR", "data"))
+        normalized = storage_key.replace("\\", "/").lstrip("/")
+        if normalized.startswith("data/"):
+            rel_candidate = base_dir / normalized[len("data/"):]
+            if rel_candidate.exists():
+                return rel_candidate
+        elif normalized.startswith("tenants/"):
+            rel_candidate = base_dir / normalized
+            if rel_candidate.exists():
+                return rel_candidate
+        fallback = base_dir / normalized
+        if fallback.exists():
+            return fallback
+        return p
+
+    @classmethod
     def get_dataset_preview(
         cls,
         db: Session,
@@ -792,7 +853,7 @@ class DataGatewayService:
                 detail=f"Dataset '{dataset_id}' not found.",
             )
 
-        storage_path = Path(dataset.storage_key)
+        storage_path = cls.resolve_storage_path(dataset.storage_key)
         if not storage_path.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -877,7 +938,7 @@ class DataGatewayService:
                 detail=f"Dataset '{dataset_id}' not found.",
             )
 
-        storage_path = Path(dataset.storage_key)
+        storage_path = cls.resolve_storage_path(dataset.storage_key)
         if not storage_path.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

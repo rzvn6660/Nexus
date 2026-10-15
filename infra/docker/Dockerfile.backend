@@ -39,9 +39,9 @@ RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 # Copy application source code and migrations
 COPY . /app
 
-# Create non-root system user for container security
+# Create non-root system user and ensure persistent data directories exist with correct ownership
 RUN useradd -m -u 1000 appuser && \
-    mkdir -p /app/data/uploads && \
+    mkdir -p /app/data/tenants /app/data/uploads && \
     chown -R appuser:appuser /app
 
 USER appuser
