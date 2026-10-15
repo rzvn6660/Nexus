@@ -8,18 +8,21 @@
 
 ## 1. Architecture Overview
 
-NEXUS is deployed as a high-performance modular monolith consisting of:
-- **Frontend SPA**: React 18 / TypeScript application built via Vite, served statically via Nginx or a global CDN.
+NEXUS is deployed as a hardened, multi-container production SaaS platform consisting of:
+- **Frontend SPA**: React 18 / TypeScript application built via Vite, served via Nginx with reverse proxying, OWASP security headers, and gzip compression.
 - **Backend API**: Python 3.12 FastAPI service executing deterministic analytics, diagnostic causal decomposition, statistical time-series forecasting, and LangGraph agent flows.
-- **Relational & Vector Database**: PostgreSQL 16 equipped with the `pgvector` extension.
-- **Reverse Proxy**: Nginx terminating SSL/TLS, routing `/api/*` requests to FastAPI, and serving static assets with gzip compression and client-side caching.
+- **Continuous Intelligence Scheduler**: Dedicated background worker container running `python -m app.scheduler_runner` with cooperative shutdown and database lock avoidance.
+- **Relational & Vector Database**: PostgreSQL 16 equipped with the `pgvector` extension and persistent data volume `nexus_postgres_prod_data`.
+- **In-Memory Cache & Security Store**: Redis 7 Alpine with persistent AOF storage `nexus_redis_prod_data` for distributed rate limiting, JWT revocation, and atomic token checks.
+- **Persistent Tenant Storage**: Shared persistent volume `nexus_backend_data` mounted at `/app/data` for tenant files, datasets, and audit trails.
 
 ```text
                HTTPS Requests (Port 443)
                           │
                           ▼
             ┌───────────────────────────┐
-            │       Nginx Ingress       │
+            │   Nginx Ingress Proxy     │
+            │  (client_max_body: 50M)   │
             └─────────────┬─────────────┘
                           │
           ┌───────────────┴───────────────┐
@@ -30,12 +33,22 @@ NEXUS is deployed as a high-performance modular monolith consisting of:
 │ FastAPI Backend  │            │ React Static SPA │
 │   Port :8000     │            │    Port :3000    │
 └─────────┬────────┘            └──────────────────┘
-          │
-          ▼
-┌──────────────────┐
-│ PostgreSQL 16    │
-│  + pgvector      │
-└──────────────────┘
+          │ (shared volume /app/data)
+          ├───────────────────────────────┐
+          │                               │
+          ▼                               ▼
+┌──────────────────┐            ┌──────────────────┐
+│ PostgreSQL 16    │            │ Redis 7 (AOF)    │
+│  + pgvector      │            │ RateLimit & Auth │
+└─────────┬────────┘            └─────────┬────────┘
+          │                               │
+          └───────────────┬───────────────┘
+                          │
+                          ▼
+            ┌───────────────────────────┐
+            │ Dedicated Scheduler Worker│
+            │  (Continuous Intelligence)│
+            └───────────────────────────┘
 ```
 
 ---

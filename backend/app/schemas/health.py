@@ -13,6 +13,26 @@ class DatabaseHealth(BaseModel):
     error: Optional[str] = Field(default=None, description="Error message if disconnected")
 
 
+class RedisHealth(BaseModel):
+    """Redis shared state dependency health details."""
+
+    status: str = Field(
+        description="Redis status: 'connected', 'reconnecting', 'unavailable', or 'optional'"
+    )
+    shared_state_available: bool = Field(
+        default=False,
+        description="True if shared Redis state is currently available for multi-worker synchronization",
+    )
+    mode: str = Field(
+        default="local",
+        description="Active cache mode: 'redis' or 'local'",
+    )
+    required: bool = Field(
+        default=False,
+        description="True if Redis is mandatory for production shared state or fail-closed enforcement",
+    )
+
+
 class HealthResponse(BaseModel):
     """Structured health response for NEXUS platform."""
 
@@ -26,6 +46,10 @@ class HealthResponse(BaseModel):
         default=None,
         description="Detailed database health check report",
     )
+    redis: Optional[RedisHealth] = Field(
+        default=None,
+        description="Detailed Redis shared state health check report",
+    )
 
 
 class LivenessResponse(BaseModel):
@@ -38,7 +62,11 @@ class LivenessResponse(BaseModel):
 class ReadinessResponse(BaseModel):
     """Dependency readiness probe response for load balancers."""
 
-    status: str = Field(description="Readiness state: ready or not_ready")
+    status: str = Field(default="ready", description="Readiness state: ready or not_ready")
     service: str = Field(default="nexus", description="Service identifier")
     timestamp: datetime = Field(description="UTC timestamp of the probe")
     database: DatabaseHealth = Field(description="Database connection status report")
+    redis: Optional[RedisHealth] = Field(
+        default=None,
+        description="Redis shared state connection report",
+    )

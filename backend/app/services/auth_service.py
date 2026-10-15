@@ -123,20 +123,40 @@ class AuthService:
 
         cache = get_cache()
         cache_key = f"{_REVOKE_PREFIX}{jti}"
+        fail_closed = (
+            getattr(settings, "REDIS_FAIL_CLOSED", False)
+            or getattr(settings, "APP_ENV", "").lower() == "production"
+        )
 
         if cache.is_shared_backend:
             try:
                 cache.set(cache_key, "1", ttl_seconds=ttl_seconds)
+                cls._local_revoked_tokens.add(jti)
                 logger.info("SECURITY: token JTI revoked in shared cache (ttl=%ds).", ttl_seconds)
                 return
             except Exception as exc:
                 logger.warning(
-                    "SECURITY: Failed to revoke JTI in shared cache (%s) — falling back to local.",
+                    "SECURITY: Failed to revoke JTI in shared cache (%s).",
                     type(exc).__name__,
                 )
-                # Fall through to local
+                if fail_closed:
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Authentication service temporarily unavailable. Token revocation could not be persisted.",
+                    ) from exc
+                # Fall through to local fallback when fail_closed is False
 
-        # Local fallback
+        # Shared backend is unavailable (startup outage, cooldown, or offline)
+        if fail_closed:
+            logger.error(
+                "SECURITY: Cannot revoke token — shared Redis cache is unavailable and fail_closed=True."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service temporarily unavailable. Token revocation could not be persisted.",
+            )
+
+        # Local fallback only when fail_closed is False (development / testing only)
         cls._local_revoked_tokens.add(jti)
         logger.info("SECURITY: token JTI revoked in local fallback store.")
 
@@ -144,10 +164,9 @@ class AuthService:
     def is_token_revoked(cls, jti: str | None) -> bool:
         """Return True if the token JTI has been revoked.
 
-        Checks the shared cache first, then the local fallback store.
-        When ``REDIS_FAIL_CLOSED=True`` and the shared backend is unavailable,
-        raises ``HTTP 503`` so the caller fails closed rather than allowing a
-        potentially revoked token to pass.
+        Checks the shared cache first. In production or when ``REDIS_FAIL_CLOSED=True``,
+        the process-local store is NOT treated as authoritative shared state:
+        if shared Redis is unavailable or errors, raises ``HTTP 503`` so callers fail closed.
         """
         if not jti:
             return False
@@ -156,6 +175,10 @@ class AuthService:
 
         cache = get_cache()
         cache_key = f"{_REVOKE_PREFIX}{jti}"
+        fail_closed = (
+            getattr(settings, "REDIS_FAIL_CLOSED", False)
+            or getattr(settings, "APP_ENV", "").lower() == "production"
+        )
 
         if cache.is_shared_backend:
             try:
@@ -165,15 +188,24 @@ class AuthService:
                     "SECURITY: Redis error checking JTI revocation (%s).",
                     type(exc).__name__,
                 )
-                # If fail-closed, deny on error
-                if getattr(settings, "REDIS_FAIL_CLOSED", False):
+                if fail_closed:
                     raise HTTPException(
                         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                         detail="Authentication service temporarily unavailable.",
-                    )
-                # Graceful degradation: fall through to local store
+                    ) from exc
+                # Fall through to local fallback when fail_closed is False
 
-        # Local fallback check
+        # Shared backend is unavailable (startup outage, cooldown, offline)
+        if fail_closed:
+            logger.error(
+                "SECURITY: Cannot verify token revocation — shared Redis cache is unavailable and fail_closed=True."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service temporarily unavailable.",
+            )
+
+        # Local fallback check only in dev/test mode when fail_closed is False
         return jti in cls._local_revoked_tokens
 
     @classmethod

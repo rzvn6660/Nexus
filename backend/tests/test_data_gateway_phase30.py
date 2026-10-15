@@ -966,7 +966,7 @@ def test_p30_20_configured_limits_and_oversized_inputs_safely_rejected(client, t
     assert "File size exceeds maximum allowable limit" in res_oversize.json()["detail"]
 
     # Reset MAX_UPLOAD_BYTES for subsequent tests
-    monkeypatch.setattr(DataGatewayService, "MAX_UPLOAD_BYTES", 100 * 1024 * 1024)
+    monkeypatch.setattr(DataGatewayService, "MAX_UPLOAD_BYTES", 50 * 1024 * 1024)
 
     # 2. Row count exceeds MAX_ROWS
     monkeypatch.setattr(DataGatewayService, "MAX_ROWS", 5)

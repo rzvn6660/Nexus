@@ -54,11 +54,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "Dedicated background worker process must be provisioned."
         )
 
+    # Phase 23.6 & 31B: Initialize and observe shared cache status (safe, no secrets logged)
+    from app.core.cache import close_cache, get_cache
+
+    cache_status = get_cache().get_status()
+    logger.info(
+        "Shared cache initialized [mode=%s, shared=%s, available=%s]",
+        cache_status["backend_mode"],
+        cache_status["is_shared_backend"],
+        cache_status["is_available"],
+    )
+
     yield
 
     logger.info(f"Shutting down {settings.APP_NAME}...")
     if continuous_scheduler.is_running:
         await continuous_scheduler.stop(timeout_seconds=5.0)
+
+    # Clean cache client connection pool disposal
+    close_cache()
+    logger.info("Shared cache connection pools disposed cleanly.")
 
     engine.dispose()
     logger.info("Database engine connections disposed cleanly.")

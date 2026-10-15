@@ -144,7 +144,10 @@ class Settings(BaseSettings):
     RAG_LEXICAL_TOP_K: int = 10  # Candidate count for lexical stage
     MAX_DOCUMENT_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB max document size
 
-    # Phase 25C.3 Reranking & Ingestion Bounds
+    # Phase 31B: Ingress and Upload Ingestion Limits (reconciled across Nginx and backend)
+    DATA_UPLOAD_MAX_MEMORY_SIZE_MB: int = 50
+    DATA_UPLOAD_MAX_BYTES: int = 50 * 1024 * 1024  # 50 MB
+
     RAG_RERANK_ENABLED: bool = False  # Optional and disabled by default
     RAG_RERANK_PROVIDER: str = "none"  # "none", "local", "cohere"
     RAG_RERANK_MODEL: str = "local-cross-scorer-v1"
@@ -183,6 +186,8 @@ class Settings(BaseSettings):
     # revocation, rate limiting) fail-closed if the shared backend is unavailable.
     # Set to False only in single-worker development environments.
     REDIS_FAIL_CLOSED: bool = False
+    # Explicit flag requiring shared Redis backend even if fail-closed is not enabled.
+    REDIS_REQUIRED: bool = False
 
     # Operational Boundaries & Timeouts (Phase 10)
     REQUEST_TIMEOUT_SECONDS: int = 60
@@ -418,6 +423,56 @@ class Settings(BaseSettings):
                     raise ValueError(
                         f"Production startup failed: Configured CA root certificate bundle '{ca_path}' is not readable. "
                         "Check file permissions."
+                    )
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_production_redis(self) -> "Settings":
+        """Enforce strict Redis configuration when running in production mode.
+
+        In production:
+        - When shared security state is mandatory (REDIS_FAIL_CLOSED=True or REDIS_REQUIRED=True),
+          rejects missing or empty REDIS_URL.
+        - Validates REDIS_URL scheme ('redis', 'rediss', or 'unix').
+        - Rejects insecure placeholder tokens in REDIS_URL.
+        - Redacts credentials in any error messages to prevent secret leakage.
+        - Preserves local fallback for non-production environments.
+        """
+        if not self.is_production:
+            return self
+
+        is_redis_mandatory = self.REDIS_FAIL_CLOSED or getattr(self, "REDIS_REQUIRED", False)
+        redis_val = (self.REDIS_URL or "").strip()
+
+        # 1. Reject missing Redis configuration when shared security state is mandatory
+        if is_redis_mandatory and not redis_val:
+            raise ValueError(
+                "Production startup failed: REDIS_URL is mandatory when shared security state is required "
+                "(REDIS_FAIL_CLOSED=True or REDIS_REQUIRED=True). "
+                "Multi-worker production deployments require a shared Redis instance for rate limiting and token revocation."
+            )
+
+        # 2. If REDIS_URL is configured in production, validate scheme and structure
+        if redis_val:
+            try:
+                parsed = urlparse(redis_val)
+            except Exception as exc:
+                raise ValueError(f"Production startup failed: Malformed REDIS_URL: {exc}") from exc
+
+            scheme = (parsed.scheme or "").lower()
+            if scheme not in ("redis", "rediss", "unix"):
+                raise ValueError(
+                    f"Production startup failed: Unsupported REDIS_URL scheme '{scheme}'. "
+                    "Supported schemes: 'redis://', 'rediss://', or 'unix://'."
+                )
+
+            # Check for obvious insecure placeholder substrings
+            placeholder_substrings = ["change-me", "your-redis-password", "example.com"]
+            for token in placeholder_substrings:
+                if token in redis_val.lower():
+                    raise ValueError(
+                        f"Production startup failed: REDIS_URL contains insecure placeholder token '{token}'."
                     )
 
         return self

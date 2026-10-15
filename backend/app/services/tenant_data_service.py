@@ -32,8 +32,12 @@ class TenantDataService:
     """Service orchestrating tenant file uploads, security validation, and data readiness."""
 
     MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+    MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # alias
     ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
-    PROHIBITED_EXTENSIONS = {".exe", ".py", ".sh", ".bat", ".bin", ".js", ".html", ".dll"}
+    PROHIBITED_EXTENSIONS = {
+        ".exe", ".py", ".sh", ".bat", ".bin", ".js", ".html", ".dll",
+        ".cmd", ".vbs", ".ps1", ".com", ".scr", ".msi",
+    }
 
     @classmethod
     def sanitize_filename(cls, filename: str) -> str:
@@ -49,24 +53,48 @@ class TenantDataService:
 
     @classmethod
     def validate_file_security(cls, filename: str, content_bytes: bytes) -> None:
-        """Validate file size, extension, and absence of executable payloads."""
+        """Validate file size, extension, binary signatures, and absence of executable payloads."""
         if len(content_bytes) > cls.MAX_FILE_SIZE_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"File exceeds maximum allowable size of {cls.MAX_FILE_SIZE_BYTES // (1024*1024)} MB.",
             )
 
-        ext = Path(filename).suffix.lower()
-        if ext in cls.PROHIBITED_EXTENSIONS or ext not in cls.ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail=f"Unsupported file type '{ext}'. Only CSV and Excel (.xlsx, .xls) files are supported.",
-            )
-
         if len(content_bytes) == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Uploaded file is empty.",
+            )
+
+        # Check binary magic signatures (MIME spoofing detection)
+        if content_bytes.startswith((b"MZ", b"\x7fELF")):
+            logger.warning(
+                "SECURITY: Executable binary upload rejected in tenant service. filename='%s' size=%d bytes",
+                filename, len(content_bytes),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Executable binary format rejected.",
+            )
+        if content_bytes.startswith((b"#!/bin/", b"#!/usr/bin/")):
+            logger.warning(
+                "SECURITY: Shell script upload rejected in tenant service. filename='%s' size=%d bytes",
+                filename, len(content_bytes),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Shell script execution format rejected.",
+            )
+
+        ext = Path(filename).suffix.lower()
+        if ext in cls.PROHIBITED_EXTENSIONS or ext not in cls.ALLOWED_EXTENSIONS:
+            logger.warning(
+                "SECURITY: Prohibited file extension upload rejected in tenant service. filename='%s' ext='%s'",
+                filename, ext,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"Unsupported file type '{ext}'. Only CSV and Excel (.xlsx, .xls) files are supported.",
             )
 
     @classmethod

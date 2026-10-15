@@ -55,8 +55,8 @@ logger = get_logger(__name__)
 class DataGatewayService:
     """Production Data Gateway orchestrating ingestion, profiling, quality, and schema mapping."""
 
-    MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
-    MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB alias
+    MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB (reconciled with ingress and tenant storage)
+    MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB alias
     MAX_ROWS = 500_000
     MAX_ROW_COUNT = 500_000  # alias
     MAX_COLUMNS = 200

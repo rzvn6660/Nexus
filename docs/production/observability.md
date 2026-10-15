@@ -93,12 +93,12 @@ NEXUS strictly enforces data sanitization in production logging:
 
 ## 6. Health & Readiness Semantics
 
-NEXUS provides three health endpoints designed for load balancers, Kubernetes, and Docker healthchecks:
+NEXUS provides three multi-tier health endpoints designed for load balancers, Kubernetes, and Docker Compose healthchecks:
 
 ### 6.1 Unified Health Check: `GET /api/v1/health` (and `GET /api/health`)
-Provides complete system health status and database latency.
-- **Healthy**: Returns HTTP 200 with `"status": "healthy"` when the API is running and database is reachable.
-- **Degraded**: Returns HTTP 200 with `"status": "degraded"` when the API is running but database connection is unavailable.
+Provides complete system health status, database latency, and Redis shared state diagnostics.
+- **Healthy**: Returns HTTP 200 with `"status": "healthy"`, `"dependency_status": "optimal"` when the API is running, PostgreSQL is reachable, and Redis is connected (or optional in development).
+- **Degraded**: Returns HTTP 200 with `"status": "degraded"`, `"dependency_status": "degraded"` when PostgreSQL or required Redis shared state is unreachable or reconnecting.
 
 ```json
 {
@@ -106,24 +106,41 @@ Provides complete system health status and database latency.
   "service": "nexus",
   "version": "0.1.0",
   "environment": "production",
-  "timestamp": "2026-09-26T10:15:30.123456Z",
+  "timestamp": "2026-10-16T00:15:30.123456Z",
+  "dependency_status": "optimal",
   "database": {
     "status": "connected",
     "latency_ms": 1.42,
     "error": null
+  },
+  "redis": {
+    "status": "connected",
+    "shared_state_available": true,
+    "mode": "redis",
+    "required": true
   }
 }
 ```
 
 ### 6.2 Liveness Probe: `GET /api/v1/health/live`
-- Lightweight process check that does not touch the database.
-- Used by container orchestrators to detect process crashes or deadlocks.
-- Always returns HTTP 200 `{"status": "alive"}` if ASGI server is processing events.
+- Lightweight ASGI process check that strictly avoids database or Redis probes.
+- Used by container orchestrators (Docker / Kubernetes) to detect process crashes or deadlocks.
+- Always returns HTTP 200 `{"status": "alive"}` independent of Redis or database outages to prevent cascading container restart loops.
 
 ### 6.3 Readiness Probe: `GET /api/v1/health/ready`
-- Probes database socket connectivity and executes `SELECT 1`.
-- Returns HTTP 200 `{"status": "ready"}` if database is operational.
-- Returns HTTP 503 `{"status": "not_ready", "error": "..."}` if database is unreachable, removing the instance from active load balancer traffic.
+- Probes backend dependencies required for active traffic routing:
+  1. PostgreSQL database connectivity (`SELECT 1`).
+  2. Redis shared state availability when `required=True` (`APP_ENV="production"` or `REDIS_REQUIRED=True` or `REDIS_FAIL_CLOSED=True`).
+- Returns **HTTP 200 OK** `{"status": "ready"}` when all required dependencies are operational.
+- Returns **HTTP 503 Service Unavailable** `{"status": "not_ready"}` if PostgreSQL is down or if Redis is required for security-critical shared state and unreachable.
+
+| Dependency State | Environment | Readiness Status Code | Response Status |
+|---|---|---|---|
+| DB connected, Redis connected | Any | HTTP 200 OK | `"ready"` |
+| DB connected, Redis unconfigured | Development (`REDIS_REQUIRED=false`) | HTTP 200 OK | `"ready"` |
+| DB connected, Redis reconnecting | Production (`REDIS_FAIL_CLOSED=true`) | HTTP 503 Service Unavailable | `"not_ready"` |
+| DB disconnected, Redis connected | Any | HTTP 503 Service Unavailable | `"not_ready"` |
+| DB disconnected, Redis disconnected | Any | HTTP 503 Service Unavailable | `"not_ready"` |
 
 ---
 

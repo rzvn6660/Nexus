@@ -435,15 +435,15 @@ def test_rate_limiter_new_window_resets_counter(fresh_rate_limiter):
 # ---------------------------------------------------------------------------
 
 
-def test_rate_limiter_redis_path_uses_incr_expire():
-    """When shared backend is active, check_rate_limit must use INCR + EXPIRE."""
+def test_rate_limiter_redis_path_uses_incr_with_ttl():
+    """When shared backend is active, check_rate_limit must use atomic incr_with_ttl."""
     from app.core.cache import CacheClient, _reset_cache_for_testing
     from app.core.rate_limit import RateLimiter
 
     mock_cache = MagicMock(spec=CacheClient)
     mock_cache.is_shared_backend = True
     mock_cache.is_available = True
-    mock_cache.incr.return_value = 1  # first request in window
+    mock_cache.incr_with_ttl.return_value = 1  # first request in window
 
     _reset_cache_for_testing(mock_cache)
 
@@ -452,21 +452,20 @@ def test_rate_limiter_redis_path_uses_incr_expire():
     allowed, _ = rl.check_rate_limit("user:8", max_requests=5, window_seconds=60)
 
     assert allowed
-    mock_cache.incr.assert_called_once()
-    mock_cache.expire.assert_called_once()
+    mock_cache.incr_with_ttl.assert_called_once()
 
     _reset_cache_for_testing(None)
 
 
 def test_rate_limiter_redis_path_blocks_over_limit():
-    """Redis path blocks when INCR returns > max_requests."""
+    """Redis path blocks when incr_with_ttl returns > max_requests."""
     from app.core.cache import CacheClient, _reset_cache_for_testing
     from app.core.rate_limit import RateLimiter
 
     mock_cache = MagicMock(spec=CacheClient)
     mock_cache.is_shared_backend = True
     mock_cache.is_available = True
-    mock_cache.incr.return_value = 6  # over the limit of 5
+    mock_cache.incr_with_ttl.return_value = 6  # over the limit of 5
 
     _reset_cache_for_testing(mock_cache)
 

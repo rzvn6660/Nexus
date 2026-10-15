@@ -62,28 +62,36 @@ class RateLimiter:
         key: str,
         max_requests: int,
         window_seconds: int,
+        fail_closed: bool | None = None,
     ) -> Tuple[bool, int]:
         """Return ``(is_allowed, retry_after_seconds)``.
 
         Raises ``HTTP 503`` if ``REDIS_FAIL_CLOSED=True`` and the shared backend
-        is unavailable.
+        is unavailable or encounters an error.
         """
         if not self.enabled:
             return True, 0
 
-        from app.core.cache import CacheUnavailableError, get_cache
+        from app.core.cache import get_cache
         from app.core.config import settings
 
+        if fail_closed is None:
+            fail_closed = (
+                getattr(settings, "REDIS_FAIL_CLOSED", False)
+                or getattr(settings, "APP_ENV", "").lower() == "production"
+            )
+
         cache = get_cache()
-        fail_closed: bool = getattr(settings, "REDIS_FAIL_CLOSED", False)
 
         if cache.is_shared_backend:
-            return self._check_redis(cache, key, max_requests, window_seconds)
+            return self._check_redis(
+                cache, key, max_requests, window_seconds, fail_closed=fail_closed
+            )
 
-        # Shared backend is unavailable
+        # Shared backend is unavailable (startup outage, cooldown, offline)
         if fail_closed:
             logger.error(
-                "Rate limiter: shared Redis backend unavailable and REDIS_FAIL_CLOSED=True — "
+                "Rate limiter: shared Redis backend unavailable and fail_closed=True — "
                 "denying request for key prefix '%s'.",
                 key[:32],  # truncate to avoid logging full identifiers
             )
@@ -92,7 +100,7 @@ class RateLimiter:
                 detail="Rate limiting service unavailable. Please retry shortly.",
             )
 
-        # Graceful local fallback
+        # Graceful local fallback (development / testing only)
         logger.debug("Rate limiter: using local fallback for key prefix '%s'.", key[:32])
         return self._check_local(key, max_requests, window_seconds)
 
@@ -102,19 +110,22 @@ class RateLimiter:
         key: str,
         max_requests: int,
         window_seconds: int,
+        fail_closed: bool = False,
     ) -> Tuple[bool, int]:
-        """Fixed-window counter via Redis INCR + EXPIRE."""
-        import redis as redis_lib
-
+        """Fixed-window counter via Redis Lua atomic INCR + EXPIRE."""
         now = int(time.time())
         bucket = now // window_seconds  # fixed window bucket
         redis_key = f"{_KEY_PREFIX}{key}:{bucket}"
+        ttl = window_seconds + 1  # +1 for clock skew
 
         try:
-            count = cache.incr(redis_key)
-            if count == 1:
-                # First hit in this window — set TTL
-                cache.expire(redis_key, window_seconds + 1)  # +1 for clock skew
+            if hasattr(cache, "incr_with_ttl"):
+                count = cache.incr_with_ttl(redis_key, ttl)
+            else:
+                count = cache.incr(redis_key)
+                if count == 1:
+                    # First hit in this window — set TTL fallback
+                    cache.expire(redis_key, ttl)
 
             if count > max_requests:
                 # Time until next bucket
@@ -124,11 +135,20 @@ class RateLimiter:
 
             return True, 0
 
-        except redis_lib.RedisError as exc:
-            logger.warning("Rate limiter: Redis error (%s), falling back to local.", type(exc).__name__)
-            # Runtime degradation — fall through to local
+        except Exception as exc:
+            logger.warning(
+                "Rate limiter: Redis error (%s) for key prefix '%s'.",
+                type(exc).__name__,
+                key[:32],
+            )
             from app.core.config import settings
-            if getattr(settings, "REDIS_FAIL_CLOSED", False):
+
+            effective_fail_closed = (
+                fail_closed
+                or getattr(settings, "REDIS_FAIL_CLOSED", False)
+                or getattr(settings, "APP_ENV", "").lower() == "production"
+            )
+            if effective_fail_closed:
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Rate limiting service unavailable. Please retry shortly.",
@@ -142,8 +162,6 @@ class RateLimiter:
         window_seconds: int,
     ) -> Tuple[bool, int]:
         """Sliding-window via in-process list (original implementation)."""
-        from collections import defaultdict
-
         now = time.time()
         cutoff = now - window_seconds
         with self._local_lock:
@@ -165,9 +183,17 @@ class RateLimiter:
     # Convenience helpers
     # ------------------------------------------------------------------
 
-    def record_attempt(self, key: str, max_requests: int, window_seconds: int) -> None:
+    def record_attempt(
+        self,
+        key: str,
+        max_requests: int,
+        window_seconds: int,
+        fail_closed: bool | None = None,
+    ) -> None:
         """Enforce rate limit; raise HTTP 429 if threshold exceeded."""
-        allowed, retry_after = self.check_rate_limit(key, max_requests, window_seconds)
+        allowed, retry_after = self.check_rate_limit(
+            key, max_requests, window_seconds, fail_closed=fail_closed
+        )
         if not allowed:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -175,11 +201,10 @@ class RateLimiter:
                 headers={"Retry-After": str(retry_after)},
             )
 
-    def reset(self, key: str | None = None) -> None:
-        """Clear local records for a key (or all) — e.g. on successful login.
+    def reset(self, key: str | None = None, window_seconds: int | None = None) -> None:
+        """Clear local records and active Redis rate-limit buckets for a key (or all).
 
-        Note: This only affects the local fallback store.  Redis TTLs expire
-        naturally; use ``reset_redis_key`` for explicit Redis eviction.
+        Affects the active backend (local memory and/or Redis).
         """
         with self._local_lock:
             if key is None:
@@ -187,23 +212,37 @@ class RateLimiter:
             else:
                 self._local_records.pop(key, None)
 
+        if key is not None:
+            self.reset_redis_key(key, window_seconds=window_seconds)
+
     def reset_redis_key(self, key: str, window_seconds: int | None = None) -> None:
-        """Delete the active Redis rate-limit bucket for a key.
+        """Delete active Redis rate-limit bucket(s) for a key.
 
         Useful after a successful login to clear brute-force counters.
-        ``window_seconds`` is used to compute the current bucket; if omitted,
-        no deletion is attempted on Redis.
+        If ``window_seconds`` is omitted, cleans current buckets across common
+        rate-limiting windows (60s, 300s, 900s, 3600s).
         """
         from app.core.cache import get_cache
 
         cache = get_cache()
-        if cache.is_shared_backend and window_seconds is not None:
-            bucket = int(time.time()) // window_seconds
-            redis_key = f"{_KEY_PREFIX}{key}:{bucket}"
+        if not cache.is_shared_backend:
+            return
+
+        now = int(time.time())
+        buckets_to_delete: list[str] = []
+        if window_seconds is not None:
+            bucket = now // window_seconds
+            buckets_to_delete.append(f"{_KEY_PREFIX}{key}:{bucket}")
+        else:
+            for w in (60, 300, 900, 3600):
+                bucket = now // w
+                buckets_to_delete.append(f"{_KEY_PREFIX}{key}:{bucket}")
+
+        for rk in buckets_to_delete:
             try:
-                cache.delete(redis_key)
+                cache.delete(rk)
             except Exception as exc:
-                logger.warning("Rate limiter: failed to delete Redis key: %s", type(exc).__name__)
+                logger.warning("Rate limiter: failed to delete Redis key (%s).", type(exc).__name__)
 
     def clear_all(self) -> None:
         """Clear all local records — for testing only."""
