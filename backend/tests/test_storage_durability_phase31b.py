@@ -449,10 +449,9 @@ def test_database_commit_failure_cleans_up_file_on_disk(
 
 
 def test_cleanup_failure_logs_warning_and_preserves_db_exception(
-    test_db: Session, sample_org_and_business, tmp_path: Path, monkeypatch, caplog
+    test_db: Session, sample_org_and_business, tmp_path: Path, monkeypatch
 ):
     """Verify that if rollback file unlink cleanup raises OSError, it logs a warning and preserves original DB error."""
-    import logging
     monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path))
     org, biz = sample_org_and_business
 
@@ -463,7 +462,7 @@ def test_cleanup_failure_logs_warning_and_preserves_db_exception(
 
     with patch.object(test_db, "commit", side_effect=RuntimeError("Database failure on commit")):
         with patch.object(Path, "unlink", failing_unlink):
-            with caplog.at_level(logging.WARNING):
+            with patch("app.services.data_gateway_service.logger.warning") as mock_warn:
                 with pytest.raises(RuntimeError, match="Database failure on commit"):
                     DataGatewayService.save_raw_dataset(
                         db=test_db,
@@ -474,7 +473,9 @@ def test_cleanup_failure_logs_warning_and_preserves_db_exception(
                     )
 
     # 1. Verify warning was logged with storage path
-    assert "Failed to clean up unindexed storage file" in caplog.text
+    assert mock_warn.called, "Expected logger.warning to be called on cleanup failure"
+    warning_fmt = mock_warn.call_args[0][0]
+    assert "Failed to clean up unindexed storage file" in warning_fmt
 
     # 2. Verify no record was committed to database
     committed = test_db.execute(
@@ -488,10 +489,9 @@ def test_cleanup_failure_logs_warning_and_preserves_db_exception(
 
 
 def test_tenant_data_service_cleanup_failure_logs_warning_and_preserves_db_exception(
-    test_db: Session, sample_org_and_business, tmp_path: Path, monkeypatch, caplog
+    test_db: Session, sample_org_and_business, tmp_path: Path, monkeypatch
 ):
     """Verify TenantDataService logs warning and preserves DB error if unlink fails during rollback."""
-    import logging
     monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path))
     org, biz = sample_org_and_business
 
@@ -502,7 +502,7 @@ def test_tenant_data_service_cleanup_failure_logs_warning_and_preserves_db_excep
 
     with patch.object(test_db, "commit", side_effect=RuntimeError("Tenant DB commit failure")):
         with patch.object(Path, "unlink", failing_unlink):
-            with caplog.at_level(logging.WARNING):
+            with patch("app.services.tenant_data_service.logger.warning") as mock_warn:
                 with pytest.raises(RuntimeError, match="Tenant DB commit failure"):
                     TenantDataService.save_and_profile_file(
                         organization_id=org.id,
@@ -512,7 +512,9 @@ def test_tenant_data_service_cleanup_failure_logs_warning_and_preserves_db_excep
                         session=test_db,
                     )
 
-    assert "Failed to clean up unindexed storage file" in caplog.text
+    assert mock_warn.called, "Expected logger.warning to be called on cleanup failure"
+    warning_fmt = mock_warn.call_args[0][0]
+    assert "Failed to clean up unindexed storage file" in warning_fmt
     committed = test_db.execute(
         select(UploadedDataset).where(UploadedDataset.business_id == biz.id)
     ).scalars().all()
