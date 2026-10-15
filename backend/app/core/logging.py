@@ -34,7 +34,8 @@ def setup_logging() -> None:
 
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
-    root_logger.handlers = [handler]
+    capture_handlers = [h for h in root_logger.handlers if "Capture" in type(h).__name__]
+    root_logger.handlers = [handler] + capture_handlers
 
     # Silence overly verbose external loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)

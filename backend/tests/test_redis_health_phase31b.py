@@ -352,7 +352,11 @@ def test_liveness_probe_independent_of_redis_and_database_outages() -> None:
 
 def test_low_noise_logging_and_url_redaction(caplog: pytest.LogCaptureFixture) -> None:
     """Verify failure transitions log at WARNING once, then DEBUG, and recovery logs at INFO with redacted URL."""
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="app.core.cache")
+    if caplog.handler not in logging.getLogger().handlers:
+        logging.getLogger().addHandler(caplog.handler)
+    if caplog.handler not in logging.getLogger("app.core.cache").handlers:
+        logging.getLogger("app.core.cache").addHandler(caplog.handler)
 
     secret_url = "redis://admin:my_secret_pw@10.0.0.5:6379/0"
     client = CacheClient(redis_url=None)  # Start unconfigured
