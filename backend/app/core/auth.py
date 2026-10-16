@@ -14,7 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db_session
+from app.core.database import get_db_session
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.security import api_key_header

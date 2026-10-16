@@ -151,3 +151,20 @@ def test_docker_compose_production_scheduler_service() -> None:
     sched_depends = sched_svc.get("depends_on", {})
     assert "postgres" in sched_depends
     assert "redis" in sched_depends
+
+
+def test_scheduler_runner_fresh_subprocess_import_no_circular_dependencies() -> None:
+    """Verify that app.scheduler_runner can be cleanly imported in a fresh Python process without circular imports."""
+    import subprocess
+    import sys
+    backend_dir = Path(__file__).resolve().parent.parent
+
+    proc = subprocess.run(
+        [sys.executable, "-c", "import app.scheduler_runner; print('OK')"],
+        cwd=str(backend_dir),
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, f"Import failed with stderr: {proc.stderr}\nstdout: {proc.stdout}"
+    assert "OK" in proc.stdout
+

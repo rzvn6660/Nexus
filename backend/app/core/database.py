@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
+from fastapi import Depends
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -80,6 +81,13 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def get_db_session(
+    db: Session = Depends(get_db),
+) -> Session:
+    """Dependency returning active database session."""
+    return db
 
 
 def check_database_connection(target_engine=None) -> Dict[str, Any]:
