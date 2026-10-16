@@ -73,6 +73,11 @@ class SchedulerRunner:
         setup_logging()
         logger.info("Starting NEXUS Dedicated Scheduler Runner (Continuous Intelligence)...")
 
+        # Initialize optional error tracking (safe when SENTRY_DSN unset)
+        from app.core.sentry import init_sentry
+
+        init_sentry(process_name="scheduler")
+
         # Register signal handlers for clean container stop (SIGTERM, SIGINT)
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):

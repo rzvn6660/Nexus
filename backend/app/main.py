@@ -15,7 +15,12 @@ from app.api.router import root_api_router
 from app.core.config import settings
 from app.core.database import check_database_connection, engine
 from app.core.logging import get_logger, setup_logging
-from app.core.middleware import RequestCorrelationMiddleware, SecurityHeadersMiddleware
+from app.core.middleware import (
+    PrometheusMetricsMiddleware,
+    RequestCorrelationMiddleware,
+    SecurityHeadersMiddleware,
+)
+from app.core.sentry import init_sentry
 
 # Initialize structured logging
 setup_logging()
@@ -29,6 +34,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         f"Starting {settings.APP_NAME} v{settings.APP_VERSION} "
         f"[env={settings.APP_ENV}, debug={settings.DEBUG}]"
     )
+
+    # Initialize optional error tracking (safe when SENTRY_DSN unset)
+    init_sentry(process_name="api")
 
     # Validate database connectivity on startup
     db_status = check_database_connection()
@@ -95,7 +103,8 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Request correlation and logging middleware
+    # Request correlation, metrics, and security headers middleware
+    app.add_middleware(PrometheusMetricsMiddleware)
     app.add_middleware(RequestCorrelationMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
 

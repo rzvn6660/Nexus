@@ -17,6 +17,11 @@ sys.path.insert(0, backend_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Provide a valid default METRICS_AUTH_TOKEN in the test session environment
+# so that existing production-configuration tests (e.g. Phase 31A/31B secrets/TLS tests)
+# pass without failing on missing metrics token.
+os.environ.setdefault("METRICS_AUTH_TOKEN", "c8f2a1b9e4d7301648a5c2f901b8e4d7")
+
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.models.base import Base

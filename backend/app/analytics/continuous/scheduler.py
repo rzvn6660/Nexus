@@ -164,6 +164,28 @@ class ContinuousIntelligenceScheduler:
                     self._last_tick_duration_ms = elapsed_ms
                     self._last_tick_reconciled = tick_summary.get("total_reconciled", 0)
                     self._last_tick_errors = len(tick_summary.get("errors", []))
+
+                    # Operational Prometheus metrics (Phase 32A)
+                    if settings.METRICS_ENABLED:
+                        try:
+                            from app.core.metrics import (
+                                SCHEDULER_BUSINESSES_SCANNED_TOTAL,
+                                SCHEDULER_SCANS_RECONCILED_TOTAL,
+                                SCHEDULER_TICK_DURATION_SECONDS,
+                                SCHEDULER_TICKS_TOTAL,
+                            )
+
+                            SCHEDULER_TICKS_TOTAL.labels(status="success").inc()
+                            SCHEDULER_TICK_DURATION_SECONDS.observe(elapsed_ms / 1000.0)
+                            reconciled = tick_summary.get("total_reconciled", 0)
+                            if reconciled > 0:
+                                SCHEDULER_SCANS_RECONCILED_TOTAL.inc(reconciled)
+                            scanned = tick_summary.get("businesses_scanned", 0)
+                            if scanned > 0:
+                                SCHEDULER_BUSINESSES_SCANNED_TOTAL.inc(scanned)
+                        except Exception:
+                            pass
+
                     if tick_summary.get("total_reconciled", 0) > 0:
                         logger.info(
                             "Continuous scheduler tick complete: %d scans reconciled across %d businesses (%.2fms)",
@@ -175,6 +197,19 @@ class ContinuousIntelligenceScheduler:
                         logger.debug("Continuous scheduler tick complete: no pending scans (%.2fms)", elapsed_ms)
                 except Exception:
                     self._last_tick_errors += 1
+                    if settings.METRICS_ENABLED:
+                        try:
+                            from app.core.metrics import (
+                                SCHEDULER_TICK_DURATION_SECONDS,
+                                SCHEDULER_TICKS_TOTAL,
+                            )
+
+                            SCHEDULER_TICKS_TOTAL.labels(status="error").inc()
+                            SCHEDULER_TICK_DURATION_SECONDS.observe(
+                                (time.perf_counter() - tick_start)
+                            )
+                        except Exception:
+                            pass
                     logger.exception("Continuous scheduler tick encountered unhandled error.")
 
                 # Wait for next interval or early shutdown

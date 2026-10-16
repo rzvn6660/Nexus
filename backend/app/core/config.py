@@ -191,9 +191,40 @@ class Settings(BaseSettings):
 
     # Operational Boundaries & Timeouts (Phase 10)
     REQUEST_TIMEOUT_SECONDS: int = 60
-    METRICS_ENABLED: bool = True
     UPLOAD_DIR: str = "./data/uploads"
     DATA_DIR: str = "data"
+
+    # Phase 32A — Error Tracking (Sentry)
+    SENTRY_DSN: str | None = None
+    SENTRY_ENVIRONMENT: str | None = None
+    SENTRY_RELEASE: str | None = None
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
+    SENTRY_SEND_DEFAULT_PII: bool = False
+
+    # Phase 32A — Operational Metrics (Prometheus)
+    METRICS_ENABLED: bool = True
+    METRICS_AUTH_TOKEN: str | None = None
+
+    # Phase 32A — Security Headers & Content Security Policy
+    SECURE_HSTS_SECONDS: int = 0  # 0 = disabled (dev/HTTP default); set to e.g. 31536000 when HTTPS is active
+    SECURE_HSTS_INCLUDE_SUBDOMAINS: bool = True
+    SECURE_HSTS_PRELOAD: bool = False
+    SECURE_CSP_ENABLED: bool = True
+    SECURE_CSP_REPORT_ONLY: bool = True  # Safe report-only rollout
+    SECURE_CSP_DIRECTIVES: str = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com data:; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self' ws: wss:; "
+        "object-src 'none'; "
+        "frame-ancestors 'self'; "
+        "base-uri 'self'; "
+        "form-action 'self';"
+    )
+    SECURE_CSP_REPORT_URI: str | None = None
+    SECURE_PERMISSIONS_POLICY: str = "camera=(), microphone=(), geolocation=(), payment=()"
 
     # Phase 29 & 31 — Continuous Intelligence Scheduled Execution
     CONTINUOUS_SCHEDULER_ENABLED: bool = True
@@ -219,6 +250,28 @@ class Settings(BaseSettings):
                 f"{', '.join(sorted(valid_modes))}."
             )
         return v_clean
+
+    @field_validator("SENTRY_TRACES_SAMPLE_RATE", mode="before")
+    @classmethod
+    def validate_sentry_sample_rate(cls, v: float | str | None) -> float:
+        """Validate Sentry trace sample rate is bounded between 0.0 and 1.0."""
+        if v is None:
+            return 0.0
+        val = float(v)
+        if not (0.0 <= val <= 1.0):
+            raise ValueError(f"SENTRY_TRACES_SAMPLE_RATE must be between 0.0 and 1.0, got {val}")
+        return val
+
+    @field_validator("SECURE_HSTS_SECONDS", mode="before")
+    @classmethod
+    def validate_hsts_seconds(cls, v: int | str | None) -> int:
+        """Validate HSTS max-age seconds is non-negative."""
+        if v is None:
+            return 0
+        val = int(v)
+        if val < 0:
+            raise ValueError(f"SECURE_HSTS_SECONDS must be non-negative, got {val}")
+        return val
 
     @property
     def is_production(self) -> bool:
@@ -474,6 +527,49 @@ class Settings(BaseSettings):
                     raise ValueError(
                         f"Production startup failed: REDIS_URL contains insecure placeholder token '{token}'."
                     )
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_production_metrics_security(self) -> "Settings":
+        """Enforce strict metrics authentication when running in production mode.
+
+        In production:
+        - When METRICS_ENABLED=True, METRICS_AUTH_TOKEN is strictly mandatory.
+        - Fails application startup if METRICS_AUTH_TOKEN is None, empty, or whitespace-only.
+        - Rejects insecure placeholder tokens ('change-me', 'token', 'secret', etc.).
+        - Mandates minimum token length (>= 16 chars) in production.
+        - Preserves convenient unauthenticated access in non-production environments (development, test).
+        """
+        if not self.is_production:
+            return self
+
+        if self.METRICS_ENABLED:
+            token_val = (self.METRICS_AUTH_TOKEN or "").strip()
+            if not token_val:
+                raise ValueError(
+                    "Production startup failed: METRICS_AUTH_TOKEN is mandatory when METRICS_ENABLED=True in production. "
+                    "Configure a cryptographically strong scraper secret (minimum 16 characters) or set METRICS_ENABLED=False."
+                )
+            insecure_placeholders = [
+                "change-me",
+                "change-in-production",
+                "your-metrics-token",
+                "example",
+                "token",
+                "secret",
+                "password",
+            ]
+            if any(p in token_val.lower() for p in insecure_placeholders):
+                raise ValueError(
+                    "Production startup failed: METRICS_AUTH_TOKEN contains an insecure placeholder token. "
+                    "Provide a secure, non-default scraper authorization token."
+                )
+            if len(token_val) < 16:
+                raise ValueError(
+                    f"Production startup failed: METRICS_AUTH_TOKEN length ({len(token_val)}) is below "
+                    "the mandatory production minimum of 16 characters."
+                )
 
         return self
 
