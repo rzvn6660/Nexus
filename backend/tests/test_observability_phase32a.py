@@ -32,10 +32,11 @@ from app.main import create_application
 
 
 @pytest.fixture
-def client():
-    """Create FastAPI test client."""
+def obs_client():
+    """Create isolated FastAPI test client with managed lifespan context."""
     app = create_application()
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 # ==============================================================================
@@ -200,44 +201,44 @@ def test_sentry_before_breadcrumb_handler():
 # 2. PROMETHEUS OPERATIONAL METRICS TESTS
 # ==============================================================================
 
-def test_metrics_endpoint_accessible(client):
+def test_metrics_endpoint_accessible(obs_client):
     """GET /api/v1/metrics and /api/metrics return 200 with Prometheus text format."""
     with patch.object(settings, "METRICS_AUTH_TOKEN", None):
-        response_v1 = client.get("/api/v1/metrics")
+        response_v1 = obs_client.get("/api/v1/metrics")
         assert response_v1.status_code == 200
         assert "text/plain" in response_v1.headers["content-type"]
         assert "nexus_http_requests_total" in response_v1.text
 
-        response_root = client.get("/api/metrics")
+        response_root = obs_client.get("/api/metrics")
         assert response_root.status_code == 200
         assert "nexus_http_requests_total" in response_root.text
 
 
-def test_metrics_disabled_returns_404(client):
+def test_metrics_disabled_returns_404(obs_client):
     """When METRICS_ENABLED is False, metrics endpoint returns 404 Not Found."""
     with patch.object(settings, "METRICS_ENABLED", False):
-        response = client.get("/api/v1/metrics")
+        response = obs_client.get("/api/v1/metrics")
         assert response.status_code == 404
         assert "disabled" in response.json()["detail"].lower()
 
 
-def test_metrics_auth_token_gating(client):
+def test_metrics_auth_token_gating(obs_client):
     """When METRICS_AUTH_TOKEN is configured, unauthorized requests return 401."""
     test_token = "scraper-super-secret-token-321"
     with patch.object(settings, "METRICS_AUTH_TOKEN", test_token):
         # 1. No token provided
-        unauth_resp = client.get("/api/v1/metrics")
+        unauth_resp = obs_client.get("/api/v1/metrics")
         assert unauth_resp.status_code == 401
 
         # 2. Invalid token provided
-        bad_token_resp = client.get(
+        bad_token_resp = obs_client.get(
             "/api/v1/metrics",
             headers={"Authorization": "Bearer wrong-token"},
         )
         assert bad_token_resp.status_code == 401
 
         # 3. Valid Bearer token
-        valid_bearer_resp = client.get(
+        valid_bearer_resp = obs_client.get(
             "/api/v1/metrics",
             headers={"Authorization": f"Bearer {test_token}"},
         )
@@ -245,7 +246,7 @@ def test_metrics_auth_token_gating(client):
         assert "nexus_http_requests_total" in valid_bearer_resp.text
 
         # 4. Valid X-Metrics-Token header
-        valid_header_resp = client.get(
+        valid_header_resp = obs_client.get(
             "/api/v1/metrics",
             headers={"X-Metrics-Token": test_token},
         )
@@ -354,83 +355,83 @@ def test_production_metrics_disabled_allows_startup_without_token():
     assert cfg.METRICS_ENABLED is False
 
 
-def test_production_endpoint_fails_closed_when_token_unconfigured(client):
+def test_production_endpoint_fails_closed_when_token_unconfigured(obs_client):
     """If configuration validation was somehow bypassed in production, endpoint fails closed (403)."""
     with patch.object(settings, "APP_ENV", "production"), patch.object(settings, "METRICS_AUTH_TOKEN", ""):
         # Anonymous access rejected
-        resp_anon = client.get("/api/v1/metrics")
+        resp_anon = obs_client.get("/api/v1/metrics")
         assert resp_anon.status_code == 403
         assert "forbidden in production when METRICS_AUTH_TOKEN is unconfigured" in resp_anon.json()["detail"]
 
         # Even with credential headers, access is forbidden
-        resp_bearer = client.get("/api/v1/metrics", headers={"Authorization": "Bearer some-token"})
+        resp_bearer = obs_client.get("/api/v1/metrics", headers={"Authorization": "Bearer some-token"})
         assert resp_bearer.status_code == 403
 
-        resp_header = client.get("/api/metrics", headers={"X-Metrics-Token": "some-token"})
+        resp_header = obs_client.get("/api/metrics", headers={"X-Metrics-Token": "some-token"})
         assert resp_header.status_code == 403
 
 
-def test_production_endpoint_authorized_scraping_and_rejection_of_invalid(client):
+def test_production_endpoint_authorized_scraping_and_rejection_of_invalid(obs_client):
     """In production with a valid token: missing/bad credentials return 401; valid token returns 200."""
     with patch.object(settings, "APP_ENV", "production"), patch.object(settings, "METRICS_AUTH_TOKEN", VALID_METRICS_TOKEN):
         # Missing credentials -> 401
-        resp_missing = client.get("/api/v1/metrics")
+        resp_missing = obs_client.get("/api/v1/metrics")
         assert resp_missing.status_code == 401
         assert resp_missing.headers.get("WWW-Authenticate") == "Bearer"
 
         # Invalid Bearer token -> 401
-        resp_bad_bearer = client.get("/api/v1/metrics", headers={"Authorization": "Bearer wrong-token-123456789"})
+        resp_bad_bearer = obs_client.get("/api/v1/metrics", headers={"Authorization": "Bearer wrong-token-123456789"})
         assert resp_bad_bearer.status_code == 401
 
         # Invalid X-Metrics-Token -> 401
-        resp_bad_header = client.get("/api/v1/metrics", headers={"X-Metrics-Token": "wrong-token-123456789"})
+        resp_bad_header = obs_client.get("/api/v1/metrics", headers={"X-Metrics-Token": "wrong-token-123456789"})
         assert resp_bad_header.status_code == 401
 
         # Valid Bearer token -> 200
-        resp_ok_bearer = client.get("/api/v1/metrics", headers={"Authorization": f"Bearer {VALID_METRICS_TOKEN}"})
+        resp_ok_bearer = obs_client.get("/api/v1/metrics", headers={"Authorization": f"Bearer {VALID_METRICS_TOKEN}"})
         assert resp_ok_bearer.status_code == 200
         assert "nexus_http_requests_total" in resp_ok_bearer.text
 
         # Valid X-Metrics-Token -> 200 on /api/metrics alias
-        resp_ok_header = client.get("/api/metrics", headers={"X-Metrics-Token": VALID_METRICS_TOKEN})
+        resp_ok_header = obs_client.get("/api/metrics", headers={"X-Metrics-Token": VALID_METRICS_TOKEN})
         assert resp_ok_header.status_code == 200
         assert "nexus_http_requests_total" in resp_ok_header.text
 
 
-def test_production_metrics_disabled_returns_404(client):
+def test_production_metrics_disabled_returns_404(obs_client):
     """When METRICS_ENABLED=False in production, endpoint returns 404 Not Found."""
     with patch.object(settings, "APP_ENV", "production"), patch.object(settings, "METRICS_ENABLED", False):
-        resp = client.get("/api/v1/metrics")
+        resp = obs_client.get("/api/v1/metrics")
         assert resp.status_code == 404
         assert "disabled" in resp.json()["detail"].lower()
 
 
-def test_development_test_behavior_remains_unauthenticated_intentional(client):
+def test_development_test_behavior_remains_unauthenticated_intentional(obs_client):
     """In development/test (APP_ENV!=production), unauthenticated access is permitted when token unset."""
     with patch.object(settings, "APP_ENV", "test"), patch.object(settings, "METRICS_AUTH_TOKEN", None):
-        resp = client.get("/api/v1/metrics")
+        resp = obs_client.get("/api/v1/metrics")
         assert resp.status_code == 200
         assert "nexus_http_requests_total" in resp.text
 
     with patch.object(settings, "APP_ENV", "development"), patch.object(settings, "METRICS_AUTH_TOKEN", ""):
-        resp = client.get("/api/metrics")
+        resp = obs_client.get("/api/metrics")
         assert resp.status_code == 200
         assert "nexus_http_requests_total" in resp.text
 
 
-def test_metrics_auth_does_not_expose_secrets(client, caplog):
+def test_metrics_auth_does_not_expose_secrets(obs_client, caplog):
     """Sensitive scraper tokens are never logged or exposed in error responses."""
     canary_token = "canary-super-secret-metrics-token-123456"
     with patch.object(settings, "APP_ENV", "production"), patch.object(settings, "METRICS_AUTH_TOKEN", canary_token):
         # Send bad token
-        resp = client.get("/api/v1/metrics", headers={"Authorization": "Bearer bad-canary-guess"})
+        resp = obs_client.get("/api/v1/metrics", headers={"Authorization": "Bearer bad-canary-guess"})
         assert resp.status_code == 401
         assert canary_token not in resp.text
         assert canary_token not in str(resp.headers)
         assert canary_token not in caplog.text
 
         # Send empty
-        resp2 = client.get("/api/v1/metrics")
+        resp2 = obs_client.get("/api/v1/metrics")
         assert resp2.status_code == 401
         assert canary_token not in resp2.text
         assert canary_token not in str(resp2.headers)
@@ -472,11 +473,15 @@ def test_metrics_status_class():
     assert get_status_class(999) == "unknown"
 
 
-def test_metrics_increments_on_requests(client):
+def test_metrics_increments_on_requests(obs_client):
     """Making HTTP requests increments the Prometheus request counter."""
-    with patch.object(settings, "METRICS_AUTH_TOKEN", None):
-        client.get("/api/health/live")
-        metrics_text = client.get("/api/v1/metrics").text
+    with patch.object(settings, "METRICS_ENABLED", True), \
+         patch.object(settings, "METRICS_AUTH_TOKEN", None):
+        resp = obs_client.get("/api/health/live")
+        assert resp.status_code == 200
+        metrics_resp = obs_client.get("/api/v1/metrics")
+        assert metrics_resp.status_code == 200
+        metrics_text = metrics_resp.text
         assert 'handler="/api/health/live"' in metrics_text
         assert 'method="GET"' in metrics_text
         assert 'status_class="2xx"' in metrics_text
@@ -486,9 +491,9 @@ def test_metrics_increments_on_requests(client):
 # 3. SECURITY HEADERS TESTS
 # ==============================================================================
 
-def test_owasp_security_headers_present(client):
+def test_owasp_security_headers_present(obs_client):
     """Responses contain all baseline OWASP security headers."""
-    response = client.get("/api/health")
+    response = obs_client.get("/api/health")
     assert response.status_code == 200
     headers = response.headers
     assert headers.get("X-Content-Type-Options") == "nosniff"
@@ -497,17 +502,17 @@ def test_owasp_security_headers_present(client):
     assert headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
 
 
-def test_permissions_policy_header_present(client):
+def test_permissions_policy_header_present(obs_client):
     """Responses contain configured Permissions-Policy header."""
-    response = client.get("/api/health")
+    response = obs_client.get("/api/health")
     assert response.status_code == 200
     assert "camera=()" in response.headers.get("Permissions-Policy", "")
     assert "microphone=()" in response.headers.get("Permissions-Policy", "")
 
 
-def test_csp_report_only_by_default(client):
+def test_csp_report_only_by_default(obs_client):
     """By default, Content-Security-Policy-Report-Only is used for safe rollout."""
-    response = client.get("/api/health")
+    response = obs_client.get("/api/health")
     assert response.status_code == 200
     assert "Content-Security-Policy-Report-Only" in response.headers
     assert "Content-Security-Policy" not in response.headers
@@ -517,29 +522,29 @@ def test_csp_report_only_by_default(client):
     assert "https://fonts.gstatic.com" in csp_val
 
 
-def test_csp_enforcing_mode(client):
+def test_csp_enforcing_mode(obs_client):
     """When SECURE_CSP_REPORT_ONLY is False, enforcing Content-Security-Policy is used."""
     with patch.object(settings, "SECURE_CSP_REPORT_ONLY", False):
-        response = client.get("/api/health")
+        response = obs_client.get("/api/health")
         assert response.status_code == 200
         assert "Content-Security-Policy" in response.headers
         assert "Content-Security-Policy-Report-Only" not in response.headers
 
 
-def test_hsts_disabled_when_zero(client):
+def test_hsts_disabled_when_zero(obs_client):
     """When SECURE_HSTS_SECONDS is 0 (default), Strict-Transport-Security header is omitted."""
     with patch.object(settings, "SECURE_HSTS_SECONDS", 0):
-        response = client.get("/api/health")
+        response = obs_client.get("/api/health")
         assert response.status_code == 200
         assert "Strict-Transport-Security" not in response.headers
 
 
-def test_hsts_enabled_when_positive(client):
+def test_hsts_enabled_when_positive(obs_client):
     """When SECURE_HSTS_SECONDS > 0, Strict-Transport-Security is attached."""
     with patch.object(settings, "SECURE_HSTS_SECONDS", 31536000):
         with patch.object(settings, "SECURE_HSTS_INCLUDE_SUBDOMAINS", True):
             with patch.object(settings, "SECURE_HSTS_PRELOAD", True):
-                response = client.get("/api/health")
+                response = obs_client.get("/api/health")
                 assert response.status_code == 200
                 hsts = response.headers.get("Strict-Transport-Security", "")
                 assert "max-age=31536000" in hsts
