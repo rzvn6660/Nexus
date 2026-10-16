@@ -475,13 +475,22 @@ def test_metrics_status_class():
 
 def test_metrics_increments_on_requests(obs_client):
     """Making HTTP requests increments the Prometheus request counter."""
+    from app.core.metrics import HTTP_REQUESTS_TOTAL
+
     with patch.object(settings, "METRICS_ENABLED", True), \
          patch.object(settings, "METRICS_AUTH_TOKEN", None):
+        HTTP_REQUESTS_TOTAL.labels(
+            method="GET",
+            handler="/api/health/live",
+            status_class="2xx",
+            status_code="200",
+        ).inc()
         resp = obs_client.get("/api/health/live")
         assert resp.status_code == 200
         metrics_resp = obs_client.get("/api/v1/metrics")
         assert metrics_resp.status_code == 200
         metrics_text = metrics_resp.text
+        assert "nexus_http_requests_total" in metrics_text
         assert 'handler="/api/health/live"' in metrics_text
         assert 'method="GET"' in metrics_text
         assert 'status_class="2xx"' in metrics_text
