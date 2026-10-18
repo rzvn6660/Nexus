@@ -1,6 +1,6 @@
 # NEXUS Phase 9 — Evaluation & Benchmarking Report
 
-**Generated:** 2026-10-15 19:15:19 UTC
+**Generated:** 2026-10-18 18:29:36 UTC
 **System:** NEXUS Agentic Business Intelligence Platform  
 **Evaluation Harness:** Pipeline-Wide Multi-Dimensional Correctness
 
@@ -29,9 +29,9 @@
 
 ## 2. Latency Telemetry
 
-- **Mean Latency:** 38.5 ms
-- **Median Latency:** 26.2 ms
-- **P95 Latency:** 241.2 ms
+- **Mean Latency:** 44.0 ms
+- **Median Latency:** 27.6 ms
+- **P95 Latency:** 257.5 ms
 
 ---
 
@@ -47,14 +47,14 @@
 
 | Case ID | Category | Severity | Stage | Details |
 | :--- | :--- | :--- | :--- | :--- |
-| `GOLD-DESC-001` | `EVIDENCE_ERROR` | `HIGH` | `evidence_validation` | Missing expected source tables in evidence lineage: ['sale_items', 'expenses', 'products'] |
-| `GOLD-DESC-004` | `EVIDENCE_ERROR` | `HIGH` | `evidence_validation` | Missing expected source tables in evidence lineage: ['sale_items', 'products'] |
+| `GOLD-DESC-001` | `EVIDENCE_ERROR` | `HIGH` | `evidence_validation` | Missing expected source tables in evidence lineage: ['products', 'expenses', 'sale_items'] |
+| `GOLD-DESC-004` | `EVIDENCE_ERROR` | `HIGH` | `evidence_validation` | Missing expected source tables in evidence lineage: ['products', 'sale_items'] |
 | `GOLD-COMP-001` | `NUMERICAL_ERROR` | `CRITICAL` | `numeric_verification` | Expected numeric field 'growth_rate' with value 119.35 was not found in response |
-| `GOLD-COMP-001` | `EVIDENCE_ERROR` | `HIGH` | `evidence_validation` | Missing expected source tables in evidence lineage: ['sale_items', 'expenses', 'products'] |
+| `GOLD-COMP-001` | `EVIDENCE_ERROR` | `HIGH` | `evidence_validation` | Missing expected source tables in evidence lineage: ['products', 'expenses', 'sale_items'] |
 | `GOLD-COMP-001` | `ANALYTICAL_ERROR` | `HIGH` | `diagnostic_analysis` | Diagnostic result failed to identify critical business drivers: ['June', 'May'] |
 | `GOLD-COMP-002` | `INTENT_ERROR` | `HIGH` | `intent_classification` | Expected intent 'comparison' but got 'product_analysis' |
 | `GOLD-COMP-003` | `INTENT_ERROR` | `HIGH` | `intent_classification` | Expected intent 'comparison' but got 'metric_lookup' |
-| `GOLD-COMP-003` | `EVIDENCE_ERROR` | `HIGH` | `evidence_validation` | Missing expected source tables in evidence lineage: ['sale_items', 'products'] |
+| `GOLD-COMP-003` | `EVIDENCE_ERROR` | `HIGH` | `evidence_validation` | Missing expected source tables in evidence lineage: ['products', 'sale_items'] |
 | `GOLD-COMP-003` | `ANALYTICAL_ERROR` | `HIGH` | `diagnostic_analysis` | Diagnostic result failed to identify critical business drivers: ['Gross profit increased'] |
 | `GOLD-COMP-004` | `INTENT_ERROR` | `HIGH` | `intent_classification` | Expected intent 'comparison' but got 'diagnostic_analysis' |
 | `GOLD-COMP-004` | `TOOL_SELECTION_ERROR` | `HIGH` | `tool_selection` | Missing expected analytical tools. Expected one of ['get_product_rankings'], but got [] |

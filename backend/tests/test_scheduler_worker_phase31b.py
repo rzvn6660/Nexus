@@ -80,6 +80,14 @@ async def test_scheduler_runner_run_lifecycle_and_clean_disposal() -> None:
     mock_scheduler.interval_seconds = 60
     mock_scheduler.max_businesses = 10
     mock_scheduler.batch_size = 5
+    mock_scheduler.stats = {
+        "total_ticks": 1,
+        "last_tick_at": 100.0,
+        "last_tick_duration_ms": 12.5,
+        "last_tick_errors": 0,
+        "interval_seconds": 60,
+    }
+    mock_scheduler._task = None
     mock_scheduler.stop = AsyncMock()
 
     mock_dispose = MagicMock()
@@ -107,6 +115,35 @@ async def test_scheduler_runner_run_lifecycle_and_clean_disposal() -> None:
         # Verify connection pools were cleanly disposed
         mock_close_cache.assert_called_once()
         mock_dispose.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_scheduler_runner_exits_nonzero_when_task_crashes() -> None:
+    """When the background scheduler loop task raises an unhandled error, runner exits with code 1."""
+    runner = SchedulerRunner()
+
+    async def _failing_loop():
+        await asyncio.sleep(0.02)
+        raise RuntimeError("Simulated unhandled DB deadlock or fatal crash in scheduler loop")
+
+    failing_task = asyncio.create_task(_failing_loop())
+
+    mock_scheduler = MagicMock()
+    mock_scheduler.interval_seconds = 60
+    mock_scheduler.max_businesses = 10
+    mock_scheduler.batch_size = 5
+    mock_scheduler.stats = {"total_ticks": 0, "last_tick_at": None, "interval_seconds": 60}
+    mock_scheduler._task = failing_task
+    mock_scheduler.stop = AsyncMock()
+
+    with patch("app.scheduler_runner.continuous_scheduler", mock_scheduler), \
+         patch("app.scheduler_runner.engine.dispose"), \
+         patch("app.scheduler_runner.close_cache"), \
+         patch.object(runner, "verify_dependencies", AsyncMock(return_value=True)):
+
+        exit_code = await runner.run()
+        # Must exit nonzero to signal failure to Docker / orchestrator
+        assert exit_code == 1
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +174,18 @@ def test_docker_compose_production_scheduler_service() -> None:
     assert sched_svc.get("container_name") == "nexus_scheduler_prod"
     assert sched_svc.get("restart") == "unless-stopped"
     assert sched_svc.get("command") == ["python", "-m", "app.scheduler_runner"]
+
+    # Phase 32B: Dedicated healthcheck invoking app.scheduler_health
+    healthcheck = sched_svc.get("healthcheck", {})
+    assert "app.scheduler_health" in " ".join(healthcheck.get("test", [])), \
+        "scheduler healthcheck must invoke app.scheduler_health"
+    assert healthcheck.get("interval") == "30s"
+
+    # Phase 32B: Resource limits and stop_grace_period
+    assert sched_svc.get("stop_grace_period") == "30s"
+    limits = sched_svc.get("deploy", {}).get("resources", {}).get("limits", {})
+    assert limits.get("memory") == "1024M"
+    assert limits.get("cpus") == "1.0"
 
     sched_env = sched_svc.get("environment", [])
     assert any("CONTINUOUS_SCHEDULER_ENABLED=true" in str(e) for e in sched_env)

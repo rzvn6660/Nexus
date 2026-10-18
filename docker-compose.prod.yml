@@ -3,8 +3,10 @@
 #
 # Launches hardened, isolated production containers:
 #   1. PostgreSQL 16 with pgvector extension & persistent volume
-#   2. FastAPI backend (production multi-stage image, non-root user, 2 workers)
-#   3. React SPA served via Nginx with reverse proxying and gzip
+#   2. Redis 7 with AOF persistence & noeviction policy
+#   3. FastAPI backend (production multi-stage image, non-root user, 2 workers)
+#   4. Dedicated Continuous Intelligence Scheduler worker (isolated, health-monitored)
+#   5. React SPA served via Nginx with reverse proxying and gzip
 # ==============================================================================
 
 services:
@@ -15,6 +17,15 @@ services:
     image: pgvector/pgvector:pg16
     container_name: nexus_postgres_prod
     restart: unless-stopped
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-nexus_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_password}
@@ -37,6 +48,15 @@ services:
     image: redis:7-alpine
     container_name: nexus_redis_prod
     restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
     command: >
       redis-server
       --appendonly yes
@@ -63,6 +83,15 @@ services:
       dockerfile: ../infra/docker/Dockerfile.backend
     container_name: nexus_backend_prod
     restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     ports:
       - "8000:8000"
     environment:
@@ -107,6 +136,15 @@ services:
       dockerfile: ../infra/docker/Dockerfile.backend
     container_name: nexus_scheduler_prod
     restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.2'
+          memory: 256M
     command: ["python", "-m", "app.scheduler_runner"]
     environment:
       - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_user}:${POSTGRES_PASSWORD:-nexus_password}@postgres:5432/${POSTGRES_DB:-nexus_db}
@@ -125,6 +163,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.scheduler_health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     volumes:
       - nexus_backend_data:/app/data
     networks:
@@ -139,6 +183,15 @@ services:
       dockerfile: ../infra/docker/Dockerfile.frontend
     container_name: nexus_frontend_prod
     restart: unless-stopped
+    stop_grace_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
     ports:
       - "3000:3000"
     depends_on:

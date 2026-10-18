@@ -55,6 +55,22 @@ def validate_production_deployment() -> list[str]:
             if not any("nexus_backend_data:/app/data" in str(v) for v in scheduler_volumes):
                 errors.append("scheduler service does not mount nexus_backend_data:/app/data")
 
+            # Check scheduler dedicated healthcheck (Phase 32B)
+            sched_health = services.get("scheduler", {}).get("healthcheck", {})
+            sched_test = sched_health.get("test", [])
+            sched_test_str = " ".join(sched_test) if isinstance(sched_test, list) else str(sched_test)
+            if not sched_test or "app.scheduler_health" not in sched_test_str:
+                errors.append("scheduler service must define dedicated healthcheck invoking app.scheduler_health")
+
+            # Check container resource limits and stop grace periods across all services (Phase 32B)
+            for s in required_services:
+                svc_cfg = services.get(s, {})
+                limits = svc_cfg.get("deploy", {}).get("resources", {}).get("limits", {})
+                if not limits.get("memory") or not limits.get("cpus"):
+                    errors.append(f"service '{s}' missing deploy.resources.limits memory or cpus")
+                if "stop_grace_period" not in svc_cfg:
+                    errors.append(f"service '{s}' missing explicit stop_grace_period")
+
         except Exception as exc:
             errors.append(f"Failed to parse docker-compose.prod.yml: {exc}")
 

@@ -1,4 +1,4 @@
-"""NEXUS Phase 30 — Live PostgreSQL Integration Test Suite.
+"""NEXUS Phase 30 & 32B — Live PostgreSQL Integration Test Suite.
 
 Verifies:
 1. Migration compatibility (Alembic versions 001-015, pgvector extension, table schemas).
@@ -6,10 +6,13 @@ Verifies:
 3. PostgreSQL uniqueness constraints and idempotent re-ingestion.
 4. Concurrent multi-session ingestion safety (zero duplicate records, no deadlocks).
 5. Native PostgreSQL row-level locking (SELECT ... FOR UPDATE SKIP LOCKED).
+6. Multi-session scheduler atomic claim and SKIP LOCKED on IngestionJob (Phase 32B).
+7. Multi-worker concurrent scheduler execution safety (zero duplicate scans) (Phase 32B).
+8. Scheduler transaction rollback and idempotent retryability on mid-scan error (Phase 32B).
 
 Execution Guard:
 Skipped automatically when a live PostgreSQL daemon is not reachable (e.g. local SQLite dev).
-Executed in CI against the pgvector/pgvector:pg16 service container.
+Executed in CI against the pgvector/pgvector:pg16 service container (strictly 0 skips with REQUIRE_POSTGRES=true).
 """
 
 import concurrent.futures
@@ -399,3 +402,283 @@ def test_pg_05_database_locking_phase29_scheduler(pg_session_factory, pg_tenant)
 
         # Release lock
         db1.rollback()
+
+
+def test_pg_06_scheduler_skip_locked_ingestion_claim(pg_session_factory, pg_tenant):
+    """PostgreSQL native SELECT IngestionJob ... FOR UPDATE SKIP LOCKED skips rows held by concurrent sessions."""
+    from app.models.tenant import IngestionJob, UploadedDataset
+    from app.models.continuous import FindingScanRun
+    from app.analytics.continuous.service import ContinuousIntelligenceService
+
+    biz = pg_tenant["biz"]
+    org = pg_tenant["org"]
+
+    # 1. Seed two completed IngestionJobs
+    with pg_session_factory() as db:
+        ds1 = UploadedDataset(
+            id=str(uuid4()),
+            organization_id=org.id,
+            business_id=biz.id,
+            filename="pg_cand_1.csv",
+            file_type="csv",
+            storage_key="/tmp/pg_cand_1.csv",
+            file_size_bytes=1024,
+            readiness_status="READY",
+        )
+        ds2 = UploadedDataset(
+            id=str(uuid4()),
+            organization_id=org.id,
+            business_id=biz.id,
+            filename="pg_cand_2.csv",
+            file_type="csv",
+            storage_key="/tmp/pg_cand_2.csv",
+            file_size_bytes=1024,
+            readiness_status="READY",
+        )
+        job1 = IngestionJob(
+            id=str(uuid4()),
+            organization_id=org.id,
+            business_id=biz.id,
+            dataset_id=ds1.id,
+            status="COMPLETED",
+            target_entity="Sale",
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+            rows_processed=10,
+        )
+        job2 = IngestionJob(
+            id=str(uuid4()),
+            organization_id=org.id,
+            business_id=biz.id,
+            dataset_id=ds2.id,
+            status="COMPLETED",
+            target_entity="Sale",
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+            rows_processed=10,
+        )
+        db.add_all([ds1, ds2, job1, job2])
+        db.commit()
+        job1_id, job2_id = job1.id, job2.id
+
+    # 2. Worker Session 1 acquires an exclusive row lock on job1 (without committing)
+    session1 = pg_session_factory()
+    try:
+        locked_job1 = session1.execute(
+            select(IngestionJob)
+            .where(IngestionJob.id == job1_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        assert locked_job1 is not None
+
+        # 3. Worker Session 2 runs reconciliation in parallel
+        with pg_session_factory() as session2:
+            reconciled = ContinuousIntelligenceService.reconcile_pending_ingestion_scans(
+                db=session2,
+                business_id=biz.id,
+                limit=10,
+            )
+            # In PostgreSQL: job1 was skipped because of SKIP LOCKED; only job2 was claimed
+            assert len(reconciled) == 1, f"Expected exactly 1 reconciled scan, got {len(reconciled)}"
+            runs = session2.execute(
+                select(FindingScanRun).where(FindingScanRun.business_id == biz.id)
+            ).scalars().all()
+            claimed_job_ids = [
+                r.metadata_json.get("ingestion_job_id")
+                for r in runs
+                if r.metadata_json
+            ]
+            assert job2_id in claimed_job_ids
+            assert job1_id not in claimed_job_ids, "job1 was locked by session1 and should NOT have been claimed!"
+
+    finally:
+        session1.rollback()
+        session1.close()
+
+    # 4. Now that session1 released its lock, a second reconciliation pass successfully claims job1
+    with pg_session_factory() as session3:
+        reconciled_pass2 = ContinuousIntelligenceService.reconcile_pending_ingestion_scans(
+            db=session3,
+            business_id=biz.id,
+            limit=10,
+        )
+        assert len(reconciled_pass2) == 1
+        runs_pass2 = session3.execute(
+            select(FindingScanRun).where(FindingScanRun.business_id == biz.id)
+        ).scalars().all()
+        all_claimed = [
+            r.metadata_json.get("ingestion_job_id") for r in runs_pass2 if r.metadata_json
+        ]
+        assert job1_id in all_claimed
+
+
+def test_pg_07_concurrent_scheduler_ticks_no_duplicate_scans(pg_session_factory, pg_tenant):
+    """Two concurrent threads executing ContinuousIntelligenceScheduler.run_single_tick do not create duplicate scans."""
+    from app.models.tenant import IngestionJob, UploadedDataset
+    from app.models.continuous import FindingScanRun
+    from app.analytics.continuous.scheduler import ContinuousIntelligenceScheduler
+
+    biz = pg_tenant["biz"]
+    org = pg_tenant["org"]
+
+    # Pre-clean: drain any preexisting completed jobs from prior tests for isolated test accounting
+    with pg_session_factory() as pre_db:
+        ContinuousIntelligenceScheduler.run_single_tick(db=pre_db, max_businesses=50, batch_size=50)
+
+    # 1. Seed 4 completed IngestionJobs
+    job_ids = []
+    with pg_session_factory() as db:
+        for i in range(4):
+            ds = UploadedDataset(
+                id=str(uuid4()),
+                organization_id=org.id,
+                business_id=biz.id,
+                filename=f"pg_concur_{i}.csv",
+                file_type="csv",
+                storage_key=f"/tmp/pg_concur_{i}.csv",
+                file_size_bytes=1024,
+                readiness_status="READY",
+            )
+            job = IngestionJob(
+                id=str(uuid4()),
+                organization_id=org.id,
+                business_id=biz.id,
+                dataset_id=ds.id,
+                status="COMPLETED",
+                target_entity="Sale",
+                started_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
+                rows_processed=15,
+            )
+            db.add_all([ds, job])
+            job_ids.append(job.id)
+        db.commit()
+
+    # 2. Concurrently run single ticks from two independent database sessions
+    def run_tick():
+        with pg_session_factory() as thread_db:
+            return ContinuousIntelligenceScheduler.run_single_tick(
+                db=thread_db,
+                max_businesses=10,
+                batch_size=10,
+            )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        f1 = executor.submit(run_tick)
+        f2 = executor.submit(run_tick)
+        res1 = f1.result(timeout=20)
+        res2 = f2.result(timeout=20)
+
+    # 3. Verify total reconciled across both workers equals 4
+    total_reconciled = res1["total_reconciled"] + res2["total_reconciled"]
+    assert total_reconciled == 4, f"Expected exactly 4 scans reconciled across concurrent workers, got {total_reconciled}"
+    assert len(res1["errors"]) == 0
+    assert len(res2["errors"]) == 0
+
+    # 4. Verify ZERO duplicate FindingScanRun records in PostgreSQL
+    with pg_session_factory() as db:
+        runs = db.execute(
+            select(FindingScanRun).where(FindingScanRun.business_id == biz.id)
+        ).scalars().all()
+        # Filter for the jobs seeded in this test
+        test_runs = [
+            r for r in runs
+            if r.metadata_json and r.metadata_json.get("ingestion_job_id") in job_ids
+        ]
+        assert len(test_runs) == 4, f"Expected exactly 4 scan runs, found {len(test_runs)} (possible duplicate execution)"
+        recorded_job_ids = [r.metadata_json["ingestion_job_id"] for r in test_runs]
+        assert len(set(recorded_job_ids)) == 4, "Duplicate scan runs detected for an ingestion job!"
+
+
+def test_pg_08_scheduler_transaction_rollback_and_retryability(pg_session_factory, pg_tenant):
+    """Scheduler transaction rolls back cleanly on scan error without corrupting state or leaving dangling locks."""
+    from unittest.mock import patch
+    from app.models.tenant import IngestionJob, UploadedDataset
+    from app.models.continuous import FindingScanRun
+    from app.analytics.continuous.service import ContinuousIntelligenceService
+    from app.analytics.continuous.scheduler import ContinuousIntelligenceScheduler
+
+    biz = pg_tenant["biz"]
+    org = pg_tenant["org"]
+
+    # 1. Seed a completed job
+    with pg_session_factory() as db:
+        ds = UploadedDataset(
+            id=str(uuid4()),
+            organization_id=org.id,
+            business_id=biz.id,
+            filename="pg_failing_scan.csv",
+            file_type="csv",
+            storage_key="/tmp/pg_failing_scan.csv",
+            file_size_bytes=1024,
+            readiness_status="READY",
+        )
+        job = IngestionJob(
+            id=str(uuid4()),
+            organization_id=org.id,
+            business_id=biz.id,
+            dataset_id=ds.id,
+            status="COMPLETED",
+            target_entity="Sale",
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+            rows_processed=10,
+        )
+        db.add_all([ds, job])
+        db.commit()
+        job_id = job.id
+
+    # 2. Simulate transient failure during trigger_ingestion_scan
+    # Service handles per-job failure by rolling back the transaction so no partial state is committed
+    with patch.object(
+        ContinuousIntelligenceService,
+        "trigger_ingestion_scan",
+        side_effect=RuntimeError("Transient database lock timeout during scan"),
+    ):
+        with pg_session_factory() as db:
+            result = ContinuousIntelligenceScheduler.run_single_tick(
+                db=db,
+                max_businesses=10,
+                batch_size=10,
+            )
+            # Service rolled back transaction and did not claim/reconcile
+            assert result["total_reconciled"] == 0
+
+    # 3. Verify PostgreSQL transaction state is clean (no half-created FindingScanRun)
+    with pg_session_factory() as db:
+        runs = db.execute(
+            select(FindingScanRun).where(
+                FindingScanRun.business_id == biz.id,
+            )
+        ).scalars().all()
+        failing_runs = [
+            r for r in runs
+            if r.metadata_json and r.metadata_json.get("ingestion_job_id") == job_id
+        ]
+        assert len(failing_runs) == 0, "Failed scan committed partial FindingScanRun record!"
+
+        # Candidate IngestionJob must remain COMPLETED and intact
+        candidate_job = db.execute(
+            select(IngestionJob).where(IngestionJob.id == job_id)
+        ).scalar_one()
+        assert candidate_job.status == "COMPLETED"
+
+    # 4. Subsequent tick without failure successfully reconciles the job (retryability)
+    with pg_session_factory() as db:
+        clean_result = ContinuousIntelligenceScheduler.run_single_tick(
+            db=db,
+            max_businesses=10,
+            batch_size=10,
+        )
+        assert clean_result["total_reconciled"] >= 1
+
+    with pg_session_factory() as db:
+        runs_after = db.execute(
+            select(FindingScanRun).where(FindingScanRun.business_id == biz.id)
+        ).scalars().all()
+        success_runs = [
+            r for r in runs_after
+            if r.metadata_json and r.metadata_json.get("ingestion_job_id") == job_id
+        ]
+        assert len(success_runs) == 1
+        assert success_runs[0].status == "COMPLETED"

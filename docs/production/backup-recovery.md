@@ -212,19 +212,81 @@ chmod +x /opt/nexus/scripts/backup_nexus_coordinated.sh
    - Weekly snapshots: Retain 90 days.
    - Monthly snapshots: Retain 365 days for regulatory/audit compliance.
 
+### 3.6 Redis Persistence, BGSAVE Backup & JWT-Secret Rotation Fallback
+
+1. **Redis Persistence Policy**:
+   Redis runs with Append-Only File (AOF) persistence:
+   - `--appendonly yes`
+   - `--appendfsync everysec`
+   - `--maxmemory 256mb`
+   - `--maxmemory-policy noeviction`
+   Redis data is mounted on named volume `nexus_redis_prod_data` at `/data`.
+
+2. **Redis Backup Procedure (Verified BGSAVE)**:
+   > [!IMPORTANT]
+   > Do NOT copy a live AOF volume while Redis is actively writing, as torn blocks can corrupt the restored archive.
+   Coordinated backups trigger an explicit Redis background save (`BGSAVE`), poll until `rdb_bgsave_in_progress:0` and `rdb_last_bgsave_status:ok`, and archive the verified `dump.rdb` snapshot:
+   ```bash
+   docker compose -f docker-compose.prod.yml exec -T redis redis-cli bgsave
+   # Verify completion via info persistence, then archive dump.rdb
+   docker run --rm \
+     -v nexus_redis_prod_data:/data:ro \
+     -v /var/backups/nexus:/backup \
+     alpine sh -c "test -s /data/dump.rdb && tar -czf /backup/nexus_redis_${TIMESTAMP}.tar.gz -C /data dump.rdb"
+   ```
+
+3. **Disaster Recovery Fallback (JWT-Secret Rotation)**:
+   > [!IMPORTANT]
+   > **Security Invariant**: Redis stores rate-limiting counters, active token revocation lists (blocklists), and shared session states.
+   > If the Redis volume or AOF state is destroyed or cannot be recovered from backup:
+   > - Any JWT tokens that were revoked in the blocklist would no longer be recognized as revoked by the backend.
+   > - **Mandatory Recovery Action**: If Redis state cannot be restored, the operator **MUST immediately rotate `AUTH_JWT_SECRET`** across all backend and scheduler environment configurations and restart the services.
+   > - Rotating `AUTH_JWT_SECRET` immediately invalidates all outstanding JWT tokens, protecting against the replay of revoked or compromised session credentials.
+
+4. **Fail-Safe Retention Policy**:
+   - Backup retention is managed by `app.core.backup.enforce_retention`.
+   - **Safety Invariant**: Under no circumstances will older backups be pruned if there are **seven or fewer (<= 7)** valid coordinated backup sets available.
+   - **Safety Invariant**: The single most recent known-good backup set is **never** deleted, regardless of age or configured retention window.
+
+5. **Operational Failure Alerting**:
+   - Backup failures automatically report to Sentry (tag `service=backup`).
+   - If `BACKUP_ALERT_WEBHOOK_URL` is configured, an automated JSON alert payload is dispatched to the incident response webhook on any backup or restore failure.
+
 ---
 
 ## 4. Coordinated Restore & Recovery Procedures
 
-To restore both database metadata and raw tenant files to a synchronized point in time:
+To restore both database metadata and raw tenant files to a synchronized point in time, execute `scripts/restore_nexus_coordinated.sh` with the explicit safety confirmation flag:
 
-### Step 1: Quiesce Traffic & Stop Ingestion
+```bash
+./scripts/restore_nexus_coordinated.sh --confirm-destructive-restore <TIMESTAMP> [BACKUP_ROOT]
+```
+
+### Safety Controls & Invariants:
+1. **Explicit Confirmation**: Non-interactive executions fail closed unless `--confirm-destructive-restore` is provided. Interactive TTY executions additionally require typing `CONFIRM-RESTORE`.
+2. **Pre-Flight Validation**: Database dump magic bytes (`PGDMP`), tar archive integrity (`tar -tzf`), and SHA-256 sidecars are verified before stopping services or mutating data.
+3. **Staged Tenant File Extraction**: Files are extracted to a staging directory (`/data/staging_<TIMESTAMP>`) and validated prior to replacing live data.
+4. **Split-State Recovery Strategy**: If database restoration succeeds but tenant file extraction fails:
+   - Restoration aborts and immediately fires a `RESTORE_SPLIT_STATE` alert to Sentry and `BACKUP_ALERT_WEBHOOK_URL`.
+   - The original tenant files remain uncorrupted because changes occur through the staging directory.
+   - Operators can inspect `/data/staging_<TIMESTAMP>` or rerun storage reconciliation with `python scripts/reconcile_storage.py` before resuming services.
+
+### Manual Step-by-Step Restoration (Runbook Reference)
+
+### Step 1: Pre-Flight Integrity Verification
+```bash
+sha256sum -c "/var/backups/nexus/nexus_db_${TIMESTAMP}.dump.sha256"
+sha256sum -c "/var/backups/nexus/nexus_files_${TIMESTAMP}.tar.gz.sha256"
+tar -tzf "/var/backups/nexus/nexus_files_${TIMESTAMP}.tar.gz" > /dev/null
+```
+
+### Step 2: Quiesce Traffic & Stop Ingestion
 Stop the application backend and any standalone scheduler workers to prevent inbound writes during restoration:
 ```bash
 docker compose -f docker-compose.prod.yml stop backend $(docker compose -f docker-compose.prod.yml ps --services | grep scheduler || true)
 ```
 
-### Step 2: Restore PostgreSQL Database
+### Step 3: Restore PostgreSQL Database
 ```bash
 # Terminate any remaining database connections
 docker compose -f docker-compose.prod.yml exec postgres psql -U nexus_user -d postgres -c \
@@ -239,23 +301,28 @@ docker compose -f docker-compose.prod.yml exec -T postgres pg_restore \
   -U nexus_user \
   -d nexus_db \
   -v \
-  --clean \
-  --if-exists \
-  < /var/backups/nexus/nexus_db_TIMESTAMP.dump
+  < /var/backups/nexus/nexus_db_${TIMESTAMP}.dump
 ```
 
-### Step 3: Restore Persistent File Volume (`nexus_backend_data`)
-Restore the tenant files into the named volume, ensuring ownership is restored to `appuser` (`1000:1000`):
+### Step 4: Staged Restoration of Persistent File Volume (`nexus_backend_data`)
+Restore tenant files via staging, ensuring ownership is restored to `appuser` (`1000:1000`):
 
 ```bash
 docker run --rm \
   -v nexus_backend_data:/data \
   -v /var/backups/nexus:/backup:ro \
   alpine sh -c "
-    rm -rf /data/* && \
-    tar -xzf /backup/nexus_files_TIMESTAMP.tar.gz -C /data && \
-    chown -R 1000:1000 /data && \
-    chmod 755 /data && \
+    set -e
+    mkdir -p /data/staging_${TIMESTAMP}
+    tar -xzf /backup/nexus_files_${TIMESTAMP}.tar.gz -C /data/staging_${TIMESTAMP}
+    mkdir -p /data/tenants
+    rm -rf /data/tenants/*
+    if [ -d /data/staging_${TIMESTAMP}/tenants ]; then
+      cp -a /data/staging_${TIMESTAMP}/tenants/* /data/tenants/ 2>/dev/null || true
+    fi
+    rm -rf /data/staging_${TIMESTAMP}
+    chown -R 1000:1000 /data
+    chmod 755 /data
     chmod -R u=rwX,go=rX /data
   "
 ```
@@ -281,10 +348,10 @@ Execute the following verification checklist before resuming production traffic:
    ```
 
 3. **Reconcile `storage_key` References against Filesystem**:
-   Run a reconciliation check to confirm all database `storage_key` records exist on disk:
+   Run a reconciliation check to confirm all database `storage_key` records exist on disk (or use `scripts/reconcile_storage.py`):
    ```bash
    docker compose -f docker-compose.prod.yml run --rm backend python -c "
-from app.core.db import SessionLocal
+from app.core.database import SessionLocal
 from app.models.tenant import UploadedDataset
 from app.services.data_gateway_service import DataGatewayService
 from pathlib import Path
@@ -328,7 +395,7 @@ db.close()
    > 5. **Defaults to DRY-RUN / AUDIT mode** (`DELETE_ORPHANS=false`), reporting orphaned files without modifying disk state.
    > 6. Requires explicit operator confirmation (`DELETE_ORPHANS=true`) to delete unindexed files and prune empty parent directories up to the tenant root.
 
-   Run the reconciliation check:
+   Run the reconciliation check via `scripts/reconcile_storage.py` or inline:
    ```bash
    docker compose -f docker-compose.prod.yml run --rm \
      -e DELETE_ORPHANS=false \
@@ -336,7 +403,7 @@ db.close()
 import os
 from pathlib import Path
 from app.core.config import settings
-from app.core.db import SessionLocal
+from app.core.database import SessionLocal
 from app.models.tenant import UploadedDataset
 from app.services.data_gateway_service import DataGatewayService
 
