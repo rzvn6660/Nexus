@@ -36,6 +36,7 @@ from app.schemas.analytics import (
     DecompositionResponse,
     CorrelationResponse,
     StatisticalTestResponse,
+    GrossToNetResponse,
 )
 
 router = APIRouter()
@@ -136,6 +137,28 @@ def get_summary(
     )
     service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_financial_summary(ctx)
+    return {"success": True, "data": data, "evidence": evidence}
+
+
+@router.get("/waterfall/gross-to-net", response_model=GrossToNetResponse, summary="Commercial Gross-to-Net revenue waterfall")
+def get_gross_to_net(
+    date_from: Optional[datetime] = Query(None, description="Start date (ISO 8601)"),
+    date_to: Optional[datetime] = Query(None, description="End date (ISO 8601)"),
+    categories: Optional[List[str]] = Query(None),
+    customer_segments: Optional[List[str]] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    db: Session = Depends(get_db_session),
+):
+    ctx = _build_context(
+        date_from=date_from,
+        date_to=date_to,
+        categories=categories,
+        customer_segments=customer_segments,
+        business_id=biz_id,
+        db=db,
+    )
+    service = AnalyticsService(db, business_id=biz_id)
+    data, evidence = service.get_gross_to_net_waterfall(ctx)
     return {"success": True, "data": data, "evidence": evidence}
 
 

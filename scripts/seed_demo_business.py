@@ -267,26 +267,32 @@ def seed_demo_business(
         total_customers = session.scalar(select(func.count(Customer.id)).where(Customer.business_id == biz.id))
         total_products = session.scalar(select(func.count(Product.id)).where(Product.business_id == biz.id))
         total_sales = session.scalar(select(func.count(Sale.id)).where(Sale.business_id == biz.id))
-        net_sales = session.scalar(select(func.sum(Sale.subtotal)).where(Sale.business_id == biz.id)) or 0.0
+        completed_sales = session.scalar(select(func.count(Sale.id)).where(Sale.business_id == biz.id, Sale.status.in_(["completed", "shipped"]))) or 0
+        net_sales = session.scalar(select(func.sum(Sale.subtotal - Sale.discount_amount)).where(Sale.business_id == biz.id, Sale.status.in_(["completed", "shipped"]))) or 0.0
+        tax_amount = session.scalar(select(func.sum(Sale.tax_amount)).where(Sale.business_id == biz.id, Sale.status.in_(["completed", "shipped"]))) or 0.0
+        total_billed = session.scalar(select(func.sum(Sale.total_amount)).where(Sale.business_id == biz.id, Sale.status.in_(["completed", "shipped"]))) or 0.0
 
         print("\n" + "=" * 65)
         print("DEMO BUSINESS SEEDING COMPLETED SUCCESSFULLY")
         print("=" * 65)
-        print(f"  Organization ID:   {org.id}")
-        print(f"  Organization Name: {org.name}")
-        print(f"  Business ID:       {biz.id}")
-        print(f"  Business Name:     {biz.name}")
-        print(f"  Owner Email:       {owner_email}")
+        print(f"  Organization ID:       {org.id}")
+        print(f"  Organization Name:     {org.name}")
+        print(f"  Business ID:           {biz.id}")
+        print(f"  Business Name:         {biz.name}")
+        print(f"  Owner Email:           {owner_email}")
         if generated_pass:
-            print(f"  Owner Password:    {owner_password}  <-- Save this password")
+            print(f"  Owner Password:        {owner_password}  <-- Save this password")
         else:
-            print(f"  Owner Password:    [CONFIGURED VIA CLI ARGUMENT]")
+            print(f"  Owner Password:        [CONFIGURED VIA CLI ARGUMENT]")
         print("-" * 65)
-        print(f"  Customers:         {total_customers}")
-        print(f"  Products:          {total_products}")
-        print(f"  Sales Records:     {total_sales}")
-        print(f"  Net Sales Revenue: ${float(net_sales):,.2f}")
-        print(f"  Semantic Model:    Version {semantic_model.version} ({semantic_model.status})")
+        print(f"  Customers:             {total_customers}")
+        print(f"  Products:              {total_products}")
+        print(f"  Total Ingested Orders: {total_sales}")
+        print(f"  Completed Orders:      {completed_sales}")
+        print(f"  Net Commercial Sales:  ${float(net_sales):,.2f}")
+        print(f"  Sales Tax Liability:   ${float(tax_amount):,.2f}")
+        print(f"  Total Billed:          ${float(total_billed):,.2f}")
+        print(f"  Semantic Model:        Version {semantic_model.version} ({semantic_model.status})")
         print("=" * 65)
 
         return {
@@ -295,7 +301,10 @@ def seed_demo_business(
             "business_id": biz.id,
             "owner_email": owner_email,
             "sales_count": total_sales,
+            "completed_sales_count": completed_sales,
             "net_sales": float(net_sales),
+            "tax_amount": float(tax_amount),
+            "total_billed": float(total_billed),
         }
 
 

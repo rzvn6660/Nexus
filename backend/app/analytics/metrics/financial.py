@@ -15,6 +15,8 @@ from app.analytics.core.models import (
     MetricValue,
     ComparisonResult,
     FinancialSummaryResult,
+    GrossToNetStep,
+    GrossToNetWaterfallResult,
 )
 
 
@@ -119,8 +121,9 @@ class FinancialMetricsCalculator:
             clauses.append(date_col >= context.date_from)
         if context.date_to:
             clauses.append(date_col <= context.date_to)
-        if context.statuses:
-            clauses.append(Sale.status.in_(context.statuses))
+        statuses = context.statuses if context.statuses is not None else ["completed", "shipped"]
+        if statuses:
+            clauses.append(Sale.status.in_(statuses))
         if context.customer_ids:
             clauses.append(Sale.customer_id.in_(context.customer_ids))
         if context.customer_segments:
@@ -135,7 +138,7 @@ class FinancialMetricsCalculator:
         cls, session: Session, context: AnalysisContext, is_comparison: bool = False
     ) -> Dict[str, Decimal]:
         """
-        Compute Gross Sales, Discounts, Net Sales (Revenue), and Orders.
+        Compute Gross Sales, Discounts, Net Sales (Revenue), Orders, Tax, and Billed Totals.
         """
         d_from = context.comparison_date_from if is_comparison else context.date_from
         d_to = context.comparison_date_to if is_comparison else context.date_to
@@ -152,14 +155,27 @@ class FinancialMetricsCalculator:
                 func.coalesce(
                     func.sum(Sale.subtotal - Sale.discount_amount), Decimal("0.00")
                 ).label("net_sales"),
-                func.count(Sale.id).label("orders"),
+                func.count(func.distinct(Sale.id)).label("orders"),
+                func.coalesce(func.sum(Sale.tax_amount), Decimal("0.00")).label("tax_amount"),
+                func.coalesce(func.sum(Sale.total_amount), Decimal("0.00")).label("total_billed"),
             )
             stmt = cls._apply_sale_filters(stmt, temp_ctx, Sale.transaction_date)
             row = session.execute(stmt).one()
             gross_sales = Decimal(str(row.gross_sales))
-            discounts = Decimal(str(row.discounts))
+            order_discounts = Decimal(str(row.discounts))
+            discounts = order_discounts
             net_sales = Decimal(str(row.net_sales))
             orders = Decimal(str(row.orders))
+            tax_amount = Decimal(str(row.tax_amount))
+            total_billed = Decimal(str(row.total_billed))
+
+            # Query line item discounts if items exist
+            line_disc_stmt = (
+                select(func.coalesce(func.sum(SaleItem.discount_amount), Decimal("0.00")))
+                .join(Sale, SaleItem.sale_id == Sale.id)
+            )
+            line_disc_stmt = cls._apply_sale_filters(line_disc_stmt, temp_ctx, Sale.transaction_date)
+            line_discounts = Decimal(str(session.execute(line_disc_stmt).scalar() or Decimal("0.00")))
         else:
             # Join SaleItem and Product
             stmt = (
@@ -186,9 +202,44 @@ class FinancialMetricsCalculator:
                 stmt = stmt.where(and_(*clauses))
             row = session.execute(stmt).one()
             gross_sales = Decimal(str(row.gross_sales))
-            discounts = Decimal(str(row.discounts))
+            line_discounts = Decimal(str(row.discounts))
+            discounts = line_discounts
+            order_discounts = Decimal("0.00")
             net_sales = Decimal(str(row.net_sales))
             orders = Decimal(str(row.orders))
+            tax_amount = Decimal("0.00")
+            total_billed = net_sales
+
+        # Query refunded orders (status == 'refunded')
+        refund_ctx = temp_ctx.model_copy(update={"statuses": ["refunded"]})
+        if has_product_filter:
+            refund_stmt = (
+                select(
+                    func.coalesce(func.sum(SaleItem.line_total), Decimal("0.00")).label("returns_amount"),
+                    func.count(func.distinct(Sale.id)).label("returns_count"),
+                )
+                .join(Sale, SaleItem.sale_id == Sale.id)
+                .join(Product, SaleItem.product_id == Product.id)
+            )
+            refund_stmt = cls._apply_sale_filters(refund_stmt, refund_ctx, Sale.transaction_date)
+            clauses = []
+            if temp_ctx.product_ids:
+                clauses.append(SaleItem.product_id.in_(temp_ctx.product_ids))
+            if temp_ctx.categories:
+                clauses.append(Product.category.in_(temp_ctx.categories))
+            if temp_ctx.subcategories:
+                clauses.append(Product.subcategory.in_(temp_ctx.subcategories))
+            if clauses:
+                refund_stmt = refund_stmt.where(and_(*clauses))
+        else:
+            refund_stmt = select(
+                func.coalesce(func.sum(Sale.subtotal), Decimal("0.00")).label("returns_amount"),
+                func.count(func.distinct(Sale.id)).label("returns_count"),
+            )
+            refund_stmt = cls._apply_sale_filters(refund_stmt, refund_ctx, Sale.transaction_date)
+        ref_row = session.execute(refund_stmt).one()
+        returns_amount = Decimal(str(ref_row.returns_amount))
+        returns_count = Decimal(str(ref_row.returns_count))
 
         aov = (net_sales / orders) if orders > 0 else Decimal("0.00")
         aov = aov.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -199,6 +250,12 @@ class FinancialMetricsCalculator:
             "net_sales": net_sales,
             "orders": orders,
             "aov": aov,
+            "tax_amount": tax_amount,
+            "total_billed": total_billed,
+            "order_discounts": order_discounts,
+            "line_discounts": line_discounts,
+            "returns_amount": returns_amount,
+            "returns_count": returns_count,
         }
 
     @classmethod
@@ -523,4 +580,187 @@ class FinancialMetricsCalculator:
                 ),
             ),
             comparison=comparisons,
+            tax_amount=MetricValue(
+                name="tax_amount",
+                value=s_agg["tax_amount"],
+                formatted=_format_value(s_agg["tax_amount"], MetricUnit.CURRENCY, currency_symbol=sym),
+                unit=MetricUnit.CURRENCY,
+                description="Sales tax / VAT collected (balance sheet liability)",
+            ),
+            total_billed=MetricValue(
+                name="total_billed",
+                value=s_agg["total_billed"],
+                formatted=_format_value(s_agg["total_billed"], MetricUnit.CURRENCY, currency_symbol=sym),
+                unit=MetricUnit.CURRENCY,
+                description="Total billed amount: Net Sales + Tax",
+            ),
+            order_discounts=MetricValue(
+                name="order_discounts",
+                value=s_agg["order_discounts"],
+                formatted=_format_value(s_agg["order_discounts"], MetricUnit.CURRENCY, currency_symbol=sym),
+                unit=MetricUnit.CURRENCY,
+                description="Order-level promotional checkout discounts",
+            ),
+            line_discounts=MetricValue(
+                name="line_discounts",
+                value=s_agg["line_discounts"],
+                formatted=_format_value(s_agg["line_discounts"], MetricUnit.CURRENCY, currency_symbol=sym),
+                unit=MetricUnit.CURRENCY,
+                description="Line-item trade discounts",
+            ),
+            returns_amount=MetricValue(
+                name="returns_amount",
+                value=s_agg["returns_amount"],
+                formatted=_format_value(s_agg["returns_amount"], MetricUnit.CURRENCY, currency_symbol=sym),
+                unit=MetricUnit.CURRENCY,
+                description="Total value of refunded transactions",
+            ),
+            returns_count=MetricValue(
+                name="returns_count",
+                value=s_agg["returns_count"],
+                formatted=_format_value(s_agg["returns_count"], MetricUnit.COUNT),
+                unit=MetricUnit.COUNT,
+                description="Count of refunded transactions",
+            ),
+        )
+
+    @classmethod
+    def evaluate_gross_to_net_waterfall(
+        cls, session: Session, context: AnalysisContext
+    ) -> GrossToNetWaterfallResult:
+        """
+        Evaluate complete commercial gross-to-net waterfall:
+        Gross Line Sales -> Line Discounts -> Order Subtotal -> Order Discounts -> Net Sales -> Sales Tax -> Total Billed.
+        Also tracks Refunds and Net Revenue After Returns.
+        """
+        sym = context.currency_symbol or "$"
+        s_agg = cls.compute_sales_aggregates(session, context, is_comparison=False)
+
+        has_product_filter = bool(context.product_ids or context.categories or context.subcategories)
+
+        if has_product_filter:
+            gross_sales = s_agg["gross_sales"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            line_discounts = s_agg["line_discounts"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            order_subtotal = (gross_sales - line_discounts).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            order_discounts = Decimal("0.00")
+            total_discounts = line_discounts
+            net_sales = s_agg["net_sales"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            tax_amount = Decimal("0.00")
+            total_billed = net_sales
+        else:
+            # Check if line items exist for gross list price calculation across all products
+            gross_item_stmt = (
+                select(func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_price), Decimal("0.00")))
+                .join(Sale, SaleItem.sale_id == Sale.id)
+            )
+            gross_item_stmt = cls._apply_sale_filters(gross_item_stmt, context, Sale.transaction_date)
+            raw_gross_items = session.execute(gross_item_stmt).scalar()
+
+            if raw_gross_items and Decimal(str(raw_gross_items)) > Decimal("0.00"):
+                gross_sales = Decimal(str(raw_gross_items)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                line_discounts = s_agg["line_discounts"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            else:
+                line_discounts = Decimal("0.00")
+                gross_sales = s_agg["gross_sales"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+            order_subtotal = (gross_sales - line_discounts).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            order_discounts = s_agg["order_discounts"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            total_discounts = (line_discounts + order_discounts).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            net_sales = (order_subtotal - order_discounts).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            tax_amount = s_agg["tax_amount"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            total_billed = (net_sales + tax_amount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        refunds_amount = s_agg["returns_amount"].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        refunds_count = int(s_agg["returns_count"])
+        # Because refunded orders in the schema are independent terminal transactions already excluded
+        # from completed sales (statuses=['completed', 'shipped']), net_sales is the true commercial net sales.
+        # We do not subtract independent refund transaction rows from completed sales a second time.
+        net_revenue_after_returns = net_sales
+
+        steps = [
+            GrossToNetStep(
+                key="gross_sales",
+                name="Gross Sales (List Price)",
+                amount=gross_sales,
+                formatted=_format_value(gross_sales, MetricUnit.CURRENCY, currency_symbol=sym),
+                impact="positive",
+                description="Total pre-discount merchandise value at catalog unit prices",
+            ),
+            GrossToNetStep(
+                key="line_discounts",
+                name="Line-Item Discounts",
+                amount=-line_discounts,
+                formatted=_format_value(line_discounts, MetricUnit.CURRENCY, currency_symbol=sym),
+                impact="negative",
+                description="Trade promotions and item-level price reductions",
+            ),
+            GrossToNetStep(
+                key="order_subtotal",
+                name="Order Subtotal",
+                amount=order_subtotal,
+                formatted=_format_value(order_subtotal, MetricUnit.CURRENCY, currency_symbol=sym),
+                impact="subtotal",
+                description="Merchandise value before checkout / cart-level discounts",
+            ),
+            GrossToNetStep(
+                key="order_discounts",
+                name="Order-Level Discounts",
+                amount=-order_discounts,
+                formatted=_format_value(order_discounts, MetricUnit.CURRENCY, currency_symbol=sym),
+                impact="negative",
+                description="Cart coupons, loyalty redemptions, and order promotional discounts",
+            ),
+            GrossToNetStep(
+                key="net_sales",
+                name="Net Sales (Commercial Revenue)",
+                amount=net_sales,
+                formatted=_format_value(net_sales, MetricUnit.CURRENCY, currency_symbol=sym),
+                impact="subtotal",
+                description="Recognized GAAP commercial revenue excluding sales tax",
+            ),
+            GrossToNetStep(
+                key="tax_amount",
+                name="Sales Tax / VAT",
+                amount=tax_amount,
+                formatted=_format_value(tax_amount, MetricUnit.CURRENCY, currency_symbol=sym),
+                impact="positive",
+                description="Sales tax / VAT collected on behalf of taxing authorities (balance sheet liability)",
+            ),
+            GrossToNetStep(
+                key="total_billed",
+                name="Total Billed Amount",
+                amount=total_billed,
+                formatted=_format_value(total_billed, MetricUnit.CURRENCY, currency_symbol=sym),
+                impact="subtotal",
+                description="Final cash / receivables charged to customers (Net Sales + Tax)",
+            ),
+        ]
+
+        evidence_notes = [
+            "Net Sales represents recognized commercial revenue from completed and shipped transactions.",
+            f"Line-item discounts ({_format_value(line_discounts, MetricUnit.CURRENCY, currency_symbol=sym)}) and order discounts ({_format_value(order_discounts, MetricUnit.CURRENCY, currency_symbol=sym)}) are tracked separately to prevent double-counting.",
+            "Sales tax is strictly segregated from commercial revenue as a balance sheet liability.",
+            f"Refund transaction volume ({refunds_count} orders totalling {_format_value(refunds_amount, MetricUnit.CURRENCY, currency_symbol=sym)}) represents independent terminal-state transactions already excluded from completed net sales; it is tracked separately and not deducted a second time.",
+        ]
+        if has_product_filter:
+            evidence_notes.append(
+                "Product-level filtering reconciles line-item gross sales, line discounts, and net line total; order-level discounts and sales tax are unallocated."
+            )
+
+        return GrossToNetWaterfallResult(
+            currency=context.currency or "USD",
+            currency_symbol=sym,
+            gross_sales=gross_sales,
+            line_discounts=line_discounts,
+            order_subtotal=order_subtotal,
+            order_discounts=order_discounts,
+            total_discounts=total_discounts,
+            net_sales=net_sales,
+            tax_amount=tax_amount,
+            total_billed=total_billed,
+            refunds_amount=refunds_amount,
+            refunds_count=refunds_count,
+            net_revenue_after_returns=net_revenue_after_returns,
+            steps=steps,
+            evidence_notes=evidence_notes,
         )

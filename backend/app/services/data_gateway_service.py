@@ -71,7 +71,16 @@ class DataGatewayService:
     ENTITY_TARGETS: ClassVar[dict[str, Any]] = {
         "Sale": {
             "required": ["date", "amount"],
-            "optional": ["customer_code", "order_number", "payment_method", "channel"],
+            "optional": [
+                "customer_code",
+                "order_number",
+                "payment_method",
+                "channel",
+                "discount_amount",
+                "tax_amount",
+                "total_amount",
+                "status",
+            ],
             "patterns": {
                 "date": [r"\bdate\b", r"\border_date\b", r"\btransaction_date\b", r"\bcreated_at\b", r"\bsale_date\b"],
                 "amount": [r"\bamount\b", r"\brevenue\b", r"\btotal\b", r"\bsales\b", r"\bsubtotal\b", r"\bprice\b"],
@@ -79,6 +88,10 @@ class DataGatewayService:
                 "order_number": [r"\border_number\b", r"\border_id\b", r"\binvoice\b", r"\binvoice_no\b", r"\btransaction_id\b"],
                 "payment_method": [r"\bpayment\b", r"\bpayment_method\b", r"\bpayment_type\b"],
                 "channel": [r"\bchannel\b", r"\bstore\b", r"\blocation\b", r"\bsales_channel\b"],
+                "discount_amount": [r"\bdiscount_amount\b", r"\bdiscount\b", r"\bdiscounts\b", r"\bpromo\b"],
+                "tax_amount": [r"\btax_amount\b", r"\btax\b", r"\bvat\b", r"\bgst\b"],
+                "total_amount": [r"\btotal_amount\b", r"\bgrand_total\b", r"\bfinal_total\b", r"\bbilled_total\b"],
+                "status": [r"\bstatus\b", r"\border_status\b", r"\bstate\b"],
             },
         },
         "Customer": {
@@ -1068,9 +1081,34 @@ class DataGatewayService:
 
             # 2. Check Entity-Specific Required Columns & Ingest Logic
             if entity == "Sale":
-                amount_col = next((c for c, f in field_map.items() if f == "amount"), None)
-                date_col = next((c for c, f in field_map.items() if f == "date"), None)
-                order_col = next((c for c, f in field_map.items() if f == "order_number"), None)
+                amount_col = (
+                    next((c for c, f in field_map.items() if f == "amount"), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("amount", "subtotal", "revenue", "total", "sales", "price")), None)
+                )
+                date_col = (
+                    next((c for c, f in field_map.items() if f == "date"), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("date", "order_date", "transaction_date", "created_at", "sale_date")), None)
+                )
+                order_col = (
+                    next((c for c, f in field_map.items() if f == "order_number"), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("order_number", "order_id", "invoice", "invoice_no", "transaction_id", "transaction_number")), None)
+                )
+                discount_col = (
+                    next((c for c, f in field_map.items() if f == "discount_amount"), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("discount_amount", "discount", "discounts", "promo")), None)
+                )
+                tax_col = (
+                    next((c for c, f in field_map.items() if f == "tax_amount"), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("tax_amount", "tax", "vat", "gst")), None)
+                )
+                total_col = (
+                    next((c for c, f in field_map.items() if f == "total_amount"), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("total_amount", "grand_total", "final_total", "billed_total")), None)
+                )
+                status_col = (
+                    next((c for c, f in field_map.items() if f == "status"), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("status", "order_status", "state")), None)
+                )
 
                 if not amount_col:
                     raise HTTPException(
@@ -1116,6 +1154,7 @@ class DataGatewayService:
 
                 # Multi-line order aggregation map (preserves all line items for an order)
                 staged_sales_by_order: dict[str, Sale] = {}
+                order_meta: dict[str, dict[str, Any]] = {}
 
                 for idx, row in df.iterrows():
                     row_num = idx + 1
@@ -1133,6 +1172,15 @@ class DataGatewayService:
                     try:
                         clean_val = str(val).replace("$", "").replace(",", "").strip()
                         num_amount = round(Decimal(clean_val), 2)
+                        if num_amount < Decimal("0.00"):
+                            row_errors.append({
+                                "row": row_num,
+                                "column": amount_col,
+                                "value": str(val)[:50],
+                                "error_type": "RANGE_ERROR",
+                                "message": f"Sale amount cannot be negative: '{val}'.",
+                            })
+                            continue
                     except (InvalidOperation, ValueError, TypeError):
                         row_errors.append({
                             "row": row_num,
@@ -1142,6 +1190,99 @@ class DataGatewayService:
                             "message": f"Invalid numerical sale amount '{val}'.",
                         })
                         continue
+
+                    # Parse optional discount_amount (default 0.00 if genuinely absent)
+                    disc_val = Decimal("0.00")
+                    if discount_col and row[discount_col] is not None and str(row[discount_col]).strip() != "":
+                        try:
+                            clean_disc = str(row[discount_col]).replace("$", "").replace(",", "").strip()
+                            disc_val = round(Decimal(clean_disc), 2)
+                            if disc_val < Decimal("0.00"):
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": discount_col,
+                                    "value": str(row[discount_col])[:50],
+                                    "error_type": "RANGE_ERROR",
+                                    "message": f"Sale discount cannot be negative: '{row[discount_col]}'.",
+                                })
+                                continue
+                        except (InvalidOperation, ValueError, TypeError):
+                            row_errors.append({
+                                "row": row_num,
+                                "column": discount_col,
+                                "value": str(row[discount_col])[:50],
+                                "error_type": "INVALID_NUMERIC",
+                                "message": f"Invalid numerical sale discount amount '{row[discount_col]}'.",
+                            })
+                            continue
+
+                    # Parse optional tax_amount (default 0.00 if genuinely absent)
+                    tax_val = Decimal("0.00")
+                    if tax_col and row[tax_col] is not None and str(row[tax_col]).strip() != "":
+                        try:
+                            clean_tax = str(row[tax_col]).replace("$", "").replace(",", "").strip()
+                            tax_val = round(Decimal(clean_tax), 2)
+                            if tax_val < Decimal("0.00"):
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": tax_col,
+                                    "value": str(row[tax_col])[:50],
+                                    "error_type": "RANGE_ERROR",
+                                    "message": f"Sale tax amount cannot be negative: '{row[tax_col]}'.",
+                                })
+                                continue
+                        except (InvalidOperation, ValueError, TypeError):
+                            row_errors.append({
+                                "row": row_num,
+                                "column": tax_col,
+                                "value": str(row[tax_col])[:50],
+                                "error_type": "INVALID_NUMERIC",
+                                "message": f"Invalid numerical sale tax amount '{row[tax_col]}'.",
+                            })
+                            continue
+
+                    # Parse optional total_amount (default subtotal - discount + tax if genuinely absent)
+                    if total_col and row[total_col] is not None and str(row[total_col]).strip() != "":
+                        try:
+                            clean_tot = str(row[total_col]).replace("$", "").replace(",", "").strip()
+                            tot_val = round(Decimal(clean_tot), 2)
+                            if tot_val < Decimal("0.00"):
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": total_col,
+                                    "value": str(row[total_col])[:50],
+                                    "error_type": "RANGE_ERROR",
+                                    "message": f"Sale total amount cannot be negative: '{row[total_col]}'.",
+                                })
+                                continue
+                        except (InvalidOperation, ValueError, TypeError):
+                            row_errors.append({
+                                "row": row_num,
+                                "column": total_col,
+                                "value": str(row[total_col])[:50],
+                                "error_type": "INVALID_NUMERIC",
+                                "message": f"Invalid numerical sale total amount '{row[total_col]}'.",
+                            })
+                            continue
+                    else:
+                        tot_val = max(Decimal("0.00"), num_amount - disc_val + tax_val)
+
+                    # Parse optional status (default 'completed' if genuinely absent)
+                    status_val = "completed"
+                    if status_col and row[status_col] is not None and str(row[status_col]).strip() != "":
+                        raw_status = str(row[status_col]).strip().lower()
+                        valid_statuses = {"completed", "pending", "cancelled", "refunded", "shipped", "delivered"}
+                        if raw_status in valid_statuses:
+                            status_val = raw_status
+                        else:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": status_col,
+                                "value": str(row[status_col])[:50],
+                                "error_type": "INVALID_STATUS",
+                                "message": f"Invalid sale status '{row[status_col]}'. Must be one of: {sorted(valid_statuses)}.",
+                            })
+                            continue
 
                     sale_dt = datetime.now(UTC)
                     if date_col and row[date_col] is not None and str(row[date_col]).strip() != "":
@@ -1166,11 +1307,80 @@ class DataGatewayService:
                     )
 
                     # Multi-line order preservation: If order is already staged in this batch,
-                    # aggregate line items into the overarching Sale order total rather than dropping them
+                    # aggregate line items while preserving order-level metadata and rejecting conflicts
                     if sale_order in staged_sales_by_order:
                         existing_sale = staged_sales_by_order[sale_order]
+                        meta = order_meta[sale_order]
+
+                        # 1. Reject conflicting status metadata with clear validation error
+                        if status_val != meta["status"]:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": status_col or "status",
+                                "value": str(row[status_col]) if status_col else status_val,
+                                "error_type": "CONFLICTING_ORDER_METADATA",
+                                "message": f"Conflicting order status '{status_val}' on multi-line order '{sale_order}' (row {meta['first_row_num']} had '{meta['status']}').",
+                            })
+                            continue
+
+                        # 2. Reject conflicting transaction date metadata
+                        if sale_dt.date() != meta["transaction_date"].date():
+                            row_errors.append({
+                                "row": row_num,
+                                "column": date_col or "date",
+                                "value": str(row[date_col]) if date_col else str(sale_dt),
+                                "error_type": "CONFLICTING_ORDER_METADATA",
+                                "message": f"Conflicting transaction date '{sale_dt.date()}' on multi-line order '{sale_order}' (row {meta['first_row_num']} had '{meta['transaction_date'].date()}').",
+                            })
+                            continue
+
+                        # 3. Aggregate line-level subtotal
                         existing_sale.subtotal += num_amount
-                        existing_sale.total_amount += num_amount
+
+                        # 4. Handle discount: line-level vs repeated order-level
+                        if meta["is_line_discount"]:
+                            # Explicit line discount column: always aggregate line discounts
+                            existing_sale.discount_amount += disc_val
+                        elif meta["has_discount_col"]:
+                            # Generic discount column: if value differs across lines, treat as line discounts
+                            if disc_val != meta["first_discount"]:
+                                existing_sale.discount_amount += disc_val
+                                meta["is_line_discount"] = True
+                            # If identical value repeated across lines: preserve order-level discount (no multiplication)
+
+                        # 5. Handle tax: preserve order-level tax without multiplication
+                        if meta["is_line_tax"]:
+                            existing_sale.tax_amount += tax_val
+                        elif meta["has_tax_col"]:
+                            if tax_val != meta["first_tax"]:
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": tax_col,
+                                    "value": str(row[tax_col]),
+                                    "error_type": "CONFLICTING_ORDER_METADATA",
+                                    "message": f"Conflicting order-level tax amount '{tax_val}' on multi-line order '{sale_order}' (row {meta['first_row_num']} had '{meta['first_tax']}').",
+                                })
+                                continue
+                            # Repeated identical order-level tax: do NOT add again
+
+                        # 6. Handle total: preserve order-level total without multiplication
+                        if meta["has_total_col"]:
+                            if tot_val != meta["first_total"]:
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": total_col,
+                                    "value": str(row[total_col]),
+                                    "error_type": "CONFLICTING_ORDER_METADATA",
+                                    "message": f"Conflicting order-level total amount '{tot_val}' on multi-line order '{sale_order}' (row {meta['first_row_num']} had '{meta['first_total']}').",
+                                })
+                                continue
+                            # Repeated identical order-level total: do NOT add again
+                        else:
+                            # Recompute total amount dynamically from updated subtotal
+                            existing_sale.total_amount = max(
+                                Decimal("0.00"),
+                                existing_sale.subtotal - existing_sale.discount_amount + existing_sale.tax_amount,
+                            )
                         continue
 
                     # Deduplication guard: Skip if already committed in DB from previous ingestion
@@ -1183,13 +1393,26 @@ class DataGatewayService:
                         customer_id=cust.id,
                         transaction_date=sale_dt,
                         subtotal=num_amount,
-                        discount_amount=Decimal("0.00"),
-                        tax_amount=Decimal("0.00"),
-                        total_amount=num_amount,
-                        status="completed",
+                        discount_amount=disc_val,
+                        tax_amount=tax_val,
+                        total_amount=tot_val,
+                        status=status_val,
                     )
                     staged_sales_by_order[sale_order] = sale
                     staged_objects.append(sale)
+                    order_meta[sale_order] = {
+                        "first_row_num": row_num,
+                        "status": status_val,
+                        "transaction_date": sale_dt,
+                        "has_discount_col": bool(discount_col and row[discount_col] is not None and str(row[discount_col]).strip() != ""),
+                        "first_discount": disc_val,
+                        "is_line_discount": bool(discount_col and any(term in discount_col.lower() for term in ("line", "item"))),
+                        "has_tax_col": bool(tax_col and row[tax_col] is not None and str(row[tax_col]).strip() != ""),
+                        "first_tax": tax_val,
+                        "is_line_tax": bool(tax_col and any(term in tax_col.lower() for term in ("line", "item"))),
+                        "has_total_col": bool(total_col and row[total_col] is not None and str(row[total_col]).strip() != ""),
+                        "first_total": tot_val,
+                    }
 
             elif entity == "Product":
                 sku_col = next((c for c, f in field_map.items() if f == "sku"), None)

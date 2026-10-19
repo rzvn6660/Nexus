@@ -123,6 +123,42 @@ class FinancialSummaryResult(BaseModel):
         default=None,
         description="Period comparisons if comparison range is provided"
     )
+    # Additional financial clarity fields (non-breaking, optional)
+    tax_amount: Optional[MetricValue] = Field(default=None, description="Sales tax / VAT collected")
+    total_billed: Optional[MetricValue] = Field(default=None, description="Total billed amount: Net Sales + Tax")
+    order_discounts: Optional[MetricValue] = Field(default=None, description="Order-level promotional discounts")
+    line_discounts: Optional[MetricValue] = Field(default=None, description="Line-item trade discounts")
+    returns_amount: Optional[MetricValue] = Field(default=None, description="Total value of refunded transactions")
+    returns_count: Optional[MetricValue] = Field(default=None, description="Count of refunded transactions")
+
+
+class GrossToNetStep(BaseModel):
+    """Single step in the commercial revenue waterfall."""
+    key: str = Field(description="Step identifier")
+    name: str = Field(description="Display label")
+    amount: Decimal = Field(description="Amount in business currency")
+    formatted: str = Field(description="Formatted currency string")
+    impact: str = Field(description="'positive', 'negative', or 'subtotal'")
+    description: str = Field(description="Business explanation of step")
+
+
+class GrossToNetWaterfallResult(BaseModel):
+    """Step-by-step commercial revenue reconciliation from gross list price to net revenue and billed total."""
+    currency: str = Field(default="USD", description="Currency code")
+    currency_symbol: str = Field(default="$", description="Currency symbol")
+    gross_sales: Decimal = Field(description="Gross merchandise list value before all discounts")
+    line_discounts: Decimal = Field(description="Aggregate line-item trade discounts")
+    order_subtotal: Decimal = Field(description="Merchandise value after line discounts, before order discounts")
+    order_discounts: Decimal = Field(description="Order checkout / cart discounts")
+    total_discounts: Decimal = Field(description="Total discounts granted (line + order)")
+    net_sales: Decimal = Field(description="Realized commercial revenue (subtotal - order discounts)")
+    tax_amount: Decimal = Field(description="Sales tax / VAT collected (liability)")
+    total_billed: Decimal = Field(description="Total billed to customers (net_sales + tax)")
+    refunds_amount: Decimal = Field(description="Value of refunded / returned orders")
+    refunds_count: int = Field(description="Count of refunded transactions")
+    net_revenue_after_returns: Decimal = Field(description="Revenue after deducting refunds")
+    steps: List[GrossToNetStep] = Field(default_factory=list, description="Ordered waterfall steps")
+    evidence_notes: List[str] = Field(default_factory=list, description="Accounting traceability notes")
 
 
 class ProductPerformanceItem(BaseModel):

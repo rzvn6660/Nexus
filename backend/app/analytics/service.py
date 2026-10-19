@@ -17,6 +17,7 @@ from app.analytics.core.types import (
 )
 from app.analytics.core.models import (
     FinancialSummaryResult,
+    GrossToNetWaterfallResult,
     ProductPerformanceItem,
     BreakdownResult,
     TimeSeriesResult,
@@ -193,6 +194,64 @@ class AnalyticsService:
             .with_row_count(int(summary.orders.value or 0))
         )
         return summary, builder.build()
+
+    def get_gross_to_net_waterfall(
+        self, context: AnalysisContext
+    ) -> Tuple[GrossToNetWaterfallResult, EvidenceRecord]:
+        """Compute the commercial Gross-to-Net revenue waterfall with complete evidence."""
+        context = self._ensure_context(context)
+        waterfall = FinancialMetricsCalculator.evaluate_gross_to_net_waterfall(self.session, context)
+
+        assumptions = [
+            "Sales tax is excluded from commercial revenue as a balance sheet liability.",
+            "Line-level trade discounts and order-level checkout discounts are reconciled independently.",
+            "Completed orders are restricted to status IN ('completed', 'shipped').",
+            "Refund transaction volume represents independent terminal transactions already excluded from completed sales and is not deducted twice.",
+        ]
+        limitations = [
+            "Data model records terminal-state orders without explicit reversal linkage to prior sales; refund volume is segregated rather than establishing synthetic relationships.",
+        ]
+
+        result_summary: Dict[str, Any] = {
+            "gross_sales": float(waterfall.gross_sales),
+            "line_discounts": float(waterfall.line_discounts),
+            "order_subtotal": float(waterfall.order_subtotal),
+            "order_discounts": float(waterfall.order_discounts),
+            "total_discounts": float(waterfall.total_discounts),
+            "net_sales": float(waterfall.net_sales),
+            "tax_amount": float(waterfall.tax_amount),
+            "total_billed": float(waterfall.total_billed),
+            "refunds_amount": float(waterfall.refunds_amount),
+            "refunds_count": int(waterfall.refunds_count),
+            "net_revenue_after_returns": float(waterfall.net_revenue_after_returns),
+            "currency": waterfall.currency,
+            "currency_symbol": waterfall.currency_symbol,
+        }
+
+        source_tables = ["sales", "sale_items"]
+        source_columns = ["subtotal", "discount_amount", "tax_amount", "total_amount", "status", "quantity", "unit_price"]
+        if context.business_id:
+            source_columns.append("business_id")
+
+        builder = (
+            EvidenceBuilder.create("gross_to_net_waterfall", context)
+            .with_sources(
+                tables=source_tables,
+                columns=source_columns,
+                supporting_sources=[],
+            )
+            .with_calculation(
+                calculation="Gross Line Sales - Line Discounts = Subtotal - Order Discounts = Net Sales + Tax = Billed",
+                method="deterministic_waterfall_reconciliation",
+                mathematical_formula="Gross - LineDiscounts - OrderDiscounts + Tax = BilledTotal",
+            )
+            .with_assumptions(assumptions)
+            .with_limitations(limitations)
+            .with_data_quality_status("verified")
+            .with_result_summary(result_summary)
+            .with_row_count(len(waterfall.steps))
+        )
+        return waterfall, builder.build()
 
     def get_product_rankings(
         self,

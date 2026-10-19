@@ -13,6 +13,7 @@ from app.analytics.core.models import (
     PriceVolumeMixDecomposition,
     CorrelationResult,
     StatisticalTestResult,
+    GrossToNetWaterfallResult,
 )
 from app.analytics.customer.rfm import RFMAnalysisSummary
 from app.analytics.customer.cohorts import CohortAnalysisResult
@@ -46,3 +47,4 @@ VarianceResponse = AnalyticsEnvelope[VarianceAnalysisResult]
 DecompositionResponse = AnalyticsEnvelope[PriceVolumeMixDecomposition]
 CorrelationResponse = AnalyticsEnvelope[CorrelationResult]
 StatisticalTestResponse = AnalyticsEnvelope[StatisticalTestResult]
+GrossToNetResponse = AnalyticsEnvelope[GrossToNetWaterfallResult]

@@ -527,23 +527,48 @@ class TestPhase33BusinessAcceptance:
         evidence = data["evidence"]
 
         # Ground-truth mathematical assertions derived directly from sales.csv & sale_items.csv:
-        # Sum of subtotal for all 3,500 sales = 17,803,706.80
-        # Orders = 3,500
-        # AOV = 17,803,706.80 / 3,500 = 5,086.77
-        # Total line items = 11,221
-        # Total units sold = 208,641
+        # Completed sales only (status IN ('completed', 'shipped')):
+        # Completed orders = 3,299 (91 refunded, 77 pending, 33 cancelled excluded from commercial sales)
+        # Gross line sales = 18,502,059.67
+        # Line discounts = 1,547,536.24
+        # Order subtotal = 16,954,523.43
+        # Order discounts = 61,857.66
+        # Net commercial revenue = 16,954,523.43 - 61,857.66 = 16,892,665.77
+        # AOV = 16,892,665.77 / 3,299 = 5,120.54
+        # Completed units sold = 198,198
+        # Sales tax liability = 1,266,949.84
+        # Total billed amount = 16,892,665.77 + 1,266,949.84 = 18,159,615.61
         net_sales_val = Decimal(str(summary["net_sales"]["value"]))
         orders_val = int(summary["orders"]["value"])
         aov_val = Decimal(str(summary["average_order_value"]["value"]))
         units_sold_val = int(summary["units_sold"]["value"])
+        tax_val = Decimal(str(summary["tax_amount"]["value"]))
+        total_billed_val = Decimal(str(summary["total_billed"]["value"]))
 
-        assert net_sales_val == Decimal("17803706.80")
-        assert orders_val == 3500
-        assert aov_val == Decimal("5086.77")
-        assert units_sold_val == 208641
+        assert net_sales_val == Decimal("16892665.77")
+        assert orders_val == 3299
+        assert aov_val == Decimal("5120.54")
+        assert units_sold_val == 198198
+        assert tax_val == Decimal("1266949.84")
+        assert total_billed_val == Decimal("18159615.61")
 
-        # Direct PostgreSQL validation of independently calculated sample-data expectations:
+        # Direct PostgreSQL validation across ALL 3,500 ingested rows (unfiltered DB layer):
         biz_id = AcceptanceContext.biz_a_id
+        db_total_sales_rows = pg_db.scalar(
+            select(func.count(Sale.id)).where(Sale.business_id == biz_id)
+        )
+        assert db_total_sales_rows == 3500
+
+        db_total_tax_preserved = pg_db.scalar(
+            select(func.sum(Sale.tax_amount)).where(Sale.business_id == biz_id)
+        )
+        assert Decimal(str(db_total_tax_preserved)) == Decimal("1330541.07")
+
+        db_total_billed_preserved = pg_db.scalar(
+            select(func.sum(Sale.total_amount)).where(Sale.business_id == biz_id)
+        )
+        assert Decimal(str(db_total_billed_preserved)) == Decimal("19071089.50")
+
         db_total_units = pg_db.scalar(
             select(func.sum(SaleItem.quantity))
             .join(Sale, SaleItem.sale_id == Sale.id)
@@ -557,6 +582,22 @@ class TestPhase33BusinessAcceptance:
             .where(Sale.business_id == biz_id)
         )
         assert Decimal(str(db_total_line_revenue)) == Decimal("17803706.80")
+
+        # Verify commercial Gross-to-Net waterfall endpoint via real HTTP API
+        wf_resp = client.get("/api/v1/analytics/waterfall/gross-to-net", headers=headers)
+        assert wf_resp.status_code == 200, f"Waterfall API failed: {wf_resp.text}"
+        wf_data = wf_resp.json()["data"]
+        assert Decimal(str(wf_data["gross_sales"])) == Decimal("18502059.67")
+        assert Decimal(str(wf_data["line_discounts"])) == Decimal("1547536.24")
+        assert Decimal(str(wf_data["order_subtotal"])) == Decimal("16954523.43")
+        assert Decimal(str(wf_data["order_discounts"])) == Decimal("61857.66")
+        assert Decimal(str(wf_data["total_discounts"])) == Decimal("1609393.90")
+        assert Decimal(str(wf_data["net_sales"])) == Decimal("16892665.77")
+        assert Decimal(str(wf_data["tax_amount"])) == Decimal("1266949.84")
+        assert Decimal(str(wf_data["total_billed"])) == Decimal("18159615.61")
+        assert Decimal(str(wf_data["refunds_amount"])) == Decimal("310096.91")
+        assert wf_data["refunds_count"] == 91
+        assert Decimal(str(wf_data["net_revenue_after_returns"])) == Decimal("16892665.77")
 
         # Verify product-level performance rankings via real HTTP API
         prod_resp = client.get("/api/v1/analytics/products?ranking_metric=revenue&limit=50", headers=headers)
