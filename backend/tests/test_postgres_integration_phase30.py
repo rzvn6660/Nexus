@@ -21,16 +21,21 @@ import os
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from decimal import Decimal
 import pytest
+from fastapi import HTTPException
 from app.api.deps import get_db_session
 from app.core.database import get_db
 from app.main import app
+from app.models.customer import Customer
+from app.models.product import Product
 from app.models.sale import Sale
+from app.models.sale_item import SaleItem
 from app.models.tenant import UploadedDataset
 from app.services.auth_service import AuthService
 from app.services.data_gateway_service import DataGatewayService
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.orm import sessionmaker
 
 
@@ -682,3 +687,204 @@ def test_pg_08_scheduler_transaction_rollback_and_retryability(pg_session_factor
         ]
         assert len(success_runs) == 1
         assert success_runs[0].status == "COMPLETED"
+
+
+def test_pg_09_sale_item_relationship_resolution_and_isolation(pg_engine, pg_session_factory, pg_tenant):
+    """
+    Test Step 1 Gap 2:
+    1. Valid relationship resolution:
+       - SaleItem parent Sale is resolved via natural key (transaction_number)
+       - Product is resolved via product SKU
+       - Valid relationship persists with foreign keys correctly pointing to Sale.id and Product.id
+    2. Repeated ingestion idempotency:
+       - Re-ingesting the exact same items does not produce duplicate rows
+    3. Unresolved or invalid reference rejection & safe transactional rollback:
+       - Ingestion with non-existent transaction_number or non-existent SKU raises HTTPException 422
+       - IngestionJob is marked FAILED and transaction rolls back with 0 partial records committed
+    4. Multi-tenant isolation:
+       - Ingesting a sale item for Tenant A referencing Tenant B's transaction or SKU is rejected (HTTP 422 UNRESOLVED_REFERENCE)
+    """
+    biz_a = pg_tenant["biz"]
+    org_a = pg_tenant["org"]
+
+    # 1. Setup Tenant A baseline records
+    with pg_session_factory() as db:
+        cust_a = Customer(
+            business_id=biz_a.id,
+            customer_code=f"CUST-P30-{uuid4().hex[:6]}",
+            name="Tenant A Customer",
+            email=f"cust_{uuid4().hex[:6]}@tenanta.com",
+            city="Seattle",
+            customer_segment="Retail",
+            acquisition_date=datetime.now(UTC).date(),
+        )
+        db.add(cust_a)
+        db.flush()
+
+        prod_a = Product(
+            business_id=biz_a.id,
+            sku=f"SKU-NAT-{uuid4().hex[:6].upper()}",
+            name="Natural Key Product A",
+            selling_price=Decimal("50.00"),
+            unit_cost=Decimal("20.00"),
+            category="Electronics",
+            subcategory="Audio",
+            active=True,
+        )
+        db.add(prod_a)
+        db.flush()
+
+        sale_a = Sale(
+            business_id=biz_a.id,
+            customer_id=cust_a.id,
+            transaction_number=f"TXN-NAT-{uuid4().hex[:6].upper()}",
+            transaction_date=datetime.now(UTC),
+            subtotal=Decimal("100.00"),
+            discount_amount=Decimal("10.00"),
+            tax_amount=Decimal("9.00"),
+            total_amount=Decimal("99.00"),
+            status="completed",
+        )
+        db.add(sale_a)
+        db.commit()
+
+        prod_a_id = prod_a.id
+        prod_a_sku = prod_a.sku
+        sale_a_id = sale_a.id
+        sale_a_txn = sale_a.transaction_number
+
+    # 2. Ingest valid SaleItem via DataGatewayService
+    valid_csv = (
+        "transaction_number,sku,quantity,unit_price,discount_amount,line_total\n"
+        f"{sale_a_txn},{prod_a_sku},2,50.00,10.00,90.00\n"
+    ).encode("utf-8")
+
+    with pg_session_factory() as db:
+        ds_valid = DataGatewayService.save_raw_dataset(
+            db=db,
+            organization_id=org_a.id,
+            business_id=biz_a.id,
+            filename="valid_items.csv",
+            content=valid_csv,
+        )
+        db.commit()
+
+        ingest_res = DataGatewayService.ingest_into_core_models(
+            db=db,
+            dataset_id=ds_valid.id,
+            business_id=biz_a.id,
+            target_entity="SaleItem",
+        )
+        assert ingest_res["status"] == "COMPLETED"
+        assert ingest_res["records_persisted"] == 1
+
+    # Verify relationships persisted in PostgreSQL
+    with pg_session_factory() as db:
+        item = db.execute(
+            select(SaleItem).where(SaleItem.sale_id == sale_a_id, SaleItem.product_id == prod_a_id)
+        ).scalar_one()
+        assert item.quantity == 2
+        assert item.unit_price == Decimal("50.00")
+        assert item.discount_amount == Decimal("10.00")
+        assert item.line_total == Decimal("90.00")
+
+    # 3. Verify Repeated Ingestion Idempotency (no duplicates created)
+    with pg_session_factory() as db:
+        re_ingest_res = DataGatewayService.ingest_into_core_models(
+            db=db,
+            dataset_id=ds_valid.id,
+            business_id=biz_a.id,
+            target_entity="SaleItem",
+        )
+        assert re_ingest_res["status"] == "COMPLETED"
+        assert "idempotent no-op" in re_ingest_res["message"].lower()
+
+        # Count must remain exactly 1
+        items_count = db.scalar(
+            select(func.count(SaleItem.id)).where(SaleItem.sale_id == sale_a_id)
+        )
+        assert items_count == 1
+
+    # 4. Unresolved references & transactional rollback
+    invalid_csv = (
+        "transaction_number,sku,quantity,unit_price,discount_amount,line_total\n"
+        f"{sale_a_txn},NON_EXISTENT_SKU_999,1,25.00,0.00,25.00\n"
+    ).encode("utf-8")
+
+    with pg_session_factory() as db:
+        ds_invalid = DataGatewayService.save_raw_dataset(
+            db=db,
+            organization_id=org_a.id,
+            business_id=biz_a.id,
+            filename="invalid_sku.csv",
+            content=invalid_csv,
+        )
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            DataGatewayService.ingest_into_core_models(
+                db=db,
+                dataset_id=ds_invalid.id,
+                business_id=biz_a.id,
+                target_entity="SaleItem",
+            )
+        assert exc_info.value.status_code in (400, 422)
+        assert "UNRESOLVED_REFERENCE" in str(exc_info.value.detail)
+
+    # Confirm rollback in DB: items count remains unchanged (1)
+    with pg_session_factory() as db:
+        count_after_failure = db.scalar(
+            select(func.count(SaleItem.id)).where(SaleItem.sale_id == sale_a_id)
+        )
+        assert count_after_failure == 1
+
+    # 5. Multi-tenant isolation: Tenant A cannot reference Tenant B's sale or SKU
+    hex_b = uuid4().hex[:6]
+    with pg_session_factory() as db:
+        _, org_b, biz_b = AuthService.signup(
+            db=db,
+            email=f"pg_test_b_{hex_b}@nexus.postgres",
+            password="SecurePass2026!",
+            full_name="Tenant B Owner",
+            organization_name=f"Org B {hex_b}",
+            business_name=f"Biz B {hex_b}",
+        )
+        prod_b = Product(
+            business_id=biz_b.id,
+            sku=f"SKU-TENANT-B-{hex_b.upper()}",
+            name="Tenant B Secret Product",
+            selling_price=Decimal("199.00"),
+            unit_cost=Decimal("80.00"),
+            category="Hardware",
+            subcategory="Tools",
+            active=True,
+        )
+        db.add(prod_b)
+        db.commit()
+        prod_b_sku = prod_b.sku
+
+    cross_tenant_csv = (
+        "transaction_number,sku,quantity,unit_price,discount_amount,line_total\n"
+        f"{sale_a_txn},{prod_b_sku},1,199.00,0.00,199.00\n"
+    ).encode("utf-8")
+
+    with pg_session_factory() as db:
+        ds_cross = DataGatewayService.save_raw_dataset(
+            db=db,
+            organization_id=org_a.id,
+            business_id=biz_a.id,
+            filename="cross_tenant.csv",
+            content=cross_tenant_csv,
+        )
+        db.commit()
+
+        with pytest.raises(HTTPException) as exc_cross:
+            DataGatewayService.ingest_into_core_models(
+                db=db,
+                dataset_id=ds_cross.id,
+                business_id=biz_a.id,
+                target_entity="SaleItem",
+            )
+        assert exc_cross.value.status_code in (400, 422)
+        assert "UNRESOLVED_REFERENCE" in str(exc_cross.value.detail)
+

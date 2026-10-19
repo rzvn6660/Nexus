@@ -109,13 +109,13 @@ class DataGatewayService:
             "required": ["sale_id", "product_id", "quantity", "unit_price"],
             "optional": ["discount_amount", "tax_amount", "line_total"],
             "patterns": {
-                "sale_id": [r"\bsale_id\b", r"\border_id\b", r"\btransaction_id\b", r"\binvoice_id\b"],
-                "product_id": [r"\bproduct_id\b", r"\bsku\b", r"\bitem_id\b"],
+                "sale_id": [r"\bsale_id\b", r"\border_id\b", r"\btransaction_id\b", r"\binvoice_id\b", r"\btransaction_number\b", r"\border_number\b", r"\bsale_ref\b"],
+                "product_id": [r"\bproduct_id\b", r"\bsku\b", r"\bitem_id\b", r"\bproduct_sku\b", r"\bproduct_ref\b"],
                 "quantity": [r"\bquantity\b", r"\bqty\b", r"\bunits\b", r"\bcount\b"],
                 "unit_price": [r"\bunit_price\b", r"\bprice\b", r"\brate\b", r"\bitem_price\b"],
                 "discount_amount": [r"\bdiscount\b", r"\bdiscount_amount\b", r"\bpromo\b"],
                 "tax_amount": [r"\btax\b", r"\btax_amount\b", r"\bgst\b", r"\bvat\b"],
-                "line_total": [r"\bline_total\b", r"\btotal\b", r"\bsubtotal\b", r"\bamount\b"],
+                "line_total": [r"\bline_total\b", r"\btotal\b", r"\bsubtotal\b", r"\bline_amount\b"],
             },
         },
         "Inventory": {
@@ -772,6 +772,8 @@ class DataGatewayService:
 
             for target_field, pat_list in patterns.items():
                 for actual_col in df.columns:
+                    if str(actual_col) in matched_fields:
+                        continue
                     col_str = str(actual_col).lower().strip()
                     tokens = set(re.split(r"[^a-z0-9]+", col_str))
                     matches = False
@@ -1654,10 +1656,42 @@ class DataGatewayService:
                     staged_objects.append(exp)
 
             elif entity == "SaleItem":
-                sale_id_col = next((c for c, f in field_map.items() if f == "sale_id"), None)
-                prod_id_col = next((c for c, f in field_map.items() if f == "product_id"), None)
-                qty_col = next((c for c, f in field_map.items() if f == "quantity"), None)
-                price_col = next((c for c, f in field_map.items() if f == "unit_price"), None)
+                sale_ref_col = (
+                    next((c for c, f in field_map.items() if f in ("sale_id", "sale_ref", "transaction_number", "order_number")), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("transaction_number", "order_number", "sale_id", "sale_ref", "transaction_id", "order_id", "invoice_id")), None)
+                )
+                prod_ref_col = (
+                    next((c for c, f in field_map.items() if f in ("product_id", "product_ref", "sku", "product_sku")), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("sku", "product_sku", "product_id", "product_ref", "item_id", "item_code")), None)
+                )
+                qty_col = (
+                    next((c for c, f in field_map.items() if f in ("quantity", "qty", "units")), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("quantity", "qty", "units", "count")), None)
+                )
+                price_col = (
+                    next((c for c, f in field_map.items() if f in ("unit_price", "price", "rate")), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("unit_price", "price", "rate", "item_price")), None)
+                )
+                discount_col = (
+                    next((c for c, f in field_map.items() if f in ("discount_amount", "discount", "promo")), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("discount_amount", "discount", "promo")), None)
+                )
+                line_total_col = (
+                    next((c for c, f in field_map.items() if f in ("line_total", "total", "subtotal", "line_amount")), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("line_total", "total", "subtotal", "line_amount")), None)
+                )
+
+                if not sale_ref_col:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Cannot ingest SaleItems: missing required sale reference ('sale_id', 'transaction_number', or 'order_number') column mapping.",
+                    )
+
+                if not prod_ref_col:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Cannot ingest SaleItems: missing required product reference ('sku' or 'product_id') column mapping.",
+                    )
 
                 if not qty_col or not price_col:
                     raise HTTPException(
@@ -1665,8 +1699,84 @@ class DataGatewayService:
                         detail="Cannot ingest SaleItems: missing required 'quantity' or 'unit_price' column.",
                     )
 
+                # Tenant-safe parent lookup pre-fetch:
+                # Resolve sale transaction_number -> sale.id (scoped strictly to business_id)
+                sales_rows = db.execute(
+                    select(Sale.id, Sale.transaction_number).where(Sale.business_id == business_id)
+                ).all()
+                txn_to_sale_id: dict[str, int] = {
+                    str(s.transaction_number).strip(): s.id for s in sales_rows
+                }
+
+                # Resolve product sku -> product.id (scoped strictly to business_id)
+                prod_rows = db.execute(
+                    select(Product.id, Product.sku).where(Product.business_id == business_id)
+                ).all()
+                sku_to_prod_id: dict[str, int] = {
+                    str(p.sku).strip(): p.id for p in prod_rows
+                }
+
+                # Deduplication map of existing sale_items in database for this business
+                existing_items_rows = db.execute(
+                    select(SaleItem.sale_id, SaleItem.product_id).join(
+                        Sale, SaleItem.sale_id == Sale.id
+                    ).where(Sale.business_id == business_id)
+                ).all()
+                existing_items_set: set[tuple[int, int]] = {
+                    (row.sale_id, row.product_id) for row in existing_items_rows
+                }
+                seen_items_in_batch: set[tuple[int, int]] = set()
+
                 for idx, row in df.iterrows():
                     row_num = idx + 1
+
+                    # 1. Resolve Parent Sale by natural key
+                    raw_sale_ref = str(row[sale_ref_col]).strip() if row[sale_ref_col] is not None else ""
+                    if not raw_sale_ref:
+                        row_errors.append({
+                            "row": row_num,
+                            "column": sale_ref_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Sale transaction reference cannot be empty.",
+                        })
+                        continue
+
+                    matched_sale_id = txn_to_sale_id.get(raw_sale_ref)
+                    if matched_sale_id is None:
+                        row_errors.append({
+                            "row": row_num,
+                            "column": sale_ref_col,
+                            "value": raw_sale_ref[:50],
+                            "error_type": "UNRESOLVED_REFERENCE",
+                            "message": f"Sale transaction reference '{raw_sale_ref}' could not be resolved to any existing sale in this business.",
+                        })
+                        continue
+
+                    # 2. Resolve Product by SKU
+                    raw_prod_ref = str(row[prod_ref_col]).strip() if row[prod_ref_col] is not None else ""
+                    if not raw_prod_ref:
+                        row_errors.append({
+                            "row": row_num,
+                            "column": prod_ref_col,
+                            "value": None,
+                            "error_type": "REQUIRED_VALUE_MISSING",
+                            "message": "Product SKU reference cannot be empty.",
+                        })
+                        continue
+
+                    matched_prod_id = sku_to_prod_id.get(raw_prod_ref)
+                    if matched_prod_id is None:
+                        row_errors.append({
+                            "row": row_num,
+                            "column": prod_ref_col,
+                            "value": raw_prod_ref[:50],
+                            "error_type": "UNRESOLVED_REFERENCE",
+                            "message": f"Product SKU reference '{raw_prod_ref}' could not be resolved to any existing product in this business.",
+                        })
+                        continue
+
+                    # 3. Quantity validation
                     try:
                         qty = int(row[qty_col]) if qty_col and row[qty_col] is not None else 1
                         if qty <= 0:
@@ -1688,6 +1798,7 @@ class DataGatewayService:
                         })
                         continue
 
+                    # 4. Unit Price validation
                     try:
                         u_price = (
                             Decimal(str(round(float(str(row[price_col]).replace("$", "").replace(",", "")), 2)))
@@ -1713,13 +1824,43 @@ class DataGatewayService:
                         })
                         continue
 
-                    l_total = u_price * qty
+                    # 5. Discount Amount (optional)
+                    disc_val = Decimal("0.00")
+                    if discount_col and row[discount_col] is not None and str(row[discount_col]).strip() != "":
+                        try:
+                            clean_disc = str(row[discount_col]).replace("$", "").replace(",", "").strip()
+                            disc_val = max(Decimal("0.00"), round(Decimal(clean_disc), 2))
+                        except Exception:  # noqa: BLE001
+                            row_errors.append({
+                                "row": row_num,
+                                "column": discount_col,
+                                "value": str(row[discount_col])[:50],
+                                "error_type": "INVALID_NUMERIC",
+                                "message": f"Invalid numerical discount amount '{row[discount_col]}'.",
+                            })
+                            continue
+
+                    # 6. Line Total calculation
+                    l_total = max(Decimal("0.00"), (u_price * qty) - disc_val)
+                    if line_total_col and row[line_total_col] is not None and str(row[line_total_col]).strip() != "":
+                        try:
+                            clean_lt = str(row[line_total_col]).replace("$", "").replace(",", "").strip()
+                            l_total = max(Decimal("0.00"), round(Decimal(clean_lt), 2))
+                        except Exception:  # noqa: BLE001
+                            pass
+
+                    # 7. Idempotency deduplication check
+                    item_key = (matched_sale_id, matched_prod_id)
+                    if item_key in seen_items_in_batch or item_key in existing_items_set:
+                        continue
+                    seen_items_in_batch.add(item_key)
+
                     s_item = SaleItem(
-                        sale_id=int(row[sale_id_col]) if sale_id_col and row[sale_id_col] is not None else 1,
-                        product_id=int(row[prod_id_col]) if prod_id_col and row[prod_id_col] is not None else 1,
+                        sale_id=matched_sale_id,
+                        product_id=matched_prod_id,
                         quantity=qty,
                         unit_price=u_price,
-                        discount_amount=Decimal("0.00"),
+                        discount_amount=disc_val,
                         line_total=l_total,
                     )
                     staged_objects.append(s_item)

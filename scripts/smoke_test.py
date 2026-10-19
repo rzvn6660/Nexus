@@ -35,6 +35,20 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 
+def resolve_configured_database_url() -> str | None:
+    """Resolve active database connection URL honoring TEST_DATABASE_URL and DATABASE_URL."""
+    return os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+
+
+def is_live_or_ci_environment() -> bool:
+    """Detect whether execution environment strictly mandates live database readiness."""
+    return (
+        os.getenv("CI", "").strip().lower() in ("true", "1")
+        or os.getenv("REQUIRE_POSTGRES", "").strip().lower() in ("true", "1")
+        or os.getenv("APP_ENV", "").strip().lower() in ("production", "prod", "staging")
+    )
+
+
 def print_step(step_num: int, title: str) -> None:
     print(f"\n[{step_num:02d}/11] {title}...", flush=True)
 
@@ -47,7 +61,7 @@ def check(condition: bool, message: str) -> None:
         raise AssertionError(f"Smoke test failed: {message}")
 
 
-def run_smoke_test(client_getter) -> None:
+def run_smoke_test(client_getter, require_healthy: bool = False) -> None:
     print("=" * 60)
     print("NEXUS Platform Production Smoke Test")
     print("Where Business Data Becomes Intelligence.")
@@ -77,7 +91,16 @@ def run_smoke_test(client_getter) -> None:
     resp_health = client.get("/api/v1/health")
     check(resp_health.status_code == 200, f"Full health check: HTTP 200 (got {resp_health.status_code})")
     health_data = resp_health.json()
-    check(health_data.get("status") in ["healthy", "degraded"], f"Status: {health_data.get('status')}")
+    status_val = health_data.get("status")
+    db_info = health_data.get("database", {})
+    db_status = db_info.get("status")
+
+    if is_live_or_ci_environment() or require_healthy:
+        check(status_val == "healthy", f"Release gate status must be 'healthy' in CI/production (got '{status_val}')")
+        check(db_status == "connected", f"Release gate database status must be 'connected' (got '{db_status}')")
+    else:
+        # Development-only tolerance when running offline without live database services
+        check(status_val in ["healthy", "degraded"], f"Status (development fallback): {status_val}")
     check("database" in health_data, "Database health block present")
     passed_steps += 1
 
@@ -188,9 +211,25 @@ def create_in_process_client():
     from fastapi.testclient import TestClient
     from app.main import app
     from app.core.config import settings
-    from app.core.database import get_db
+    from app.core.database import get_db, _get_engine_kwargs
+    import app.core.database as core_db
     from app.api.deps import get_db_session
     from evaluation.runner.runner import create_evaluation_database
+    from sqlalchemy import create_engine
+
+    # Resolve configured database URL consistently from environment
+    configured_db_url = resolve_configured_database_url()
+    if configured_db_url:
+        clean_url = configured_db_url
+        if clean_url.startswith("postgresql://"):
+            clean_url = clean_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        elif clean_url.startswith("postgres://"):
+            clean_url = clean_url.replace("postgres://", "postgresql+psycopg://", 1)
+        settings.DATABASE_URL = clean_url
+        try:
+            core_db.engine = create_engine(settings.DATABASE_URL, **_get_engine_kwargs())
+        except Exception:
+            pass
 
     # Enable API-key authentication for in-process smoke test execution
     settings.API_KEY_ENABLED = True
@@ -291,6 +330,7 @@ def create_in_process_client():
 def main():
     parser = argparse.ArgumentParser(description="NEXUS Production Smoke Test")
     parser.add_argument("--base-url", type=str, default=None, help="Base URL of live deployment (e.g. http://localhost:8000)")
+    parser.add_argument("--require-healthy", action="store_true", default=False, help="Strictly mandate database health == 'healthy' (fails on degraded)")
     args = parser.parse_args()
 
     if args.base_url:
@@ -300,7 +340,7 @@ def main():
         client_getter = create_in_process_client
 
     try:
-        run_smoke_test(client_getter)
+        run_smoke_test(client_getter, require_healthy=args.require_healthy)
     except Exception as exc:
         print(f"\n[ERROR] Smoke test suite failed: {exc}", file=sys.stderr)
         sys.exit(1)
