@@ -136,7 +136,7 @@ class OpenAIProvider(BaseLLMProvider):
             )
 
         try:
-            prompt = TaskPromptBuilder.build_explanation_prompt(
+            system_prompt, user_prompt = TaskPromptBuilder.build_explanation_prompt(
                 query=query,
                 plan=plan,
                 tool_results=tool_results or [],
@@ -150,8 +150,8 @@ class OpenAIProvider(BaseLLMProvider):
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": prompt.system_prompt},
-                    {"role": "user", "content": prompt.user_prompt},
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.2,

@@ -4,7 +4,13 @@ import random
 import math
 from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
+
+
+class CategoryConfig(TypedDict):
+    subcategories: List[str]
+    price_range: Tuple[float, float]
+    margin_range: Tuple[float, float]
 
 
 def _quantize_decimal(val: float) -> Decimal:
@@ -12,7 +18,7 @@ def _quantize_decimal(val: float) -> Decimal:
     return Decimal(str(round(val, 2))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-CATEGORIES = {
+CATEGORIES: Dict[str, CategoryConfig] = {
     "Electronics": {
         "subcategories": ["Audio", "Cables & Adapters", "Smart Devices", "Power & Batteries"],
         "price_range": (15.0, 350.0),

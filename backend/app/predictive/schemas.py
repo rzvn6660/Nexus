@@ -85,9 +85,9 @@ class EvaluationMetrics(BaseModel):
     """Backtesting accuracy metrics computed strictly on out-of-sample validation windows."""
     mae: float = Field(..., description="Mean Absolute Error.")
     rmse: float = Field(..., description="Root Mean Squared Error.")
-    mape: float | None = Field(None, description="Mean Absolute Percentage Error (handled safely for zeros).")
+    mape: float | None = Field(default=None, description="Mean Absolute Percentage Error (handled safely for zeros).")
     smape: float = Field(..., description="Symmetric Mean Absolute Percentage Error (bounded 0-200%).")
-    wape: float | None = Field(None, description="Weighted Absolute Percentage Error.")
+    wape: float | None = Field(default=None, description="Weighted Absolute Percentage Error.")
 
 
 class ModelMetadata(BaseModel):

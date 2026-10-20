@@ -65,3 +65,12 @@ addopts = "-v --strict-markers"
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tests.*",
+    "backend.tests.*",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+

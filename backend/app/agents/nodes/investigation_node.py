@@ -269,7 +269,8 @@ def _extract_observations(
         curr_sym = result.get("currency_symbol") or (net_sales.get("formatted", "$")[0] if net_sales.get("formatted") and net_sales.get("formatted")[0] in ("$", "₹", "€", "£", "¥") else "$")
         statement = f"Net Sales (Revenue) was measured at {curr_sym}{curr_val:,.2f}"
         if comp_val is not None:
-            statement += f" compared to {curr_sym}{comp_val:,.2f} in the baseline comparison period ({chg_str})."
+            chg_str = f" ({change_pct:+.1f}%)" if change_pct is not None else ""
+            statement += f" compared to {curr_sym}{comp_val:,.2f} in the baseline comparison period{chg_str}."
         else:
             statement += "."
 

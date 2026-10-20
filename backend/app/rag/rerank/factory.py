@@ -26,9 +26,9 @@ def get_rerank_provider(
 
         return NoOpRerankProvider()
 
-    p_name = (
-        provider_name or getattr(settings, "RAG_RERANK_PROVIDER", "local")
-    ).lower()
+    raw_provider = provider_name or getattr(settings, "RAG_RERANK_PROVIDER", None) or "local"
+    p_name = raw_provider.lower().strip()
+
 
     if p_name in ("none", "noop"):
         from app.rag.rerank.providers.noop import NoOpRerankProvider

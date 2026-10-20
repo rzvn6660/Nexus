@@ -186,10 +186,11 @@ class DecisionGateway:
         is_test_env = (
             "pytest" in sys.modules
             or "PYTEST_CURRENT_TEST" in os.environ
-            or getattr(settings, "APP_ENV", "").lower() == "test"
+            or (getattr(settings, "APP_ENV", "") or "").lower() == "test"
         )
 
-        name = (requested_name or getattr(settings, "DECISION_PROVIDER", "structured_llm")).lower().strip()
+        raw_name = requested_name or getattr(settings, "DECISION_PROVIDER", None) or "structured_llm"
+        name = raw_name.lower().strip()
 
         # If explicitly requested 'mock' or running in test suite without an explicit provider override
         if name == "mock" or (is_test_env and requested_name is None):

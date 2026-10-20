@@ -819,7 +819,7 @@ class ToolRegistry:
                 assumptions=["Verified tenant workspace profile retrieved directly from database."],
                 limitations=[],
                 data_quality_status="verified",
-                record_count=1,
+                row_count=1,
             )
 
             return ToolExecutionResult(
