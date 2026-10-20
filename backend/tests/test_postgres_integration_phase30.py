@@ -888,3 +888,73 @@ def test_pg_09_sale_item_relationship_resolution_and_isolation(pg_engine, pg_ses
         assert exc_cross.value.status_code in (400, 422)
         assert "UNRESOLVED_REFERENCE" in str(exc_cross.value.detail)
 
+
+# -----------------------------------------------------------------------------
+# Phase 30 / Proposal B.2: Live PostgreSQL Evidence & Business Profile Verification
+# -----------------------------------------------------------------------------
+def test_postgres_get_business_profile_evidence_row_count(pg_db, pg_tenant) -> None:
+    """Verifies get_business_profile queries live PostgreSQL businesses table,
+
+    returns verified tenant attributes, enforces tenant existence, and constructs audited evidence with row_count == 1.
+    """
+    from app.agents.tools.registry import ToolRegistry
+
+    biz = pg_tenant["biz"]
+    registry = ToolRegistry()
+    tool = registry.get("get_business_profile")
+    assert tool is not None
+
+    # 1. Valid tenant execution against live PostgreSQL
+    result = tool.execute(session=pg_db, arguments={"business_id": biz.id})
+    assert result.status == "success"
+    assert result.result["business_id"] == biz.id
+    assert result.result["name"] == biz.name
+    assert result.result["currency"] == biz.currency
+
+    # Assert serialized evidence contract against live PostgreSQL
+    assert result.evidence is not None
+    assert result.evidence["metric"] == "business_profile"
+    assert result.evidence["source_tables"] == ["businesses"]
+    assert result.evidence["data_quality_status"] == "verified"
+    assert result.evidence["row_count"] == 1
+    assert "SELECT name, industry, country, currency, timezone, fiscal_year_start FROM businesses" in result.evidence["calculation"]
+
+    # 2. Tenant isolation / non-existent business boundary
+    res_missing = tool.execute(session=pg_db, arguments={"business_id": "non_existent_tenant_999"})
+    assert res_missing.status == "error"
+    assert "not found" in res_missing.error_message
+
+
+def test_postgres_agent_analyze_business_profile_e2e(pg_client, pg_tenant) -> None:
+    """E2E verification that /api/v1/agent/analyze on live PostgreSQL executes get_business_profile
+
+    and returns audited evidence with row_count == 1.
+    """
+    biz = pg_tenant["biz"]
+    token = pg_tenant["token"]
+
+    response = pg_client.post(
+        "/api/v1/agent/analyze",
+        json={
+            "query": "What is our business name, industry, country, and reporting currency?",
+            "explanation_level": "manager",
+        },
+        headers={
+            "Authorization": f"Bearer {token}",
+            "X-Business-ID": biz.id,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "completed"
+    assert data["intent"] == "business_profile"
+    assert "get_business_profile" in data["tools_used"]
+    assert len(data["evidence"]) >= 1
+
+    profile_ev = next(e for e in data["evidence"] if e["metric"] == "business_profile")
+    assert profile_ev["source_tables"] == ["businesses"]
+    assert profile_ev["row_count"] == 1
+    assert profile_ev["data_quality_status"] == "verified"
+
+
+
