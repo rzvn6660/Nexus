@@ -1,8 +1,9 @@
 """Tests for configuration parsing and database connectivity check behavior."""
 
-from sqlalchemy import create_engine
+import pytest
 from app.core.config import Settings
 from app.core.database import check_database_connection
+from sqlalchemy import create_engine
 
 
 def test_settings_defaults() -> None:
@@ -49,11 +50,13 @@ def test_production_cors_sanitization() -> None:
     """Validate that in production mode, wildcard CORS origins are strictly stripped."""
     prod_cfg = Settings(
         APP_ENV="production",
+        DEBUG=False,
         SECRET_KEY="a-secure-production-random-secret-key-32-chars-long",
         AUTH_JWT_SECRET="a-secure-production-jwt-secret-key-32-chars-long",
         BACKEND_CORS_ORIGINS=["*", "https://nexus.ai", "http://localhost:3000"],
     )
     assert prod_cfg.is_production is True
+    assert prod_cfg.DEBUG is False
     sanitized = prod_cfg.get_sanitized_cors_origins()
     assert "*" not in sanitized
     assert "https://nexus.ai" in sanitized
@@ -72,6 +75,40 @@ def test_production_settings_isolation() -> None:
     assert prod_cfg.DEBUG is False
     assert len(prod_cfg.SECRET_KEY) >= 32
     assert len(prod_cfg.AUTH_JWT_SECRET) >= 32
+
+
+def test_production_debug_defaults_to_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In production mode without explicit DEBUG setting, DEBUG defaults to False."""
+    monkeypatch.setattr(Settings, "model_config", {**Settings.model_config, "env_file": None})
+    prod_cfg = Settings(
+        APP_ENV="production",
+        SECRET_KEY="a-secure-production-random-secret-key-32-chars-long",
+        AUTH_JWT_SECRET="a-secure-production-jwt-secret-key-32-chars-long",
+        METRICS_ENABLED=False,
+    )
+    assert prod_cfg.is_production is True
+    assert prod_cfg.DEBUG is False
+
+
+def test_production_debug_explicit_true_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicitly enabling DEBUG=True in production mode must fail application startup."""
+    monkeypatch.setattr(Settings, "model_config", {**Settings.model_config, "env_file": None})
+    with pytest.raises(ValueError, match="DEBUG mode cannot be enabled when APP_ENV=production"):
+        Settings(
+            APP_ENV="production",
+            DEBUG=True,
+            SECRET_KEY="a-secure-production-random-secret-key-32-chars-long",
+            AUTH_JWT_SECRET="a-secure-production-jwt-secret-key-32-chars-long",
+            METRICS_ENABLED=False,
+        )
+
+
+def test_development_debug_defaults_to_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In non-production development mode, DEBUG defaults to True for developer ergonomics."""
+    monkeypatch.setattr(Settings, "model_config", {**Settings.model_config, "env_file": None})
+    dev_cfg = Settings(APP_ENV="development")
+    assert dev_cfg.is_production is False
+    assert dev_cfg.DEBUG is True
 
 
 def test_alembic_full_migration_chain() -> None:

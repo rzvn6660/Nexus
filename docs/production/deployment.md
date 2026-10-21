@@ -262,26 +262,61 @@ docker compose -f docker-compose.prod.yml logs backend | grep "a8f93e21"
 
 ### Issue 3: 413 Payload Too Large
 - **Symptom**: File upload fails during knowledge or CSV ingestion.
-- **Resolution**: Check `MAX_DOCUMENT_SIZE_BYTES` in backend config and `client_max_body_size` in `nginx.conf` (both set to 10MB by default).
+- **Resolution**: Check upload limits: tabular datasets are bounded to 50MB (`DATA_UPLOAD_MAX_BYTES=52428800` and `client_max_body_size 50M`), while unstructured knowledge documents are bounded to 5MB (`MAX_DOCUMENT_SIZE_BYTES=5242880`).
 
 ---
 
 ## 12. Rollback Procedure
 
 In the event of a faulty release:
+
+### 12.1 Application Rollback
+If the issue is isolated to application code and the database schema is backwards-compatible:
 1. Re-tag or check out the previous stable git commit:
    ```bash
    git checkout <PREVIOUS_COMMIT_SHA>
    ```
-2. Revert the database migration if necessary:
+2. Rebuild and restart application containers:
    ```bash
-   docker compose -f docker-compose.prod.yml exec backend \
-     python -m alembic downgrade -1
+   docker compose -f docker-compose.prod.yml up -d --build backend scheduler frontend
    ```
-3. Rebuild and restart services:
-   ```bash
-   docker compose -f docker-compose.prod.yml up -d --build
-   ```
+3. Run post-deployment smoke validation (`python scripts/smoke_test.py`) to verify system stability.
+
+### 12.2 Database Migration Rollback & Forward-Fix Protocol
+> [!CAUTION]
+> **A database migration rollback must NOT be assumed safe merely because application rollback is possible.**
+> Downgrading an Alembic migration can drop columns, tables, or destructive constraints resulting in irreversible data loss.
+
+1. **Expand/Contract Policy (Forward-Fix Preferred)**:
+   - Schema migrations must be additive and backwards-compatible with the immediately preceding application version.
+   - If a deployment failure occurs after an additive migration has applied, rollback the application code first. Leave the database schema at the higher revision unless the schema itself causes severe contention or data corruption.
+   - Address database defects via a new forward migration (`alembic revision`) rather than an in-place downgrade.
+2. **When Downgrade is Strictly Necessary**:
+   - Verify that the migration script contains an explicitly tested `downgrade()` function.
+   - Take an immediate pre-rollback snapshot:
+     ```bash
+     bash scripts/backup_nexus_coordinated.sh
+     ```
+   - Quiesce scheduler and background workers:
+     ```bash
+     docker compose -f docker-compose.prod.yml stop scheduler
+     ```
+   - Execute the single-step downgrade:
+     ```bash
+     docker compose -f docker-compose.prod.yml exec backend python -m alembic downgrade -1
+     ```
+3. **Failed Migration Recovery**:
+   - If `alembic upgrade head` aborts mid-execution:
+     1. Inspect `alembic_version` in PostgreSQL to determine exact recorded state:
+        ```sql
+        SELECT version_num FROM alembic_version;
+        ```
+     2. Check the PostgreSQL logs for transaction abort or lock timeouts.
+     3. Fix the underlying DDL conflict or data anomaly.
+     4. If the database was left in an indeterminate split state, restore from the pre-deployment coordinated snapshot:
+        ```bash
+        bash scripts/restore_nexus_coordinated.sh --confirm-destructive-restore <PRE_DEPLOY_TIMESTAMP>
+        ```
 
 ---
 

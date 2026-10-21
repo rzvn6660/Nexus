@@ -102,13 +102,16 @@ def test_jwt_valid_lifecycle_and_claims() -> None:
 
 
 def test_tampered_jwt_signature_rejected() -> None:
-    """Tampered token signatures must be rejected by decode_access_token."""
+    """Tampered token signatures must be rejected by decode_access_token with a sanitized message."""
     token = AuthService.create_access_token(user_id="user123", email="user@example.com")
     parts = token.split(".")
     tampered = f"{parts[0]}.{parts[1]}.invalidsignature12345"
     with pytest.raises(HTTPException) as exc_info:
         AuthService.decode_access_token(tampered)
     assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Invalid authentication token."
+    assert "invalidsignature" not in str(exc_info.value.detail)
+    assert "DecodeError" not in str(exc_info.value.detail)
 
 
 # ---------------------------------------------------------------------------

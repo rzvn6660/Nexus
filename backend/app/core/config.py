@@ -2,6 +2,7 @@
 
 import os
 from functools import lru_cache
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from pydantic import Field, field_validator, model_validator
@@ -296,6 +297,16 @@ class Settings(BaseSettings):
             return "require"
         return None
 
+    @model_validator(mode="before")
+    @classmethod
+    def default_production_flags(cls, data: Any) -> Any:
+        """In production, ensure DEBUG defaults safely to False if not explicitly provided."""
+        if isinstance(data, dict):
+            app_env = data.get("APP_ENV", os.getenv("APP_ENV", "development"))
+            if str(app_env).strip().lower() == "production" and "DEBUG" not in data and "debug" not in data:
+                data["DEBUG"] = False
+        return data
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
         """Enforce strict secret safety when running in production mode.
@@ -309,6 +320,13 @@ class Settings(BaseSettings):
         """
         if not self.is_production:
             return self
+
+        # 0. Validate DEBUG mode in production
+        if self.DEBUG:
+            raise ValueError(
+                "Production startup failed: DEBUG mode cannot be enabled when APP_ENV=production. "
+                "Ensure DEBUG=false in production environments."
+            )
 
         insecure_defaults = {
             "nexus-insecure-development-secret-key-change-in-production",

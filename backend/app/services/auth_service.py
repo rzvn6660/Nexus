@@ -265,11 +265,12 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         except jwt.InvalidTokenError as exc:
+            logger.warning("SECURITY: Invalid JWT access token attempt: %s", type(exc).__name__)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid authentication token: {exc}",
+                detail="Invalid authentication token.",
                 headers={"WWW-Authenticate": "Bearer"},
-            )
+            ) from exc
 
     @classmethod
     def signup(
