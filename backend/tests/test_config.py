@@ -106,6 +106,7 @@ def test_production_debug_explicit_true_rejected(monkeypatch: pytest.MonkeyPatch
 def test_development_debug_defaults_to_true(monkeypatch: pytest.MonkeyPatch) -> None:
     """In non-production development mode, DEBUG defaults to True for developer ergonomics."""
     monkeypatch.setattr(Settings, "model_config", {**Settings.model_config, "env_file": None})
+    monkeypatch.delenv("DEBUG", raising=False)
     dev_cfg = Settings(APP_ENV="development")
     assert dev_cfg.is_production is False
     assert dev_cfg.DEBUG is True

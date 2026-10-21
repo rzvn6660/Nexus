@@ -348,6 +348,7 @@ nexus/
 ## 13. Quick Start & Local Setup
 
 ### Prerequisites
+
 - Docker Engine 24+ & Docker Compose v2+
 - *Or for local dev*: Python 3.12+, Node.js 20+, PostgreSQL 16 with `pgvector`
 
