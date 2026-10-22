@@ -115,6 +115,12 @@ export const App: React.FC = () => {
     }
   }, [activeBiz?.currency]);
 
+  const handleSwitchBusiness = useCallback((bizId: string) => {
+    AuthService.setActiveBusinessId(bizId);
+    loadProfile();
+    window.dispatchEvent(new Event('nexus-business-changed'));
+  }, [loadProfile]);
+
   const handleAuthSuccess = () => {
     setIsAuthenticated(true);
     loadProfile();
@@ -159,6 +165,25 @@ export const App: React.FC = () => {
       <LandingPage
         onNavigate={handleNavigate}
         isAuthenticated={true}
+      />
+    );
+  }
+
+  // Standalone registration and authentication viewable directly via route
+  if (currentRoute === '/signup') {
+    return (
+      <SignupPage
+        onNavigate={handleNavigate}
+        onSignupSuccess={handleAuthSuccess}
+      />
+    );
+  }
+
+  if (currentRoute === '/login') {
+    return (
+      <LoginPage
+        onNavigate={handleNavigate}
+        onLoginSuccess={handleAuthSuccess}
       />
     );
   }
@@ -215,7 +240,7 @@ export const App: React.FC = () => {
       case '/knowledge':
         return <KnowledgePage />;
       case '/history':
-        return <HistoryPage />;
+        return <HistoryPage onNavigate={handleNavigate} />;
       case '/business':
         return <BusinessSettingsPage onNavigate={handleNavigate} />;
       default:
@@ -237,6 +262,9 @@ export const App: React.FC = () => {
       activeBusinessName={activeBusinessName}
       userRole={userRole}
       onLogout={handleLogout}
+      businesses={currentOrg?.businesses || []}
+      activeBusinessId={activeBiz?.id}
+      onSwitchBusiness={handleSwitchBusiness}
     >
       <ErrorBoundary fallbackTitle="NEXUS Workspace Diagnostic">
         {renderActivePage()}

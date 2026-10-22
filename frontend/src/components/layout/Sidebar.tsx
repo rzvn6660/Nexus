@@ -11,6 +11,8 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
+  X,
+  Radio,
 } from 'lucide-react';
 import { DatabaseHealth } from '../../types/api';
 import { NexusLogo } from '../brand/NexusLogo';
@@ -24,14 +26,17 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
+interface NavItem {
+  title: string;
+  route: string;
+  icon: React.ElementType;
+  badge?: string;
+  description?: string;
+}
+
 interface NavGroup {
   label?: string;
-  items: Array<{
-    title: string;
-    route: string;
-    icon: React.ElementType;
-    badge?: string;
-  }>;
+  items: NavItem[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -44,13 +49,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navGroups: NavGroup[] = [
     {
-      label: 'NEXUS INTELLIGENCE',
+      label: 'INTELLIGENCE WORKSPACE',
       items: [
         {
           title: 'Overview',
           route: '/',
           icon: LayoutDashboard,
-          badge: 'Briefing',
+          badge: 'Live',
         },
         {
           title: 'Ask NEXUS',
@@ -68,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title: 'Forecast',
           route: '/forecasts',
           icon: TrendingUp,
-          badge: 'Predictive',
+          badge: 'Horizon',
         },
         {
           title: 'Analytics',
@@ -78,27 +83,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      label: 'DATA LAYER',
+      label: 'DATA & ONTOLOGY',
       items: [
         {
           title: 'Data Health & Schema',
           route: '/data',
           icon: Database,
         },
-      ],
-    },
-    {
-      label: 'KNOWLEDGE & ONTOLOGY',
-      items: [
         {
-          title: 'Context & KPI Dictionary',
+          title: 'Knowledge & KPIs',
           route: '/knowledge',
           icon: BookOpen,
         },
       ],
     },
     {
-      label: 'HISTORY & GOVERNANCE',
+      label: 'GOVERNANCE & AUDIT',
       items: [
         {
           title: 'Analyses & Decisions',
@@ -109,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      label: 'WORKSPACE',
+      label: 'WORKSPACE SETTINGS',
       items: [
         {
           title: 'Business Profile',
@@ -132,37 +132,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`h-screen sticky top-0 bg-void border-r border-surface-elevated flex flex-col justify-between transition-all duration-300 z-30 select-none ${
+      className={`h-screen sticky top-0 bg-void border-r border-surface-elevated/80 flex flex-col justify-between transition-all duration-200 z-30 select-none ${
         collapsed ? 'w-20' : 'w-64'
       }`}
+      aria-label="Main Navigation"
     >
       {/* Top Branding Section */}
-      <div className="overflow-y-auto overflow-x-hidden">
-        <div className="h-16 px-3.5 flex items-center justify-between border-b border-surface-elevated">
+      <div className="overflow-y-auto overflow-x-hidden flex-1 flex flex-col min-h-0">
+        <div className="h-16 px-4 flex items-center justify-between border-b border-surface-elevated/80 shrink-0">
           <div
             onClick={() => handleItemClick('/')}
             className="cursor-pointer group flex items-center min-w-0"
-            title="NEXUS Workspace"
+            title="NEXUS Workspace Home"
           >
-            <NexusLogo collapsed={collapsed} size={34} />
+            <NexusLogo collapsed={collapsed} size={32} />
           </div>
 
+          {/* Desktop collapse toggle */}
           <button
             onClick={onToggleCollapse}
-            className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-surface-elevated transition-colors"
-            title={collapsed ? 'Expand Workspace Rail' : 'Collapse Workspace Rail'}
-            aria-label={collapsed ? 'Expand Workspace Rail' : 'Collapse Workspace Rail'}
+            className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-elevated transition-colors"
+            title={collapsed ? 'Expand Workspace Sidebar' : 'Collapse Workspace Sidebar'}
+            aria-label={collapsed ? 'Expand Workspace Sidebar' : 'Collapse Workspace Sidebar'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
+
+          {/* Mobile close button */}
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-elevated transition-colors"
+              aria-label="Close navigation"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Grouped Navigation */}
-        <nav className="p-3 space-y-5 mt-2" aria-label="Main Navigation">
+        <nav className="p-3 space-y-5 mt-2 flex-1 overflow-y-auto" aria-label="Workspace Pages">
           {navGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1">
               {!collapsed && group.label && (
-                <div className="px-3 text-[10px] font-mono tracking-widest text-slate-400 uppercase font-semibold mb-1">
+                <div className="px-3 text-[10px] font-semibold tracking-wider text-slate-400 uppercase mb-1.5 font-sans">
                   {group.label}
                 </div>
               )}
@@ -179,16 +192,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     key={item.route}
                     onClick={() => handleItemClick(item.route)}
                     title={collapsed ? item.title : undefined}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-all group ${
                       isActive
-                        ? 'bg-cyan-950/80 text-brand-cyan border border-brand-cyan/40 font-semibold shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-surface/80 border border-transparent'
+                        ? 'bg-cyan-950/50 text-cyan-300 font-semibold border border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.12)]'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-surface-elevated/70 border border-transparent font-medium'
                     } ${collapsed ? 'justify-center px-0' : 'justify-between'}`}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
+                    {/* Active Accent Pill on left edge */}
+                    {isActive && (
+                      <span
+                        className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-cyan-400 rounded-r shadow-[0_0_8px_rgba(6,182,212,0.8)]"
+                        aria-hidden="true"
+                      />
+                    )}
+
+                    <div className="flex items-center gap-2.5 truncate min-w-0">
                       <Icon
                         className={`w-4 h-4 shrink-0 transition-colors ${
-                          isActive ? 'text-brand-cyan' : 'text-slate-400 group-hover:text-slate-300'
+                          isActive
+                            ? 'text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.6)]'
+                            : 'text-slate-400 group-hover:text-slate-200'
                         }`}
                       />
                       {!collapsed && <span className="truncate">{item.title}</span>}
@@ -196,10 +220,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                     {!collapsed && item.badge && (
                       <span
-                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold ${
+                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold shrink-0 transition-colors ${
                           isActive
-                            ? 'bg-cyan-900/60 text-brand-cyan'
-                            : 'bg-surface-elevated text-slate-400'
+                            ? 'bg-cyan-900/60 text-cyan-200 border border-cyan-500/30'
+                            : 'bg-surface-elevated text-slate-400 border border-white/5'
                         }`}
                       >
                         {item.badge}
@@ -214,37 +238,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Infrastructure & System Status */}
-      <div className="p-3 border-t border-surface-elevated space-y-2">
+      <div className="p-3 border-t border-surface-elevated/80 space-y-2 shrink-0 bg-void-sub/40">
         <div
-          className={`flex items-center gap-2 p-2 rounded-xl bg-surface/60 border border-surface-elevated text-[11px] font-mono ${
+          className={`flex items-center gap-2 p-2.5 rounded-xl bg-surface/70 border border-surface-elevated/80 text-xs ${
             collapsed ? 'justify-center' : 'justify-between'
           }`}
+          title={`Database: ${isConnected ? 'Connected' : 'Offline'} (${dbHealth?.latency_ms ? `${dbHealth.latency_ms}ms` : 'healthy'})`}
         >
           <div className="flex items-center gap-2 truncate">
-            <div
+            <span
               className={`w-2 h-2 rounded-full shrink-0 ${
-                isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
+                isConnected ? 'bg-emerald-400' : dbHealth === null ? 'bg-amber-400' : 'bg-rose-500'
               }`}
             />
             {!collapsed && (
-              <span className="text-slate-300 truncate">
-                {isConnected ? 'PostgreSQL 16' : 'Database Offline'}
+              <span className="text-slate-200 font-medium truncate font-sans text-xs">
+                {isConnected ? 'PostgreSQL 16' : dbHealth === null ? 'Connecting...' : 'Database Offline'}
               </span>
             )}
           </div>
           {!collapsed && (
-            <span className="text-slate-400 text-[10px]">
+            <span className="text-slate-400 font-mono text-[10px] shrink-0">
               {dbHealth?.latency_ms !== undefined && dbHealth?.latency_ms !== null
                 ? `${dbHealth.latency_ms}ms`
-                : 'ready'}
+                : isConnected ? 'ready' : '—'}
             </span>
           )}
         </div>
 
         {!collapsed && (
-          <div className="px-2 py-1 text-[10px] font-mono text-slate-400 flex items-center justify-between">
-            <span className="font-bold text-slate-400">NEXUS v1.0.0</span>
-            <span className="text-brand-cyan/80">V1 Verified</span>
+          <div className="px-2 py-0.5 text-[10px] text-slate-400 flex items-center justify-between font-sans">
+            <span className="font-semibold text-slate-400">NEXUS Platform</span>
+            <span className="inline-flex items-center gap-1 text-slate-400 font-mono text-[10px]">
+              <Radio className="w-2.5 h-2.5 text-cyan-400" />
+              v1.0.0
+            </span>
           </div>
         )}
       </div>

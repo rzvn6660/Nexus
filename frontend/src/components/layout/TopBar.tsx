@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Search,
   Menu,
@@ -7,6 +7,9 @@ import {
   Sparkles,
   Key,
   LogOut,
+  ChevronDown,
+  Check,
+  Settings,
 } from 'lucide-react';
 import { HealthResponse } from '../../types/api';
 import { NexusSymbol } from '../brand/NexusSymbol';
@@ -21,6 +24,9 @@ interface TopBarProps {
   onLogout?: () => void;
   activeBusinessName?: string;
   userRole?: string;
+  businesses?: Array<{ id: string; name: string }>;
+  activeBusinessId?: string;
+  onSwitchBusiness?: (businessId: string) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -31,44 +37,72 @@ export const TopBar: React.FC<TopBarProps> = ({
   health,
   onNavigate,
   onLogout,
-  activeBusinessName,
+  activeBusinessName = 'Workspace',
   userRole,
+  businesses = [],
+  activeBusinessId,
+  onSwitchBusiness,
 }) => {
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const workspaceMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close workspace dropdown on outside click or escape
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (workspaceMenuRef.current && !workspaceMenuRef.current.contains(e.target as Node)) {
+        setWorkspaceMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setWorkspaceMenuOpen(false);
+      }
+    };
+    if (workspaceMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [workspaceMenuOpen]);
+
   const getRouteInfo = (route: string) => {
     switch (route) {
       case '/':
         return {
-          title: 'Executive Intelligence Briefing',
-          subtitle: 'Real-time commercial telemetry and critical observed variance signals',
-          badge: 'Commercial Briefing',
+          title: 'Executive Overview',
+          subtitle: 'Commercial telemetry, headline KPI performance, and critical variance signals',
+          badge: 'Executive',
         };
       case '/ask':
         return {
-          title: 'Intelligence Console',
-          subtitle: 'Natural language strategic inquiries backed by deterministic analytics & RAG',
-          badge: 'Agentic Console',
+          title: 'Ask NEXUS',
+          subtitle: 'Natural-language inquiries backed by deterministic analytics and verified evidence',
+          badge: 'Agentic',
         };
       case '/investigations':
         return {
           title: 'Diagnostic Investigations',
-          subtitle: 'Multi-step diagnostic engine answering "Why did this happen?" with causality safeguards',
-          badge: 'Diagnostic Engine',
+          subtitle: 'Root cause analysis and driver decomposition with causality safeguards',
+          badge: 'Diagnostic',
         };
       case '/forecasts':
         return {
-          title: 'Predictive Intelligence',
-          subtitle: 'Backtested prospective time-series forecasting with prediction intervals',
-          badge: 'Predictive Horizon',
+          title: 'Predictive Forecasts',
+          subtitle: 'Prospective time-series forecasting with empirical prediction intervals',
+          badge: 'Predictive',
         };
       case '/analytics':
         return {
-          title: 'Deterministic Analytics',
-          subtitle: 'Granular mathematical metric exploration with verified evidence',
-          badge: 'Deterministic Layer',
+          title: 'Financial & Product Analytics',
+          subtitle: 'Mathematical metric exploration, multidimensional breakdowns, and cohort trends',
+          badge: 'Deterministic',
         };
       case '/data':
         return {
-          title: 'Data Health & Catalog',
+          title: 'Data Gateway',
           subtitle: 'Dataset schema profiles, statistical coverage, and quality scorecards',
           badge: 'Data Layer',
         };
@@ -76,19 +110,25 @@ export const TopBar: React.FC<TopBarProps> = ({
         return {
           title: 'Knowledge & KPI Dictionary',
           subtitle: 'Business context policies, semantic ontology, and term resolution',
-          badge: 'Semantic Layer',
+          badge: 'Ontology',
         };
       case '/history':
         return {
-          title: 'Analyses & Human Governance',
+          title: 'Analyses & Governance',
           subtitle: 'Audit log of historical runs and human approval review gates',
-          badge: 'Governance & Audit',
+          badge: 'Governance',
+        };
+      case '/business':
+        return {
+          title: 'Workspace Settings',
+          subtitle: 'Multi-tenant organization profile, currency formatting, and operating parameters',
+          badge: 'Tenant Profile',
         };
       default:
         return {
           title: 'NEXUS Intelligence',
           subtitle: 'Where Business Data Becomes Intelligence',
-          badge: 'Intelligence Workspace',
+          badge: 'Intelligence',
         };
     }
   };
@@ -97,12 +137,12 @@ export const TopBar: React.FC<TopBarProps> = ({
   const isHealthy = health?.status === 'healthy';
 
   return (
-    <header className="h-16 px-4 sm:px-6 lg:px-8 border-b border-surface-elevated bg-void/80 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between gap-4">
+    <header className="h-16 px-4 sm:px-6 lg:px-8 border-b border-surface-elevated/80 bg-void/85 backdrop-blur-xl sticky top-0 z-20 flex items-center justify-between gap-4">
       {/* Left: Mobile Toggle & Page Title */}
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={onOpenMobileMenu}
-          className="md:hidden p-2 rounded-xl bg-surface border border-surface-elevated text-slate-300 hover:text-white"
+          className="md:hidden p-2 rounded-xl bg-surface/80 border border-surface-elevated text-slate-300 hover:text-white transition-colors"
           aria-label="Open mobile navigation"
         >
           <Menu className="w-5 h-5" />
@@ -114,11 +154,10 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-sm sm:text-base font-bold text-slate-100 truncate font-sans">
+            <h1 className="text-sm sm:text-base font-bold text-white truncate font-sans">
               {title}
             </h1>
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-950/70 border border-brand-cyan/30 text-[10px] font-mono text-brand-cyan">
-              <Building2 className="w-3 h-3 text-brand-cyan" />
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-[10px] font-sans font-medium text-cyan-300 shrink-0">
               {badge}
             </span>
           </div>
@@ -128,16 +167,17 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
       </div>
 
-      {/* Right Controls: Command Bar, Quick Ask, Auth Perimeter, System Health */}
+      {/* Right Controls: Command Bar, Quick Ask, System Health, Workspace Switcher */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* Global Search / Command Bar Trigger */}
         <button
           onClick={onOpenCommand}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface hover:bg-surface-elevated border border-surface-elevated text-slate-400 hover:text-slate-200 text-xs transition-all shadow-sm"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface/70 hover:bg-surface-elevated border border-surface-elevated text-slate-400 hover:text-slate-200 text-xs transition-all shadow-sm group"
           title="Search NEXUS Workspace (Ctrl+K or ⌘K)"
+          aria-label="Search NEXUS Workspace"
         >
-          <Search className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">Command...</span>
+          <Search className="w-3.5 h-3.5 group-hover:text-cyan-400 transition-colors" />
+          <span className="hidden md:inline font-sans">Command...</span>
           <kbd className="hidden lg:inline-block px-1.5 py-0.5 rounded bg-void border border-surface-elevated text-[10px] font-mono text-slate-400">
             ⌘K
           </kbd>
@@ -146,53 +186,116 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Quick Ask Trigger */}
         <button
           onClick={onOpenAsk}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-sm transition-all"
+          className="btn-primary py-1.5 px-3 text-xs shadow-cyan-subtle"
+          title="Open AI Intelligence Console"
         >
           <Sparkles className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Ask NEXUS</span>
         </button>
 
         {/* Security & Health Status Indicator */}
-        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-surface/70 border border-surface-elevated text-[11px] font-mono text-slate-300">
-          <div className="flex items-center gap-1 text-slate-400" title="API Key Authentication Perimeter Active">
+        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-surface/60 border border-surface-elevated/80 text-[11px] font-mono text-slate-300">
+          <div className="flex items-center gap-1 text-slate-400" title="API Key / JWT Session Active">
             <Key className="w-3 h-3 text-cyan-400" />
             <span className="text-[10px]">Auth</span>
           </div>
           <span className="text-slate-600">•</span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" title={`System Status: ${isHealthy ? 'Operational' : 'Checking'}`}>
             <ShieldCheck className={`w-3.5 h-3.5 ${isHealthy ? 'text-emerald-400' : 'text-amber-400'}`} />
             <span>{isHealthy ? 'Healthy' : 'Checking'}</span>
           </div>
         </div>
 
-        {/* Active Workspace / Business Badge & Logout */}
-        <div className="flex items-center gap-1.5 pl-1 border-l border-surface-elevated">
-          {activeBusinessName && (
+        {/* Active Workspace Switcher & Settings */}
+        <div className="relative flex items-center pl-1 border-l border-surface-elevated/80" ref={workspaceMenuRef}>
+          {businesses.length > 1 ? (
+            <div>
+              <button
+                onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-surface/80 hover:bg-surface-elevated border border-surface-elevated text-xs transition-all"
+                title="Switch Active Business Workspace"
+                aria-expanded={workspaceMenuOpen}
+                aria-haspopup="true"
+              >
+                <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="font-semibold text-slate-200 max-w-[120px] truncate font-sans">
+                  {activeBusinessName}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              {/* Workspace Switcher Dropdown */}
+              {workspaceMenuOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-surface-elevated border border-surface-highlight shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider font-sans border-b border-surface-highlight/60">
+                    Switch Business Workspace
+                  </div>
+                  <div className="py-1 max-h-48 overflow-y-auto space-y-0.5">
+                    {businesses.map((b) => {
+                      const isSelected = b.id === activeBusinessId || b.name === activeBusinessName;
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => {
+                            if (onSwitchBusiness) {
+                              onSwitchBusiness(b.id);
+                            }
+                            setWorkspaceMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-left transition-all ${
+                            isSelected
+                              ? 'bg-cyan-950/60 text-cyan-300 font-semibold border border-cyan-500/30'
+                              : 'text-slate-300 hover:text-white hover:bg-surface'
+                          }`}
+                        >
+                          <span className="truncate">{b.name}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="pt-1 mt-1 border-t border-surface-highlight/60">
+                    <button
+                      onClick={() => {
+                        setWorkspaceMenuOpen(false);
+                        onNavigate?.('/business');
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-cyan-300 hover:bg-surface transition-all font-medium"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      <span>Manage Business Profile</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
             <button
               onClick={() => onNavigate?.('/business')}
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface hover:bg-surface-elevated border border-surface-elevated text-xs transition-all"
-              title="Workspace Business Settings"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface/80 hover:bg-surface-elevated border border-surface-elevated text-xs transition-all"
+              title="Workspace Business Profile Settings"
             >
-              <Building2 className="w-3 h-3 text-brand-cyan shrink-0" />
-              <span className="font-semibold text-slate-200 max-w-[120px] truncate">
+              <Building2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <span className="font-semibold text-slate-200 max-w-[120px] truncate font-sans">
                 {activeBusinessName}
               </span>
               {userRole && (
-                <span className="px-1.5 py-0.2 rounded bg-cyan-950/70 border border-brand-cyan/30 text-[9px] font-mono text-brand-cyan uppercase">
+                <span className="px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-[9px] font-mono text-cyan-300 uppercase">
                   {userRole}
                 </span>
               )}
             </button>
           )}
 
+          {/* User Sign Out */}
           {onLogout && (
             <button
               onClick={onLogout}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-surface-elevated transition-colors"
+              className="ml-1 p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-surface-elevated transition-colors"
               title="Sign Out"
               aria-label="Sign Out"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-4 h-4" />
             </button>
           )}
         </div>

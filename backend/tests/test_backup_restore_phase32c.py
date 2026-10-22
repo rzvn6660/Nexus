@@ -20,13 +20,16 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
 import tempfile
 import time
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -407,20 +410,64 @@ def test_partial_restore_split_state_detection(monkeypatch: pytest.MonkeyPatch) 
 # 6. Real PostgreSQL 16 + pgvector Coordinated Restore Drill
 # ---------------------------------------------------------------------------
 
-def _get_pg_test_url() -> str:
-    return (
-        os.getenv("TEST_DATABASE_URL")
-        or os.getenv("DATABASE_URL")
-        or "postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db"
-    )
+def _get_pg_test_url() -> str | None:
+    """Resolve explicit TEST_DATABASE_URL for live backup/restore drill.
+
+    Safety Invariant: Does NOT fall back to DATABASE_URL to prevent accidental
+    targeting of development, staging, or production application databases.
+    """
+    raw_url = os.getenv("TEST_DATABASE_URL")
+    if not raw_url or not raw_url.strip():
+        return None
+    return raw_url.strip()
+
+
+def validate_restore_drill_source_url(url: str | None, strict_required: bool = False) -> str:
+    """Validate source database URL for live backup/restore drill.
+
+    Enforces fail-closed guardrails:
+    1. TEST_DATABASE_URL must be explicitly provided (no DATABASE_URL fallback).
+    2. Parsed database name must be exactly 'nexus_test_db' (case-insensitive).
+
+    Boundary & Non-Claim:
+    Matching 'nexus_test_db' prevents accidental writes to 'nexus_db', 'nexus_prod',
+    or arbitrarily named databases. However, a database name of 'nexus_test_db' does
+    NOT establish that the PostgreSQL host is an isolated or disposable server instance;
+    it only validates target database naming.
+    """
+    if not url:
+        msg = (
+            "TEST_DATABASE_URL must be explicitly set to run live PostgreSQL restore drill. "
+            "Fallback to DATABASE_URL is strictly disallowed to prevent targeting non-test databases."
+        )
+        if strict_required:
+            pytest.fail(msg)
+        pytest.skip(msg)
+
+    parsed_url = make_url(url)
+    db_name = (parsed_url.database or "").strip()
+    if db_name.lower() != "nexus_test_db":
+        pytest.fail(
+            f"Safety Guardrail: Refusing to execute live restore drill against database '{parsed_url.database}'. "
+            f"Source database name must be exactly 'nexus_test_db'."
+        )
+    return url
 
 
 def _find_postgres_runner(parsed_url) -> tuple[str, str | None]:
-    """Identify whether to execute pg_dump/pg_restore via host binary or Docker container."""
+    """Identify whether to execute pg_dump/pg_restore via host binary or Docker container.
+
+    Host Target Boundary:
+    Docker container discovery via 'docker ps' is strictly restricted to local host
+    targets ('localhost', '127.0.0.1', '::1') to prevent running local container
+    commands against remote database URLs. This does not imply the local server is
+    containerized if host binaries are preferred.
+    """
     if shutil.which("pg_dump") and shutil.which("pg_restore"):
         return "host", None
 
-    if shutil.which("docker"):
+    is_local_host = (parsed_url.host or "localhost").lower() in ("localhost", "127.0.0.1", "::1")
+    if is_local_host and shutil.which("docker"):
         port = parsed_url.port or 5432
         cmd = ["docker", "ps", "--format", "{{.ID}}\t{{.Ports}}\t{{.Names}}"]
         try:
@@ -443,11 +490,90 @@ def _find_postgres_runner(parsed_url) -> tuple[str, str | None]:
     return "none", None
 
 
+def cleanup_restore_drill(
+    *,
+    admin_engine: Any | None,
+    restore_engine: Any | None,
+    session_factory: Any | None,
+    restore_db_name: str | None,
+    db_created: bool,
+    biz_id: str | None = None,
+    org_id: str | None = None,
+) -> list[str]:
+    """Execute teardown for live restore drill and return any encountered cleanup failures.
+
+    Safety Guarantees & Constraints:
+    - Never raises an unhandled exception (all teardown steps run to completion).
+    - Never targets or drops any database other than `restore_db_name`.
+    - Returns list of failure descriptions and emits RuntimeWarning for each failure.
+    """
+    cleanup_errors: list[str] = []
+
+    if restore_engine is not None:
+        try:
+            restore_engine.dispose()
+        except Exception as exc:
+            err_msg = f"CLEANUP FAILURE: Failed to dispose restore_engine: {exc}"
+            cleanup_errors.append(err_msg)
+            warnings.warn(err_msg, RuntimeWarning, stacklevel=2)
+
+    if db_created and admin_engine is not None and restore_db_name:
+        try:
+            # Validate generated database identifier before SQL interpolation
+            if not re.fullmatch(r"^nexus_restore_verify_[a-zA-Z0-9_]{1,40}$", restore_db_name):
+                raise ValueError(f"Unsafe restore database identifier: {restore_db_name!r}")
+
+            with admin_engine.connect() as conn:
+                conn.execute(
+                    text("""
+                        SELECT pg_terminate_backend(pid)
+                        FROM pg_stat_activity
+                        WHERE datname = :datname AND pid <> pg_backend_pid();
+                    """),
+                    {"datname": restore_db_name},
+                )
+                conn.execute(text(f'DROP DATABASE IF EXISTS "{restore_db_name}"'))
+        except Exception as drop_exc:
+            err_msg = (
+                f"CLEANUP FAILURE: Failed to drop disposable restore database '{restore_db_name}': {drop_exc}. "
+                f"Leftover database may persist in PostgreSQL instance."
+            )
+            cleanup_errors.append(err_msg)
+            warnings.warn(err_msg, RuntimeWarning, stacklevel=2)
+
+    if admin_engine is not None:
+        try:
+            admin_engine.dispose()
+        except Exception:
+            pass
+
+    if session_factory is not None and biz_id and org_id:
+        try:
+            with session_factory() as db:
+                try:
+                    db.execute(text("DELETE FROM knowledge_chunks WHERE business_id = :biz_id"), {"biz_id": biz_id})
+                    db.execute(text("DELETE FROM knowledge_documents WHERE business_id = :biz_id"), {"biz_id": biz_id})
+                    db.execute(text("DELETE FROM ingestion_jobs WHERE business_id = :biz_id"), {"biz_id": biz_id})
+                    db.execute(text("DELETE FROM uploaded_datasets WHERE business_id = :biz_id"), {"biz_id": biz_id})
+                    db.execute(text("DELETE FROM businesses WHERE id = :biz_id"), {"biz_id": biz_id})
+                    db.execute(text("DELETE FROM organizations WHERE id = :org_id"), {"org_id": org_id})
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    raise
+        except Exception as seed_exc:
+            err_msg = f"CLEANUP FAILURE: Failed to clean seeded drill tenant records (biz_id={biz_id}): {seed_exc}"
+            cleanup_errors.append(err_msg)
+            warnings.warn(err_msg, RuntimeWarning, stacklevel=2)
+
+    return cleanup_errors
+
+
 def test_live_postgres_backup_restore_and_storage_reconciliation_drill(tmp_path: Path) -> None:
     """Mandatory Live PostgreSQL 16 + pgvector restore drill.
 
     Verifies:
-    1. Seeding real tenant, business, datasets, files, sales, and vector data in PostgreSQL.
+    1. Seeding real tenant, business, datasets, files, sales, and vector data in dedicated test database 'nexus_test_db'.
     2. Real pg_dump -F c custom-format archive generation.
     3. Tenant file archive creation with SHA-256 sidecars.
     4. Creation of a clean, separate disposable restore database (nexus_restore_verify_<uid>).
@@ -457,11 +583,18 @@ def test_live_postgres_backup_restore_and_storage_reconciliation_drill(tmp_path:
     7. Clean file restore and validation of file SHA-256 and size against restored database record.
     8. Storage reconciliation audit confirming 100% referential consistency.
     9. Teardown of disposable restore database and drill records.
+
+    Safety Boundary:
+    Targeting 'nexus_test_db' prevents accidental writes to application databases, but does
+    not guarantee that the host PostgreSQL daemon is disposable or isolated from other databases.
+    Teardown is constrained to 'nexus_restore_verify_<uid>' and the specific drill tenant records.
     """
-    url = _get_pg_test_url()
     strict_required = os.getenv("REQUIRE_POSTGRES", "").lower() in ("true", "1", "yes")
 
-    # 1. Verify PostgreSQL Reachability
+    # 1. Validate Source Database Target (Fail-Closed Guardrail)
+    url = validate_restore_drill_source_url(_get_pg_test_url(), strict_required=strict_required)
+
+    # 2. Verify PostgreSQL Reachability
     try:
         engine = create_engine(url, connect_args={"connect_timeout": 3})
         with engine.connect() as conn:
@@ -567,15 +700,15 @@ def test_live_postgres_backup_restore_and_storage_reconciliation_drill(tmp_path:
         db.commit()
         doc_id = doc.id
 
-    # Admin connection to create/drop disposable database
+    admin_engine = None
+    restore_engine = None
+    db_created = False
     admin_url = parsed_url.set(database="postgres")
     admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     db_backup_file = backup_dir / f"nexus_db_{ts}.dump"
     files_backup_file = backup_dir / f"nexus_files_{ts}.tar.gz"
-
-    restore_engine = None
 
     try:
         # 3. Real pg_dump -F c Execution
@@ -622,9 +755,12 @@ def test_live_postgres_backup_restore_and_storage_reconciliation_drill(tmp_path:
         assert validate_tar_archive(files_backup_file)[0] is True
 
         # 5. Create Separate Clean Disposable Database
+        if not re.fullmatch(r"^nexus_restore_verify_[a-zA-Z0-9_]{1,40}$", restore_db_name):
+            raise ValueError(f"Unsafe restore database identifier: {restore_db_name!r}")
         with admin_engine.connect() as conn:
             conn.execute(text(f'DROP DATABASE IF EXISTS "{restore_db_name}"'))
             conn.execute(text(f'CREATE DATABASE "{restore_db_name}"'))
+        db_created = True
 
         # 6. Real pg_restore Execution into Separate Database
         if runner_mode == "host":
@@ -738,31 +874,224 @@ def test_live_postgres_backup_restore_and_storage_reconciliation_drill(tmp_path:
 
     finally:
         # 10. Clean Up ONLY the Disposable Restore Database and Test Records
-        if restore_engine is not None:
-            restore_engine.dispose()
+        import sys
+        primary_exc = sys.exc_info()[1]
 
+        cleanup_errors = cleanup_restore_drill(
+            admin_engine=admin_engine,
+            restore_engine=restore_engine,
+            session_factory=Session if "Session" in locals() else None,
+            restore_db_name=restore_db_name,
+            db_created=db_created,
+            biz_id=biz_id,
+            org_id=org_id,
+        )
+
+        if cleanup_errors:
+            if primary_exc is None:
+                # Drill assertions passed, but cleanup failed -> fail closed
+                pytest.fail("Restore drill completed body assertions, but cleanup failed:\n" + "\n".join(cleanup_errors))
+            else:
+                # Primary error is active. Do NOT mask it. Attach cleanup notes and let Python re-raise primary_exc.
+                if hasattr(primary_exc, "add_note"):
+                    for err in cleanup_errors:
+                        primary_exc.add_note(err)
+
+
+# ---------------------------------------------------------------------------
+# 7. Live Backup/Restore Drill Safety Guardrail Unit Tests
+# ---------------------------------------------------------------------------
+
+def test_restore_drill_rejects_missing_test_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When TEST_DATABASE_URL is missing, fail closed if strict, skip if non-strict."""
+    monkeypatch.delenv("TEST_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        validate_restore_drill_source_url(None, strict_required=True)
+    assert "TEST_DATABASE_URL must be explicitly set" in str(exc_info.value)
+    assert "Fallback to DATABASE_URL is strictly disallowed" in str(exc_info.value)
+
+    with pytest.raises(pytest.skip.Exception) as skip_info:
+        validate_restore_drill_source_url(None, strict_required=False)
+    assert "TEST_DATABASE_URL must be explicitly set" in str(skip_info.value)
+
+
+def test_restore_drill_disallows_database_url_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DATABASE_URL pointing to application database (nexus_db) is NOT used when TEST_DATABASE_URL is unset."""
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_db")
+    monkeypatch.delenv("TEST_DATABASE_URL", raising=False)
+
+    resolved = _get_pg_test_url()
+    assert resolved is None, f"_get_pg_test_url() must return None instead of falling back to DATABASE_URL, got: {resolved}"
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        validate_restore_drill_source_url(resolved, strict_required=True)
+    assert "Fallback to DATABASE_URL is strictly disallowed" in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "invalid_db_name",
+    [
+        "nexus_db",
+        "nexus_prod",
+        "postgres",
+        "test_db",
+        "nexus_test",
+        "my_test_database",
+    ],
+)
+def test_restore_drill_rejects_non_nexus_test_db_name(invalid_db_name: str) -> None:
+    """Any database name other than exactly 'nexus_test_db' is rejected immediately."""
+    invalid_url = f"postgresql+psycopg://nexus_user:nexus_password@localhost:5432/{invalid_db_name}"
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        validate_restore_drill_source_url(invalid_url, strict_required=False)
+    assert "Safety Guardrail: Refusing to execute live restore drill" in str(exc_info.value)
+    assert "Source database name must be exactly 'nexus_test_db'" in str(exc_info.value)
+
+
+def test_restore_drill_rejection_precedes_seed_data_writes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Ensure invalid source database URL fails closed before any database connection or seed write."""
+    monkeypatch.setenv("TEST_DATABASE_URL", "postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_db")
+    monkeypatch.setenv("REQUIRE_POSTGRES", "true")
+
+    connection_attempted = False
+
+    def mock_create_engine(*args, **kwargs):
+        nonlocal connection_attempted
+        connection_attempted = True
+        raise AssertionError("create_engine must NOT be called for an invalid source database URL!")
+
+    monkeypatch.setattr("backend.tests.test_backup_restore_phase32c.create_engine", mock_create_engine, raising=False)
+    monkeypatch.setattr("sqlalchemy.create_engine", mock_create_engine)
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        test_live_postgres_backup_restore_and_storage_reconciliation_drill(tmp_path)
+
+    assert "Safety Guardrail" in str(exc_info.value)
+    assert connection_attempted is False, "A database connection was attempted despite invalid source database name!"
+
+
+def test_cleanup_restore_drill_reports_drop_database_failure() -> None:
+    """Simulate a failed database-drop operation on admin_engine and verify cleanup_restore_drill reports it."""
+    mock_admin_engine = MagicMock()
+    mock_conn = MagicMock()
+    mock_admin_engine.connect.return_value.__enter__.return_value = mock_conn
+
+    def mock_execute(statement, *args, **kwargs):
+        stmt_text = str(statement)
+        if "DROP DATABASE" in stmt_text:
+            raise RuntimeError("permission denied to drop database: simulated failure")
+        return MagicMock()
+
+    mock_conn.execute.side_effect = mock_execute
+    restore_db_name = "nexus_restore_verify_mocked_drop"
+
+    with warnings.catch_warnings(record=True) as recorded_warnings:
+        warnings.simplefilter("always")
+        errors = cleanup_restore_drill(
+            admin_engine=mock_admin_engine,
+            restore_engine=None,
+            session_factory=None,
+            restore_db_name=restore_db_name,
+            db_created=True,
+        )
+
+    # 1. Returned errors list contains the failure details
+    assert len(errors) == 1
+    assert "CLEANUP FAILURE" in errors[0]
+    assert restore_db_name in errors[0]
+    assert "permission denied to drop database" in errors[0]
+
+    # 2. RuntimeWarning was emitted with the failure details
+    assert len(recorded_warnings) == 1
+    assert issubclass(recorded_warnings[0].category, RuntimeWarning)
+    assert "permission denied to drop database" in str(recorded_warnings[0].message)
+
+
+def test_restore_drill_cleanup_preserves_primary_exception() -> None:
+    """Verify that cleanup failures do not mask a primary test assertion or exception."""
+    mock_admin_engine = MagicMock()
+    mock_conn = MagicMock()
+    mock_admin_engine.connect.return_value.__enter__.return_value = mock_conn
+    mock_conn.execute.side_effect = RuntimeError("simulated DROP DATABASE failure")
+
+    primary_error = AssertionError("Original test assertion failed: expected 42, got 0")
+
+    try:
         try:
-            with admin_engine.connect() as conn:
-                conn.execute(text(f"""
-                    SELECT pg_terminate_backend(pid)
-                    FROM pg_stat_activity
-                    WHERE datname = '{restore_db_name}' AND pid <> pg_backend_pid();
-                """))
-                conn.execute(text(f'DROP DATABASE IF EXISTS "{restore_db_name}"'))
-        except Exception:
-            pass
+            raise primary_error
+        finally:
+            import sys
+            curr_exc = sys.exc_info()[1]
+            errors = cleanup_restore_drill(
+                admin_engine=mock_admin_engine,
+                restore_engine=None,
+                session_factory=None,
+                restore_db_name="nexus_restore_verify_masked_check",
+                db_created=True,
+            )
+            if errors:
+                if curr_exc is None:
+                    pytest.fail("Restore drill completed body assertions, but cleanup failed:\n" + "\n".join(errors))
+                elif hasattr(curr_exc, "add_note"):
+                    for err in errors:
+                        curr_exc.add_note(err)
+    except AssertionError as caught:
+        # Assert the primary error was preserved and NOT replaced by a cleanup exception
+        assert caught is primary_error
+        assert "Original test assertion failed" in str(caught)
+        if hasattr(caught, "__notes__"):
+            assert any("simulated DROP DATABASE failure" in note for note in caught.__notes__)
 
-        admin_engine.dispose()
 
-        # Clean seeded test tenant records from source test database
-        with Session() as db:
-            try:
-                db.execute(text(f"DELETE FROM knowledge_chunks WHERE business_id = '{biz_id}'"))
-                db.execute(text(f"DELETE FROM knowledge_documents WHERE business_id = '{biz_id}'"))
-                db.execute(text(f"DELETE FROM ingestion_jobs WHERE business_id = '{biz_id}'"))
-                db.execute(text(f"DELETE FROM uploaded_datasets WHERE business_id = '{biz_id}'"))
-                db.execute(text(f"DELETE FROM businesses WHERE id = '{biz_id}'"))
-                db.execute(text(f"DELETE FROM organizations WHERE id = '{org_id}'"))
-                db.commit()
-            except Exception:
-                db.rollback()
+def test_cleanup_restore_drill_seed_cleanup_failure_rolls_back_and_reports() -> None:
+    """Verify that a failure during seed record cleanup rolls back the session and reports the failure."""
+    mock_session = MagicMock()
+    mock_session_factory = MagicMock(return_value=mock_session)
+    mock_session.__enter__.return_value = mock_session
+    mock_session.execute.side_effect = RuntimeError("simulated DB constraint failure on delete")
+
+    with warnings.catch_warnings(record=True) as recorded_warnings:
+        warnings.simplefilter("always")
+        errors = cleanup_restore_drill(
+            admin_engine=None,
+            restore_engine=None,
+            session_factory=mock_session_factory,
+            restore_db_name="nexus_restore_verify_testseed",
+            db_created=False,
+            biz_id="test_biz_123",
+            org_id="test_org_123",
+        )
+
+    # Rollback was called on error
+    mock_session.rollback.assert_called_once()
+    # Error was recorded and warned
+    assert len(errors) == 1
+    assert "CLEANUP FAILURE" in errors[0]
+    assert "test_biz_123" in errors[0]
+    assert len(recorded_warnings) == 1
+    assert "simulated DB constraint failure on delete" in str(recorded_warnings[0].message)
+
+
+def test_cleanup_restore_drill_rejects_unsafe_database_identifier() -> None:
+    """Verify that an unsafe database identifier raises a ValueError during cleanup."""
+    unsafe_name = 'nexus_restore_verify_test"; DROP TABLE users; --'
+    mock_admin_engine = MagicMock()
+
+    with warnings.catch_warnings(record=True) as recorded_warnings:
+        warnings.simplefilter("always")
+        errors = cleanup_restore_drill(
+            admin_engine=mock_admin_engine,
+            restore_engine=None,
+            session_factory=None,
+            restore_db_name=unsafe_name,
+            db_created=True,
+        )
+
+    assert len(errors) == 1
+    assert "Unsafe restore database identifier" in errors[0]
+    assert len(recorded_warnings) == 1
+    assert "Unsafe restore database identifier" in str(recorded_warnings[0].message)
+    # Admin engine was never connected due to pre-validation rejection
+    mock_admin_engine.connect.assert_not_called()

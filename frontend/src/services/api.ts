@@ -237,3 +237,10 @@ export async function updateBusiness(id: string, data: any): Promise<any> {
     body: JSON.stringify(data),
   });
 }
+
+export async function deleteBusiness(id: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/api/v1/businesses/${id}`, {
+    method: 'DELETE',
+  });
+}
+

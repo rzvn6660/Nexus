@@ -52,6 +52,9 @@ export interface GatewayDatasetDetail {
   readiness_score?: number;
   readiness_status?: string;
   readiness_reasons?: string[];
+  ingestion_status?: string;
+  ingestion_errors?: string[];
+  total_validation_errors?: number;
   created_at?: string;
 }
 

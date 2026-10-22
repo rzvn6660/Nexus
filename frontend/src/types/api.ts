@@ -336,7 +336,7 @@ export interface ForecastDataQuality {
   frequency: string;
   date_from?: string | null;
   date_to?: string | null;
-  missing_periods: number;
+  missing_periods: number | string[];
   missing_values: number;
   warnings: string[];
   blocking_reasons: string[];
@@ -534,6 +534,9 @@ export interface KPIResponse {
   unit: string;
   business_domain: string;
   status: string;
+  supported_dimensions?: string[];
+  supported_filters?: string[];
+  default_dimension?: string | null;
 }
 
 export interface MetricAvailability {
@@ -750,20 +753,31 @@ export interface KnowledgeSearchResponse {
 
 export interface DecisionRecordItem {
   id: number;
+  business_id?: string | null;
+  organization_id?: string | null;
   analysis_id?: number | null;
-  recommendation_text: str;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED' | string;
+  recommendation_text: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED' | 'DEFERRED' | string;
   reviewer_notes?: string | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
+  recommendation_type?: string | null;
+  action_target_type?: string | null;
+  action_target_id?: string | null;
+  recommendation_payload?: Record<string, any> | null;
+  baseline_metrics_snapshot?: Record<string, any> | null;
+  current_revision?: number;
+  outcome_window_days?: number | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface DecisionReviewRequest {
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED' | 'DEFERRED' | string;
   reviewer_notes?: string;
   reviewed_by?: string;
+  modified_parameters?: Record<string, any>;
+  idempotency_key?: string;
 }
 
 export interface DatasetDateCoverage {
@@ -814,5 +828,6 @@ export interface ReportExportResponse {
 }
 
 // Alias for numeric compatibility
-type float = number;
-type str = string;
+export type float = number;
+export type str = string;
+
