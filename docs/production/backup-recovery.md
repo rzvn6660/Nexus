@@ -562,3 +562,47 @@ python -m alembic stamp head
 | **Raw Tenant Files** (Uploaded CSV/Excel) | `nexus_backend_data` volume | `tar -czf` via ephemeral container | `tar -xzf` + chown | 24 hours (coordinated with DB) | < 10 minutes |
 | **Alembic Version State** | `alembic_version` table | Part of `pg_dump` | Part of `pg_restore` | Synchronized with DB | Immediate |
 | **Multi-Host Shared Storage** | S3/GCS Object Store (Roadmap) | Cloud provider versioning/replication | Point-in-time bucket restore | Continuous / Versioned | < 30 minutes |
+
+---
+
+## 8. CI Recovery Mechanics Drill (Manual Workflow)
+
+To continuously test and verify coordinated dump, restore, and storage reconciliation mechanics without incurring hosting costs, NEXUS provides a dedicated, isolated GitHub Actions workflow: [`.github/workflows/backup-restore-drill.yml`](../../.github/workflows/backup-restore-drill.yml).
+
+### 8.1 How to Manually Trigger the Workflow
+
+1. Navigate to the repository's **Actions** tab on GitHub.
+2. Under **All workflows**, select **NEXUS Coordinated Backup & Restore Mechanics Drill**.
+3. Click the **Run workflow** dropdown on the `main` branch.
+4. Click the green **Run workflow** button to initiate execution.
+
+Execution takes approximately **35–50 seconds** and runs on an ephemeral GitHub-hosted Ubuntu runner with an isolated `pgvector/pgvector:pg16` service container at ₹0 incremental infrastructure cost.
+
+### 8.2 What the CI Drill Verifies
+
+The CI drill executes [`backend/tests/test_backup_restore_phase32c.py::test_live_postgres_backup_restore_and_storage_reconciliation_drill`](../../backend/tests/test_backup_restore_phase32c.py#L572-L875) under strict `REQUIRE_POSTGRES=true` and `LLM_ALLOW_EXTERNAL_CALLS=false` settings:
+
+1. **Source Target Validation**: Confirms the target database name is strictly `nexus_test_db` before connecting (fails closed against any non-test database name).
+2. **PostgreSQL 16 Client Toolchain**: Certifies that host `pg_dump` and `pg_restore` binaries match PostgreSQL 16.
+3. **Real Custom Dump Generation**: Executes `pg_dump -F c` against the seeded source database and asserts the `PGDMP` header magic bytes.
+4. **Tenant File Volume Snapshot**: Bundles seeded tenant files into a compressed tar archive and computes SHA-256 sidecars.
+5. **Disposable Target Lifecycle**: Dynamically creates a disposable target database (`nexus_restore_verify_<uid>`), strictly validating the database identifier against `^nexus_restore_verify_[a-zA-Z0-9_]{1,40}$`.
+6. **Real Custom Restore**: Executes `pg_restore` into the disposable database.
+7. **Schema & Vector Verification**: Connects to the restored database and verifies table presence, row counts, sequences, foreign key constraints, JSONB data fidelity, and executes a live `pgvector` distance query (`<->`).
+8. **File Restoration & Hash Matching**: Extracts tenant files into a temporary directory and validates file byte size and SHA-256 digest against restored database records.
+9. **Storage Reconciliation**: Runs `reconcile_tenant_storage()` to confirm zero missing files and zero unindexed orphans.
+10. **Fail-Closed Teardown**: Terminates active sessions, drops `nexus_restore_verify_<uid>`, and cleans seeded records without masking primary test assertions.
+
+### 8.3 What the CI Drill Does NOT Verify (Disaster Recovery Boundary)
+
+> [!CAUTION]
+> **Operational Boundary & Non-Certification Notice**:
+> A successful run of the CI recovery mechanics drill validates code, schema, and toolchain mechanics in an ephemeral container sandbox. **It does NOT certify production disaster recovery readiness.**
+>
+> The CI drill does **NOT** verify:
+> 1. **Persistent Host Block Durability**: CI disks and containers are ephemeral; it does not test physical block volumes (e.g., AWS EBS / NVMe) or POSIX ownership permissions (`appuser:1000:1000`) across host reboots.
+> 2. **Multi-Process Service Quiescence**: CI runs in a quiescent single-job environment; it does not test stopping live multi-worker Uvicorn APIs and background continuous scheduler daemons under active user traffic.
+> 3. **Production Data Volume Scale**: CI tests with seed fixtures (< 1 MB); it does not test multi-gigabyte table dumps, network transfer bottlenecks, RAM constraints, or database lock timeouts.
+> 4. **Off-Host Replication**: CI does not test automated replication of encrypted snapshots to remote cloud storage (AWS S3 Glacier, Google Cloud Storage).
+>
+> A real, authorized staging backup/restore drill on isolated staging infrastructure remains mandatory prior to accepting commercial production workloads.

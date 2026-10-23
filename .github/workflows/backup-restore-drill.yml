@@ -1,0 +1,125 @@
+name: NEXUS Coordinated Backup & Restore Mechanics Drill
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup-restore-mechanics-drill:
+    name: PostgreSQL 16 + pgvector & Tenant-Storage Recovery Mechanics
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: nexus_user
+          POSTGRES_PASSWORD: nexus_password
+          POSTGRES_DB: nexus_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Verify and configure PostgreSQL 16 client tools
+        run: |
+          if ! pg_dump --version 2>&1 | grep -qE "16\."; then
+            echo "Installing PostgreSQL 16 client tools from official PostgreSQL apt repository..."
+            sudo install -d /etc/apt/keyrings
+            curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client-16
+          fi
+          echo "=== Verified PostgreSQL Client Utilities ==="
+          pg_dump --version | grep -E "pg_dump \(PostgreSQL\) 16\." || { echo "ERROR: pg_dump version 16 is required"; exit 1; }
+          pg_restore --version | grep -E "pg_restore \(PostgreSQL\) 16\." || { echo "ERROR: pg_restore version 16 is required"; exit 1; }
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-dev.txt
+
+      - name: Run PostgreSQL database migrations on disposable service
+        env:
+          DATABASE_URL: postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db
+        run: |
+          cd backend
+          python -c "import os; from sqlalchemy import create_engine, text; e = create_engine(os.environ['DATABASE_URL']); conn = e.connect(); conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector;')); conn.commit(); conn.close()"
+          alembic upgrade head
+
+      - name: Execute live coordinated backup/restore & reconciliation drill
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db
+          DATABASE_URL: postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db
+          APP_ENV: test
+          DEBUG: "false"
+          REQUIRE_POSTGRES: "true"
+          LLM_ALLOW_EXTERNAL_CALLS: "false"
+        run: |
+          cd backend
+          set -o pipefail
+          pytest tests/test_backup_restore_phase32c.py::test_live_postgres_backup_restore_and_storage_reconciliation_drill -v -rA --durations=0 | tee /tmp/drill_output.log
+          grep -E "= 1 passed" /tmp/drill_output.log || { echo "GATE FAILURE: Expected exactly 1 passed test"; exit 1; }
+          if grep -qi "skipped" /tmp/drill_output.log; then
+            echo "GATE FAILURE: Zero skips permitted in dedicated drill workflow"
+            exit 1
+          fi
+
+      - name: Confirm clean post-drill state
+        if: always()
+        env:
+          DATABASE_URL: postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db
+        run: |
+          python - << 'EOF'
+          import os
+          import sys
+          from sqlalchemy import create_engine, text
+
+          db_url = os.environ.get("DATABASE_URL")
+          if not db_url:
+              sys.stderr.write("ERROR: DATABASE_URL environment variable is not set\n")
+              sys.exit(1)
+
+          engine = create_engine(db_url, connect_args={"connect_timeout": 5})
+          with engine.connect() as conn:
+              # 1. Verify that no database matching nexus_restore_verify_% remains
+              leftover_dbs = conn.execute(
+                  text("SELECT datname FROM pg_database WHERE datname LIKE 'nexus_restore_verify_%'")
+              ).fetchall()
+              if leftover_dbs:
+                  db_names = [row[0] for row in leftover_dbs]
+                  sys.stderr.write(f"CLEANUP GATE FAILURE: Leftover restore database(s) detected: {db_names}\n")
+                  sys.exit(1)
+
+              # 2. Verify that no seeded drill organization records remain
+              table_exists = conn.execute(
+                  text("SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'organizations'")
+              ).scalar()
+
+              if table_exists:
+                  leftover_orgs = conn.execute(
+                      text("SELECT count(*) FROM organizations WHERE slug LIKE 'drill-org-%' OR name LIKE 'Restore Drill Org %'")
+                  ).scalar()
+                  if leftover_orgs and leftover_orgs > 0:
+                      sys.stderr.write(f"CLEANUP GATE FAILURE: {leftover_orgs} leftover seeded drill organization record(s) detected\n")
+                      sys.exit(1)
+
+          print("POST-DRILL STATE VERIFIED: 0 leftover databases, 0 leftover seeded records.")
+          EOF
