@@ -606,3 +606,16 @@ The CI drill executes [`backend/tests/test_backup_restore_phase32c.py::test_live
 > 4. **Off-Host Replication**: CI does not test automated replication of encrypted snapshots to remote cloud storage (AWS S3 Glacier, Google Cloud Storage).
 >
 > A real, authorized staging backup/restore drill on isolated staging infrastructure remains mandatory prior to accepting commercial production workloads.
+
+### 8.4 Verified CI Mechanics Drill Execution Record
+
+On **2026-10-23**, the manual recovery mechanics workflow was executed and verified on GitHub Actions:
+
+- **Workflow**: `NEXUS Coordinated Backup & Restore Mechanics Drill` ([`.github/workflows/backup-restore-drill.yml`](../../.github/workflows/backup-restore-drill.yml))
+- **Run ID**: `39988258994`
+- **Run URL**: [https://github.com/rzvn6660/Nexus/actions/runs/39988258994](https://github.com/rzvn6660/Nexus/actions/runs/39988258994)
+- **Commit Tested**: `e75627767d13130f3c2695ecb19265d2ddedf7f7`
+- **Client Toolchain**: PostgreSQL 16.15 (`pg_dump` and `pg_restore`)
+- **Test Result**: **1 passed, 0 failed, 0 skipped** (duration: 55s)
+- **Cleanup Gate Verification**: **0 leftover databases** (`nexus_restore_verify_%`), **0 leftover seeded records** (`drill-org-%` / `Restore Drill Org %`)
+- **Operational Scope**: This execution certifies code execution, dump/restore mechanics, and storage reconciliation in an ephemeral container environment only. It does **not** certify persistent staging storage durability, off-host backup replication, or commercial production disaster-recovery readiness.
