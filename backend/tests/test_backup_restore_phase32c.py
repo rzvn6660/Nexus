@@ -341,6 +341,870 @@ def test_backup_unsafe_paths_rejected() -> None:
             assert "Refusing to use empty, root, or system BACKUP_ROOT path" in proc.stderr
 
 
+def test_coordinated_scripts_dual_gate_enforcement() -> None:
+    """Both scripts fail closed unless BOTH --staging and NEXUS_STAGING_MODE=true are provided."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    restore_script = str(repo_root / "scripts" / "restore_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    # 1. Backup: --staging without NEXUS_STAGING_MODE=true
+    env_clean = os.environ.copy()
+    env_clean.pop("NEXUS_STAGING_MODE", None)
+    proc = subprocess.run([bash_bin, backup_script, "--staging"], env=env_clean, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Staging mode requires BOTH" in proc.stderr
+
+    # 2. Backup: NEXUS_STAGING_MODE=true without --staging
+    env_staging = os.environ.copy()
+    env_staging["NEXUS_STAGING_MODE"] = "true"
+    proc = subprocess.run([bash_bin, backup_script], env=env_staging, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: 'NEXUS_STAGING_MODE=true' is set, but the explicit '--staging' CLI flag was not passed" in proc.stderr
+
+    # 3. Restore: --staging without NEXUS_STAGING_MODE=true
+    proc = subprocess.run(
+        [bash_bin, restore_script, "--staging", "--confirm-destructive-restore", "20261019_020000"],
+        env=env_clean,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Staging mode requires BOTH" in proc.stderr
+
+    # 4. Restore: NEXUS_STAGING_MODE=true without --staging
+    proc = subprocess.run(
+        [bash_bin, restore_script, "--confirm-destructive-restore", "20261019_020000"],
+        env=env_staging,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: 'NEXUS_STAGING_MODE=true' is set, but the explicit '--staging' CLI flag was not passed" in proc.stderr
+
+
+def test_coordinated_scripts_production_reverse_guards() -> None:
+    """Production mode execution fails closed if any staging parameter is provided in env."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    restore_script = str(repo_root / "scripts" / "restore_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    staging_params = [
+        ("COMPOSE_PROJECT_NAME", "nexus-staging"),
+        ("COMPOSE_FILE", "infra/staging/docker-compose.staging.yml"),
+        ("POSTGRES_DB", "nexus_staging_db"),
+        ("DATA_VOLUME", "nexus_backend_staging_data"),
+        ("REDIS_VOLUME", "nexus_redis_staging_data"),
+    ]
+
+    for var_name, var_val in staging_params:
+        env = os.environ.copy()
+        env.pop("NEXUS_STAGING_MODE", None)
+        env[var_name] = var_val
+
+        # Backup script reverse guard
+        proc_b = subprocess.run([bash_bin, backup_script], env=env, capture_output=True, text=True)
+        assert proc_b.returncode != 0
+        assert "contains 'staging' while running in production mode" in proc_b.stderr
+
+        # Restore script reverse guard
+        proc_r = subprocess.run(
+            [bash_bin, restore_script, "--confirm-destructive-restore", "20261019_020000"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert proc_r.returncode != 0
+        assert "contains 'staging' while running in production mode" in proc_r.stderr
+
+
+def test_coordinated_scripts_staging_target_blacklists(tmp_path: Path) -> None:
+    """Staging mode execution fails closed if production targets or invalid staging names are specified."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    restore_script = str(repo_root / "scripts" / "restore_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    dummy_compose = tmp_path / "docker-compose.staging.yml"
+    dummy_compose.write_text("services: {}\n")
+    dummy_compose_path = str(dummy_compose).replace("\\", "/")
+
+    base_staging_env = os.environ.copy()
+    base_staging_env["NEXUS_STAGING_MODE"] = "true"
+    base_staging_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
+    base_staging_env["COMPOSE_FILE"] = dummy_compose_path
+    base_staging_env["POSTGRES_DB"] = "nexus_staging_db"
+    base_staging_env["DATA_VOLUME"] = "nexus_backend_staging_data"
+    base_staging_env["REDIS_VOLUME"] = "nexus_redis_staging_data"
+
+    blacklisted_scenarios = [
+        ({"COMPOSE_PROJECT_NAME": "nexus"}, "COMPOSE_PROJECT_NAME must strictly equal 'nexus-staging'"),
+        ({"COMPOSE_PROJECT_NAME": ""}, "COMPOSE_PROJECT_NAME must strictly equal 'nexus-staging'"),
+        ({"COMPOSE_PROJECT_NAME": "staging"}, "COMPOSE_PROJECT_NAME must strictly equal 'nexus-staging'"),
+        ({"COMPOSE_FILE": "docker-compose.prod.yml"}, "COMPOSE_FILE cannot be production/dev"),
+        ({"COMPOSE_FILE": "infra/staging/nonexistent.staging.yml"}, "Specified staging COMPOSE_FILE does not exist"),
+        ({"POSTGRES_DB": "nexus_db"}, "POSTGRES_DB cannot target 'nexus_db'"),
+        ({"POSTGRES_DB": "other_db"}, "Target must match staging pattern"),
+        ({"DATA_VOLUME": "nexus_backend_data"}, "DATA_VOLUME cannot target production volume"),
+        ({"DATA_VOLUME": "nexus_volume"}, "Must end with '_staging_data'"),
+        ({"REDIS_VOLUME": "nexus_redis_prod_data"}, "REDIS_VOLUME cannot target production volume"),
+    ]
+
+    for overrides, expected_err in blacklisted_scenarios:
+        env = base_staging_env.copy()
+        env.update(overrides)
+
+        proc_b = subprocess.run([bash_bin, backup_script, "--staging"], env=env, capture_output=True, text=True)
+        assert proc_b.returncode != 0
+        assert expected_err in proc_b.stderr
+
+        proc_r = subprocess.run(
+            [bash_bin, restore_script, "--staging", "--confirm-destructive-restore", "20261019_020000"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert proc_r.returncode != 0
+        assert expected_err in proc_r.stderr
+
+
+def test_coordinated_scripts_staging_container_discovery_fails_closed(tmp_path: Path) -> None:
+    """In authorized staging mode, missing or unidentifiable containers fail closed immediately."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    restore_script = str(repo_root / "scripts" / "restore_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    def _to_bash_path(p: Path) -> str:
+        s = str(p).replace("\\", "/")
+        if len(s) >= 2 and s[1] == ":":
+            s = f"/{s[0].lower()}{s[2:]}"
+        return s
+
+    dummy_compose = tmp_path / "docker-compose.staging.yml"
+    dummy_compose.write_text("services: {}\n")
+    dummy_compose_path = _to_bash_path(dummy_compose)
+
+    staging_env = os.environ.copy()
+    staging_env["NEXUS_STAGING_MODE"] = "true"
+    staging_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
+    staging_env["COMPOSE_FILE"] = dummy_compose_path
+    staging_env["POSTGRES_DB"] = "nexus_staging_db"
+    staging_env["DATA_VOLUME"] = "nexus_backend_staging_data"
+    staging_env["REDIS_VOLUME"] = "nexus_redis_staging_data"
+
+    valid_backup_dir = tmp_path / "valid_backups"
+    valid_backup_dir.mkdir(parents=True, exist_ok=True)
+    staging_env["BACKUP_ROOT"] = _to_bash_path(valid_backup_dir)
+
+    ts = "20261019_020000"
+    db_file = valid_backup_dir / f"nexus_db_{ts}.dump"
+    db_file.write_bytes(b"PGDMP_TEST_CONTENT")
+    sidecar_db = valid_backup_dir / f"nexus_db_{ts}.dump.sha256"
+    import hashlib
+    db_hash = hashlib.sha256(b"PGDMP_TEST_CONTENT").hexdigest()
+    sidecar_db.write_bytes(f"{db_hash}  {_to_bash_path(db_file)}\n".encode("utf-8"))
+
+    files_file = valid_backup_dir / f"nexus_files_{ts}.tar.gz"
+    import tarfile
+    with tarfile.open(files_file, "w:gz") as tar:
+        pass
+    files_bytes = files_file.read_bytes()
+    files_hash = hashlib.sha256(files_bytes).hexdigest()
+    sidecar_files = valid_backup_dir / f"nexus_files_{ts}.tar.gz.sha256"
+    sidecar_files.write_bytes(f"{files_hash}  {_to_bash_path(files_file)}\n".encode("utf-8"))
+
+    # 1. Backup script fails closed when postgres container discovery fails
+    proc_b = subprocess.run([bash_bin, backup_script, "--staging"], env=staging_env, capture_output=True, text=True)
+    assert proc_b.returncode != 0
+    assert "SAFETY ERROR: Staging postgres service must resolve to exactly one running container" in proc_b.stderr
+
+    # 2. Restore script fails closed when postgres container discovery fails
+    proc_r = subprocess.run(
+        [bash_bin, restore_script, "--staging", "--confirm-destructive-restore", ts, "--backup-root=" + _to_bash_path(valid_backup_dir)],
+        env=staging_env,
+        capture_output=True,
+        text=True,
+    )
+    assert proc_r.returncode != 0
+    assert "SAFETY ERROR: Staging postgres service must resolve to exactly one running container" in proc_r.stderr
+
+
+def _create_docker_stub(bin_dir: Path, log_file: Path) -> Path:
+    """Create a deterministic offline docker CLI stub that logs commands and supports controlled mock modes."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    docker_script = bin_dir / "docker"
+
+    def _to_posix(p: Path) -> str:
+        s = str(p).replace("\\", "/")
+        if len(s) >= 2 and s[1] == ":":
+            s = f"/{s[0].lower()}{s[2:]}"
+        return s
+
+    content = f"""#!/bin/sh
+LOGFILE="{_to_posix(log_file)}"
+echo "MOCK_DOCKER: $@" >> "$LOGFILE"
+
+case "$1" in
+    compose)
+        case "$*" in
+            *"ps -q postgres"*)
+                if [ "${{MOCK_POSTGRES_CONTAINERS:-1}}" = "0" ]; then
+                    exit 0
+                elif [ "${{MOCK_POSTGRES_CONTAINERS:-1}}" = "2" ]; then
+                    echo "mock_pg_cid_1"
+                    echo "mock_pg_cid_2"
+                    exit 0
+                else
+                    echo "mock_pg_cid"
+                    exit 0
+                fi
+                ;;
+            *"ps -q redis"*)
+                if [ "${{MOCK_REDIS_CONTAINERS:-1}}" = "0" ]; then
+                    exit 0
+                elif [ "${{MOCK_REDIS_CONTAINERS:-1}}" = "2" ]; then
+                    echo "mock_redis_cid_1"
+                    echo "mock_redis_cid_2"
+                    exit 0
+                else
+                    echo "mock_redis_cid"
+                    exit 0
+                fi
+                ;;
+            *"config"*)
+                exit 0
+                ;;
+            *"stop backend scheduler"*)
+                echo "CALL: STOP_BACKEND_SCHEDULER" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"exec -T postgres psql"*"SELECT current_database()"*)
+                echo "CALL: PSQL_CATALOG_QUERY $@" >> "$LOGFILE"
+                # Realistic SQL engine contract check: If the outer query erroneously uses
+                # an outer FROM pg_database WHERE filter, an actual engine returns zero rows when target is absent.
+                case "$*" in
+                    *"GROUP BY"*|*"') FROM pg_database WHERE"*|*", count(*),"*)
+                        if [ "${{MOCK_CATALOG_MODE:-existing}}" = "missing_target" ]; then
+                            exit 0
+                        fi
+                        ;;
+                esac
+
+                if [ "${{MOCK_CATALOG_MODE:-existing}}" = "fail_exit" ]; then
+                    echo "simulated psql error" >&2
+                    exit 1
+                elif [ "${{MOCK_CATALOG_MODE:-existing}}" = "empty" ]; then
+                    exit 0
+                elif [ "${{MOCK_CATALOG_MODE:-existing}}" = "wrong_maint" ]; then
+                    echo "other_db|1|nexus_staging_db"
+                    exit 0
+                elif [ "${{MOCK_CATALOG_MODE:-existing}}" = "corrupted_count" ]; then
+                    echo "postgres|2|nexus_staging_db"
+                    exit 0
+                elif [ "${{MOCK_CATALOG_MODE:-existing}}" = "mismatched_target" ]; then
+                    echo "postgres|1|wrong_db"
+                    exit 0
+                elif [ "${{MOCK_CATALOG_MODE:-existing}}" = "multiple_rows" ]; then
+                    echo "postgres|1|nexus_staging_db"
+                    echo "postgres|1|nexus_staging_db"
+                    exit 0
+                elif [ "${{MOCK_CATALOG_MODE:-existing}}" = "count_zero_nonempty_name" ]; then
+                    echo "postgres|0|unexpected_name"
+                    exit 0
+                elif [ "${{MOCK_CATALOG_MODE:-existing}}" = "missing_target" ]; then
+                    echo "postgres|0|"
+                    exit 0
+                elif [ "${{MOCK_CATALOG_MODE:-existing}}" = "existing" ]; then
+                    echo "postgres|1|nexus_staging_db"
+                    exit 0
+                fi
+                ;;
+            *"exec -T postgres psql"*"pg_terminate_backend"*)
+                echo "CALL: PG_TERMINATE_BACKEND" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"exec -T postgres dropdb"*)
+                echo "CALL: DROPDB" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"exec -T postgres createdb"*)
+                echo "CALL: CREATEDB" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"exec -T postgres pg_restore"*)
+                echo "CALL: PG_RESTORE" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"exec -T postgres pg_dump"*)
+                echo "CALL: PG_DUMP" >> "$LOGFILE"
+                echo "PGDMP_DUMMY_DATA"
+                exit 0
+                ;;
+            *"exec -T redis redis-cli bgsave"*)
+                echo "CALL: REDIS_BGSAVE" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"exec -T redis redis-cli info persistence"*)
+                echo "rdb_bgsave_in_progress:0"
+                echo "rdb_last_bgsave_status:ok"
+                exit 0
+                ;;
+            *"stop redis"*)
+                echo "CALL: STOP_REDIS" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"start redis"*)
+                echo "CALL: START_REDIS" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"start backend scheduler"*)
+                echo "CALL: START_BACKEND_SCHEDULER" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"run --rm backend python scripts/reconcile_storage.py"*)
+                echo "CALL: RECONCILE_STORAGE" >> "$LOGFILE"
+                exit 0
+                ;;
+            *"exec -T backend curl"*"/api/health/ready"*)
+                echo "CALL: HEALTHCHECK" >> "$LOGFILE"
+                exit 0
+                ;;
+            *)
+                echo "CALL: UNKNOWN_COMPOSE $@" >> "$LOGFILE"
+                exit 0
+                ;;
+        esac
+        ;;
+    inspect)
+        case "$*" in
+            *"mock_pg_cid"*)
+                if [ "${{MOCK_INSPECT_FAIL:-false}}" = "true" ]; then
+                    echo "simulated pg inspect error" >&2
+                    exit 1
+                elif [ "${{MOCK_LABEL_MISMATCH:-false}}" = "true" ]; then
+                    echo "wrong-project-name"
+                    exit 0
+                elif [ "${{MOCK_LABEL_EMPTY:-false}}" = "true" ]; then
+                    exit 0
+                else
+                    echo "${{MOCK_PROJECT_LABEL:-nexus-staging}}"
+                    exit 0
+                fi
+                ;;
+            *"mock_redis_cid"*)
+                if [ "${{MOCK_INSPECT_FAIL:-false}}" = "true" ]; then
+                    echo "simulated redis inspect error" >&2
+                    exit 1
+                elif [ "${{MOCK_REDIS_LABEL_MISMATCH:-false}}" = "true" ]; then
+                    echo "wrong-project-name"
+                    exit 0
+                elif [ "${{MOCK_LABEL_EMPTY:-false}}" = "true" ]; then
+                    exit 0
+                else
+                    echo "${{MOCK_PROJECT_LABEL:-nexus-staging}}"
+                    exit 0
+                fi
+                ;;
+            *)
+                echo "${{MOCK_PROJECT_LABEL:-nexus-staging}}"
+                exit 0
+                ;;
+        esac
+        ;;
+    volume)
+        case "$*" in
+            *"inspect"*)
+                if [ "${{MOCK_VOL_INSPECT_FAIL:-false}}" = "true" ]; then
+                    echo "simulated volume inspect error" >&2
+                    exit 1
+                elif [ "${{MOCK_VOL_LABEL_MISMATCH:-false}}" = "true" ]; then
+                    echo "wrong-project-name"
+                    exit 0
+                else
+                    echo "${{MOCK_PROJECT_LABEL:-nexus-staging}}"
+                    exit 0
+                fi
+                ;;
+            *)
+                exit 0
+                ;;
+        esac
+        ;;
+    run)
+        echo "CALL: DOCKER_RUN $@" >> "$LOGFILE"
+        exit 0
+        ;;
+    *)
+        echo "CALL: OTHER $@" >> "$LOGFILE"
+        exit 0
+        ;;
+esac
+"""
+    docker_script.write_text(content.strip() + "\n", encoding="utf-8")
+    return docker_script
+
+
+def test_coordinated_scripts_staging_container_cardinality_and_attestation(tmp_path: Path) -> None:
+    """F-02: Both postgres and redis containers are attested with explicit single-container cardinality before stateful operations."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    restore_script = str(repo_root / "scripts" / "restore_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    def _to_bash_path(p: Path) -> str:
+        s = str(p).replace("\\", "/")
+        if len(s) >= 2 and s[1] == ":":
+            s = f"/{s[0].lower()}{s[2:]}"
+        return s
+
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "docker_calls.log"
+    _create_docker_stub(bin_dir, log_file)
+
+    dummy_compose = tmp_path / "docker-compose.staging.yml"
+    dummy_compose.write_text("services: {}\n")
+
+    valid_backup_dir = tmp_path / "valid_backups"
+    valid_backup_dir.mkdir(parents=True, exist_ok=True)
+    ts = "20261019_020000"
+    db_file = valid_backup_dir / f"nexus_db_{ts}.dump"
+    db_file.write_bytes(b"PGDMP_TEST_CONTENT")
+    sidecar_db = valid_backup_dir / f"nexus_db_{ts}.dump.sha256"
+    import hashlib
+    db_hash = hashlib.sha256(b"PGDMP_TEST_CONTENT").hexdigest()
+    sidecar_db.write_bytes(f"{db_hash}  {_to_bash_path(db_file)}\n".encode("utf-8"))
+
+    files_file = valid_backup_dir / f"nexus_files_{ts}.tar.gz"
+    import tarfile
+    with tarfile.open(files_file, "w:gz") as tar:
+        pass
+    files_bytes = files_file.read_bytes()
+    files_hash = hashlib.sha256(files_bytes).hexdigest()
+    sidecar_files = valid_backup_dir / f"nexus_files_{ts}.tar.gz.sha256"
+    sidecar_files.write_bytes(f"{files_hash}  {_to_bash_path(files_file)}\n".encode("utf-8"))
+
+    base_env = os.environ.copy()
+    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
+    base_env["NEXUS_STAGING_MODE"] = "true"
+    base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
+    base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
+    base_env["POSTGRES_DB"] = "nexus_staging_db"
+    base_env["DATA_VOLUME"] = "nexus_backend_staging_data"
+    base_env["REDIS_VOLUME"] = "nexus_redis_staging_data"
+    base_env["BACKUP_ROOT"] = _to_bash_path(valid_backup_dir)
+
+    # 1. Missing Redis container (0 IDs) fails closed before stopping services or mutating data
+    env = base_env.copy()
+    env["MOCK_REDIS_CONTAINERS"] = "0"
+    log_file.write_text("")
+    proc = subprocess.run([bash_bin, backup_script, "--staging"], env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Staging redis service must resolve to exactly one running container (found 0)" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: STOP_BACKEND_SCHEDULER" not in calls
+    assert "CALL: DOCKER_RUN" not in calls
+
+    # 2. Multiple Postgres containers (2 IDs) fails closed explicitly
+    env = base_env.copy()
+    env["MOCK_POSTGRES_CONTAINERS"] = "2"
+    log_file.write_text("")
+    proc = subprocess.run(
+        [bash_bin, restore_script, "--staging", "--confirm-destructive-restore", ts, "--backup-root=" + _to_bash_path(valid_backup_dir)],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Staging postgres service must resolve to exactly one running container (found 2)" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: STOP_BACKEND_SCHEDULER" not in calls
+    assert "CALL: DROPDB" not in calls
+
+    # 3. Multiple Redis containers (2 IDs) fails closed explicitly
+    env = base_env.copy()
+    env["MOCK_REDIS_CONTAINERS"] = "2"
+    log_file.write_text("")
+    proc = subprocess.run([bash_bin, backup_script, "--staging"], env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Staging redis service must resolve to exactly one running container (found 2)" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: STOP_BACKEND_SCHEDULER" not in calls
+
+    # 4. Postgres container inspect failure fails closed
+    env = base_env.copy()
+    env["MOCK_INSPECT_FAIL"] = "true"
+    log_file.write_text("")
+    proc = subprocess.run([bash_bin, backup_script, "--staging"], env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Failed to inspect project label" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: STOP_BACKEND_SCHEDULER" not in calls
+
+    # 5. Redis project label mismatch fails closed
+    env = base_env.copy()
+    env["MOCK_REDIS_LABEL_MISMATCH"] = "true"
+    log_file.write_text("")
+    proc = subprocess.run(
+        [bash_bin, restore_script, "--staging", "--confirm-destructive-restore", ts, "--backup-root=" + _to_bash_path(valid_backup_dir)],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Target redis container project label ('wrong-project-name') does not match expected staging project ('nexus-staging')" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: STOP_BACKEND_SCHEDULER" not in calls
+    assert "CALL: DROPDB" not in calls
+
+
+def test_restore_script_staging_catalog_verification_and_clean_target_recovery(tmp_path: Path) -> None:
+    """F-01: Staging restore safely verifies catalog, supports existing vs absent targets, and avoids premature drops."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    restore_script = str(repo_root / "scripts" / "restore_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    def _to_bash_path(p: Path) -> str:
+        s = str(p).replace("\\", "/")
+        if len(s) >= 2 and s[1] == ":":
+            s = f"/{s[0].lower()}{s[2:]}"
+        return s
+
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "catalog_calls.log"
+    _create_docker_stub(bin_dir, log_file)
+
+    dummy_compose = tmp_path / "docker-compose.staging.yml"
+    dummy_compose.write_text("services: {}\n")
+
+    valid_backup_dir = tmp_path / "valid_backups"
+    valid_backup_dir.mkdir(parents=True, exist_ok=True)
+    ts = "20261019_020000"
+    db_file = valid_backup_dir / f"nexus_db_{ts}.dump"
+    db_file.write_bytes(b"PGDMP_TEST_CONTENT")
+    sidecar_db = valid_backup_dir / f"nexus_db_{ts}.dump.sha256"
+    import hashlib
+    db_hash = hashlib.sha256(b"PGDMP_TEST_CONTENT").hexdigest()
+    sidecar_db.write_bytes(f"{db_hash}  {_to_bash_path(db_file)}\n".encode("utf-8"))
+
+    files_file = valid_backup_dir / f"nexus_files_{ts}.tar.gz"
+    import tarfile
+    with tarfile.open(files_file, "w:gz") as tar:
+        pass
+    files_bytes = files_file.read_bytes()
+    files_hash = hashlib.sha256(files_bytes).hexdigest()
+    sidecar_files = valid_backup_dir / f"nexus_files_{ts}.tar.gz.sha256"
+    sidecar_files.write_bytes(f"{files_hash}  {_to_bash_path(files_file)}\n".encode("utf-8"))
+
+    base_env = os.environ.copy()
+    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
+    base_env["NEXUS_STAGING_MODE"] = "true"
+    base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
+    base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
+    base_env["POSTGRES_DB"] = "nexus_staging_db"
+    base_env["DATA_VOLUME"] = "nexus_backend_staging_data"
+    base_env["REDIS_VOLUME"] = "nexus_redis_staging_data"
+    base_env["BACKUP_ROOT"] = _to_bash_path(valid_backup_dir)
+
+    restore_args = [bash_bin, restore_script, "--staging", "--confirm-destructive-restore", ts, "--backup-root=" + _to_bash_path(valid_backup_dir)]
+
+    # 1. Maintenance connection / query error fails closed before dropdb
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "fail_exit"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: PostgreSQL catalog query failed with exit code 1" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: DROPDB" not in calls
+    assert "CALL: CREATEDB" not in calls
+
+    # 2. Empty output from catalog query fails closed
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "empty"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert ("SAFETY ERROR: PostgreSQL catalog query returned 0 rows" in proc.stderr or "Empty output received" in proc.stderr)
+    calls = log_file.read_text()
+    assert "CALL: DROPDB" not in calls
+
+    # 3. Connected to unexpected maintenance database fails closed
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "wrong_maint"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Catalog query connected to unexpected maintenance database 'other_db' (expected 'postgres')" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: DROPDB" not in calls
+
+    # 4. Corrupted match count fails closed
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "corrupted_count"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Unexpected match count ('2') returned for target database in catalog" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: DROPDB" not in calls
+
+    # 5. Mismatched database identity fails closed
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "mismatched_target"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Catalog database match ('wrong_db') differs from expected target ('nexus_staging_db')" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: DROPDB" not in calls
+
+    # 6. Existing target: follows verified terminate, drop, create, restore sequence
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "existing"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode == 0
+    calls = log_file.read_text()
+    assert "Verified existing target database 'nexus_staging_db' in catalog (ready for safe drop and recreate)" in proc.stdout
+    # Verify scalar subquery shape was invoked and outer FROM filter was NOT used
+    assert "SELECT current_database(), (SELECT count(*) FROM pg_database WHERE datname = 'nexus_staging_db'), COALESCE((SELECT datname FROM pg_database WHERE datname = 'nexus_staging_db'), '')" in calls
+    assert "FROM pg_database WHERE datname = 'nexus_staging_db';" not in calls
+    assert "CALL: PG_TERMINATE_BACKEND" in calls
+    assert "CALL: DROPDB" in calls
+    assert "CALL: CREATEDB" in calls
+    assert "CALL: PG_RESTORE" in calls
+    # Assert sequence
+    drop_idx = calls.index("CALL: DROPDB")
+    create_idx = calls.index("CALL: CREATEDB")
+    restore_idx = calls.index("CALL: PG_RESTORE")
+    assert drop_idx < create_idx < restore_idx
+
+    # 7. Absent target: skips terminate and drop, proceeds to create and restore
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "missing_target"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode == 0
+    calls = log_file.read_text()
+    assert "Target database 'nexus_staging_db' does not yet exist in catalog. Clean target creation will proceed" in proc.stdout
+    assert "CALL: PG_TERMINATE_BACKEND" not in calls
+    assert "CALL: DROPDB" not in calls
+    assert "CALL: CREATEDB" in calls
+    assert "CALL: PG_RESTORE" in calls
+
+    # 8. Multiple rows returned fails closed
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "multiple_rows"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: PostgreSQL catalog query returned 2 rows (expected exactly 1)" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: DROPDB" not in calls
+    assert "CALL: CREATEDB" not in calls
+
+    # 9. Count 0 with non-empty match name fails closed
+    env = base_env.copy()
+    env["MOCK_CATALOG_MODE"] = "count_zero_nonempty_name"
+    log_file.write_text("")
+    proc = subprocess.run(restore_args, env=env, capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "SAFETY ERROR: Catalog query returned count 0 but non-empty database match ('unexpected_name')" in proc.stderr
+    calls = log_file.read_text()
+    assert "CALL: DROPDB" not in calls
+    assert "CALL: CREATEDB" not in calls
+
+
+def test_staging_catalog_query_contract_and_sql_shape() -> None:
+    """Verify that restore_nexus_coordinated.sh uses scalar subqueries and adheres to the SQL response contract."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    restore_script = repo_root / "scripts" / "restore_nexus_coordinated.sh"
+    content = restore_script.read_text(encoding="utf-8")
+
+    # 1. Static assertion on the SQL shape in the script
+    expected_sql_pattern = (
+        "SELECT current_database(), "
+        "(SELECT count(*) FROM pg_database WHERE datname = '${POSTGRES_DB}'), "
+        "COALESCE((SELECT datname FROM pg_database WHERE datname = '${POSTGRES_DB}'), '');"
+    )
+    assert expected_sql_pattern in content, "Catalog query must use scalar subqueries without an outer FROM filter"
+    assert "FROM pg_database WHERE datname = '${POSTGRES_DB}';" not in content, (
+        "Catalog query must NOT filter the outer query with 'FROM pg_database WHERE', "
+        "which returns 0 rows when the target is absent"
+    )
+
+    # 2. Functional verification against in-memory SQL engine (SQLite simulating the catalog contract)
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.create_function("current_database", 0, lambda: "postgres")
+    conn.execute("CREATE TABLE pg_database (datname TEXT);")
+    conn.execute("INSERT INTO pg_database (datname) VALUES ('postgres'), ('template1');")
+
+    query = (
+        "SELECT current_database(), "
+        "(SELECT count(*) FROM pg_database WHERE datname = 'nexus_staging_db'), "
+        "COALESCE((SELECT datname FROM pg_database WHERE datname = 'nexus_staging_db'), '');"
+    )
+
+    # Test absent target: must return exactly 1 row with ('postgres', 0, '')
+    rows_absent = conn.execute(query).fetchall()
+    assert len(rows_absent) == 1
+    assert rows_absent[0] == ("postgres", 0, "")
+    formatted_absent = f"{rows_absent[0][0]}|{rows_absent[0][1]}|{rows_absent[0][2]}"
+    assert formatted_absent == "postgres|0|"
+
+    # Test present target: must return exactly 1 row with ('postgres', 1, 'nexus_staging_db')
+    conn.execute("INSERT INTO pg_database (datname) VALUES ('nexus_staging_db');")
+    rows_present = conn.execute(query).fetchall()
+    assert len(rows_present) == 1
+    assert rows_present[0] == ("postgres", 1, "nexus_staging_db")
+    formatted_present = f"{rows_present[0][0]}|{rows_present[0][1]}|{rows_present[0][2]}"
+    assert formatted_present == "postgres|1|nexus_staging_db"
+    conn.close()
+
+
+def test_coordinated_scripts_production_zero_arg_compose_command(tmp_path: Path) -> None:
+    """Zero-arg production mode preserves baseline: COMPOSE_PROJECT_NAME is empty and no -p is appended."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    def _to_bash_path(p: Path) -> str:
+        s = str(p).replace("\\", "/")
+        if len(s) >= 2 and s[1] == ":":
+            s = f"/{s[0].lower()}{s[2:]}"
+        return s
+
+    env = os.environ.copy()
+    env.pop("COMPOSE_PROJECT_NAME", None)
+    env.pop("NEXUS_STAGING_MODE", None)
+    valid_backup_dir = tmp_path / "prod_backup_zero_arg"
+    env["BACKUP_ROOT"] = _to_bash_path(valid_backup_dir)
+
+    proc = subprocess.run([bash_bin, backup_script], env=env, capture_output=True, text=True)
+    # Validate stdout logs show empty Project= and baseline production Compose file
+    config_lines = [line for line in proc.stdout.splitlines() if "Configuration:" in line]
+    assert len(config_lines) == 1
+    assert "Project=," in config_lines[0]
+    assert "File=docker-compose.prod.yml" in config_lines[0]
+    assert "DB=nexus_db" in config_lines[0]
+    assert "User=nexus_user" in config_lines[0]
+
+
+def test_coordinated_scripts_pre_creation_canonicalization_rejects_forbidden_ancestor(tmp_path: Path) -> None:
+    """Pre-creation canonical path resolution rejects non-existent paths under forbidden roots without creating them."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    forbidden_ancestor_paths = [
+        "/var/lib/docker/volumes/nonexistent_subfolder_xyz",
+        "/data/nonexistent_subfolder_xyz",
+        "/app/data/nonexistent_subfolder_xyz",
+        str(repo_root / ".git" / "nonexistent_subfolder_xyz").replace("\\", "/"),
+        str(repo_root / "backend" / "data" / "nonexistent_subfolder_xyz").replace("\\", "/"),
+    ]
+
+    for fpath in forbidden_ancestor_paths:
+        env = os.environ.copy()
+        env["BACKUP_ROOT"] = fpath
+
+        proc = subprocess.run([bash_bin, backup_script], env=env, capture_output=True, text=True)
+        assert proc.returncode != 0
+        assert "SAFETY ERROR: BACKUP_ROOT" in proc.stderr
+        # Verify the directory was NEVER created
+        assert not os.path.exists(fpath)
+
+
+def test_coordinated_scripts_identifier_format_validation() -> None:
+    """Invalid database and user identifiers fail closed before executing commands."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    restore_script = str(repo_root / "scripts" / "restore_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    invalid_ident_cases = [
+        ({"POSTGRES_DB": "nexus_db;drop"}, "Invalid database identifier"),
+        ({"POSTGRES_DB": "nexus db"}, "Invalid database identifier"),
+        ({"POSTGRES_USER": "nexus-user;rm"}, "Invalid database user"),
+    ]
+
+    for overrides, expected_err in invalid_ident_cases:
+        env = os.environ.copy()
+        env.pop("NEXUS_STAGING_MODE", None)
+        env.update(overrides)
+
+        proc_b = subprocess.run([bash_bin, backup_script], env=env, capture_output=True, text=True)
+        assert proc_b.returncode != 0
+        assert expected_err in proc_b.stderr
+
+        proc_r = subprocess.run(
+            [bash_bin, restore_script, "--confirm-destructive-restore", "20261019_020000"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert proc_r.returncode != 0
+        assert expected_err in proc_r.stderr
+
+
+def test_coordinated_scripts_forbidden_path_rejection() -> None:
+    """Both scripts reject BACKUP_ROOT residing in forbidden roots or repo data."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    backup_script = str(repo_root / "scripts" / "backup_nexus_coordinated.sh").replace("\\", "/")
+    restore_script = str(repo_root / "scripts" / "restore_nexus_coordinated.sh").replace("\\", "/")
+    bash_bin = _find_bash()
+    if not bash_bin:
+        pytest.skip("Bash executable not found")
+
+    forbidden_paths = [
+        "/data",
+        "/data/backups",
+        "/app/data",
+        "/var/lib/docker/volumes",
+        "/var/lib/docker/volumes/foo",
+        "backend/data",
+        ".git/backups",
+    ]
+
+    for fpath in forbidden_paths:
+        env = os.environ.copy()
+        env["BACKUP_ROOT"] = fpath
+
+        proc_b = subprocess.run([bash_bin, backup_script], env=env, capture_output=True, text=True)
+        assert proc_b.returncode != 0
+        assert "SAFETY ERROR: BACKUP_ROOT" in proc_b.stderr
+
+        proc_r = subprocess.run(
+            [bash_bin, restore_script, "--confirm-destructive-restore", "20261019_020000"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert proc_r.returncode != 0
+        assert "SAFETY ERROR: BACKUP_ROOT" in proc_r.stderr
+
+
 def test_redis_bgsave_failure_handling(monkeypatch: pytest.MonkeyPatch) -> None:
     """Redis persistence failure triggers error and alert dispatch."""
     sent_payloads = []
