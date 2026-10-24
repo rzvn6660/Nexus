@@ -1,0 +1,236 @@
+# ==============================================================================
+# NEXUS — Isolated Staging Docker Compose Configuration (Phase 2)
+#
+# Launches an isolated staging replica of the five-service production stack:
+#   1. PostgreSQL 16 + pgvector (dual-database init: nexus_staging_db & nexus_test_db)
+#   2. Redis 7 (AOF persistence & noeviction policy on offset port)
+#   3. FastAPI backend (APP_ENV=staging, REQUIRE_POSTGRES=true, LLM_ALLOW_EXTERNAL_CALLS=false)
+#   4. Dedicated Continuous Intelligence Scheduler worker (health-monitored)
+#   5. React SPA served via Nginx reverse proxy on offset port
+#
+# Safety Guarantees:
+#   - Explicit project name: 'nexus-staging' for label attestation
+#   - Published ports bound strictly to 127.0.0.1 (5433, 6380, 8001, 3001)
+#   - Isolated network 'nexus-staging-network'
+#   - Independent persistent staging volumes
+#   - Zero destructive rollback or automated volume deletion
+# ==============================================================================
+
+name: nexus-staging
+
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL 16 + pgvector Staging Database
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: nexus_postgres_staging
+    restart: unless-stopped
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nexus_staging_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_staging_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nexus_staging_db}
+    volumes:
+      - nexus_postgres_staging_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexus_staging_user} -d ${POSTGRES_DB:-nexus_staging_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - nexus-staging-network
+
+  # ----------------------------------------------------------------------------
+  # Redis 7 In-Memory Cache & Shared Security State Store (Staging)
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: nexus_redis_staging
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+    volumes:
+      - nexus_redis_staging_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - nexus-staging-network
+
+  # ----------------------------------------------------------------------------
+  # NEXUS FastAPI Backend Service (Staging)
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: ../infra/docker/Dockerfile.backend
+    container_name: nexus_backend_staging
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8001}:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:-nexus_staging_password}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_FAIL_CLOSED=${REDIS_FAIL_CLOSED:-true}
+      - APP_ENV=staging
+      - DEBUG=false
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - REQUIRE_POSTGRES=true
+      - LLM_ALLOW_EXTERNAL_CALLS=false
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8000
+      - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-http://localhost:3001}
+      - SECRET_KEY=${SECRET_KEY:-nexus-staging-secret-key-change-me}
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-nexus-staging-jwt-secret-key-change-in-staging-min-32-chars}
+      - API_KEY_ENABLED=${API_KEY_ENABLED:-false}
+      - API_KEY=${API_KEY:-}
+      - CONTINUOUS_SCHEDULER_AUTOSTART=false
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}
+      - DATA_UPLOAD_MAX_MEMORY_SIZE_MB=${DATA_UPLOAD_MAX_MEMORY_SIZE_MB:-50}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - nexus_backend_staging_data:/app/data
+    networks:
+      - nexus-staging-network
+
+  # ----------------------------------------------------------------------------
+  # NEXUS Continuous Intelligence Scheduler Worker Process (Staging)
+  # ----------------------------------------------------------------------------
+  scheduler:
+    build:
+      context: ../../backend
+      dockerfile: ../infra/docker/Dockerfile.backend
+    container_name: nexus_scheduler_staging
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    command: ["python", "-m", "app.scheduler_runner"]
+    environment:
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:-nexus_staging_password}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_FAIL_CLOSED=${REDIS_FAIL_CLOSED:-true}
+      - APP_ENV=staging
+      - DEBUG=false
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - REQUIRE_POSTGRES=true
+      - LLM_ALLOW_EXTERNAL_CALLS=false
+      - CONTINUOUS_SCHEDULER_ENABLED=${CONTINUOUS_SCHEDULER_ENABLED:-false}
+      - CONTINUOUS_SCHEDULER_AUTOSTART=false
+      - CONTINUOUS_SCHEDULER_INTERVAL_SECONDS=${CONTINUOUS_SCHEDULER_INTERVAL_SECONDS:-300}
+      - SECRET_KEY=${SECRET_KEY:-nexus-staging-secret-key-change-me}
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-nexus-staging-jwt-secret-key-change-in-staging-min-32-chars}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.scheduler_health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - nexus_backend_staging_data:/app/data
+    networks:
+      - nexus-staging-network
+
+  # ----------------------------------------------------------------------------
+  # NEXUS Frontend Service (React SPA via Nginx - Staging)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: ../infra/docker/Dockerfile.frontend
+    container_name: nexus_frontend_staging
+    restart: unless-stopped
+    stop_grace_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3001}:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ../docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - nexus-staging-network
+
+volumes:
+  nexus_postgres_staging_data:
+    name: nexus_postgres_staging_data
+    driver: local
+  nexus_backend_staging_data:
+    name: nexus_backend_staging_data
+    driver: local
+  nexus_redis_staging_data:
+    name: nexus_redis_staging_data
+    driver: local
+
+networks:
+  nexus-staging-network:
+    name: nexus-staging-network
+    driver: bridge
