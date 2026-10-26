@@ -23,8 +23,15 @@
 # ==============================================================================
 set -euo pipefail
 
+# Prevent MSYS2 / Git Bash on Windows from converting container-internal POSIX paths
+export MSYS_NO_PATHCONV=1
+
 # 1. Enforce Restrictive Umask for all created files
 umask 077
+
+# Script and project root locations
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "${SCRIPT_DIR}")"
 
 # Defaults (strictly production-compatible baseline)
 IS_STAGING="false"
@@ -38,12 +45,21 @@ BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/nexus}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 MIN_RETAINED_SETS="${MIN_RETAINED_SETS:-7}"
 QUIESCE_SERVICES="${QUIESCE_SERVICES:-true}"
+ALLOW_TEST_DB_SOURCE="${ALLOW_TEST_DB_SOURCE:-false}"
+ENV_FILE="${ENV_FILE:-}"
+SKIP_REDIS="false"
 
 # Parse command line options
 for arg in "$@"; do
     case "${arg}" in
         --staging)
             IS_STAGING="true"
+            ;;
+        --env-file=*)
+            ENV_FILE="${arg#*=}"
+            ;;
+        --skip-redis)
+            SKIP_REDIS="true"
             ;;
         --backup-root=*)
             BACKUP_ROOT="${arg#*=}"
@@ -75,6 +91,9 @@ for arg in "$@"; do
         --no-quiesce)
             QUIESCE_SERVICES="false"
             ;;
+        --allow-test-db-source)
+            ALLOW_TEST_DB_SOURCE="true"
+            ;;
         *)
             if [ "${BACKUP_ROOT}" = "/var/backups/nexus" ]; then
                 BACKUP_ROOT="${arg}"
@@ -100,6 +119,10 @@ fi
 
 # Reverse Guard: If running in production mode, reject any staging parameters
 if [ "${IS_STAGING}" != "true" ]; then
+    if [ "${ALLOW_TEST_DB_SOURCE}" = "true" ]; then
+        echo "SAFETY ERROR: Parameter '--allow-test-db-source' is strictly prohibited in production mode." >&2
+        exit 1
+    fi
     for param_name in "POSTGRES_DB" "COMPOSE_FILE" "COMPOSE_PROJECT_NAME" "DATA_VOLUME" "REDIS_VOLUME"; do
         param_val="${!param_name}"
         if [[ "${param_val,,}" == *"staging"* ]]; then
@@ -112,6 +135,17 @@ fi
 
 # Staging Mode Validations
 if [ "${IS_STAGING}" = "true" ]; then
+    # 0. Staging Environment & Credentials Preflight (Fail Closed)
+    if [ ! -f "${SCRIPT_DIR}/preflight_staging_env.sh" ]; then
+        echo "SAFETY ERROR: Required staging preflight validator script missing: '${SCRIPT_DIR}/preflight_staging_env.sh'" >&2
+        exit 1
+    fi
+    PREFLIGHT_ARGS=("--staging")
+    if [ -n "${ENV_FILE}" ]; then
+        PREFLIGHT_ARGS+=("--env-file=${ENV_FILE}")
+    fi
+    bash "${SCRIPT_DIR}/preflight_staging_env.sh" "${PREFLIGHT_ARGS[@]}" || exit 1
+
     # 1. Project name must strictly equal nexus-staging
     if [ -z "${COMPOSE_PROJECT_NAME}" ] || [ "${COMPOSE_PROJECT_NAME}" != "nexus-staging" ]; then
         echo "SAFETY ERROR: In staging mode, COMPOSE_PROJECT_NAME must strictly equal 'nexus-staging' (got '${COMPOSE_PROJECT_NAME}')." >&2
@@ -129,7 +163,9 @@ if [ "${IS_STAGING}" = "true" ]; then
     fi
 
     # 3. Database target blacklist and pattern
-    if [[ ! "${POSTGRES_DB}" =~ ^nexus_.*staging.*$ ]] || [ "${POSTGRES_DB}" = "nexus_db" ] || [ "${POSTGRES_DB}" = "postgres" ] || [ "${POSTGRES_DB}" = "template1" ] || [ "${POSTGRES_DB}" = "nexus_test_db" ]; then
+    if [ "${ALLOW_TEST_DB_SOURCE}" = "true" ] && [ "${POSTGRES_DB}" = "nexus_test_db" ]; then
+        echo "[$(date -u)] Staging test-database source override active: snapshotting '${POSTGRES_DB}' as read-only source."
+    elif [[ ! "${POSTGRES_DB}" =~ ^nexus_.*staging.*$ ]] || [ "${POSTGRES_DB}" = "nexus_db" ] || [ "${POSTGRES_DB}" = "postgres" ] || [ "${POSTGRES_DB}" = "template1" ] || [ "${POSTGRES_DB}" = "nexus_test_db" ]; then
         echo "SAFETY ERROR: In staging mode, POSTGRES_DB cannot target '${POSTGRES_DB}'. Target must match staging pattern (e.g. 'nexus_staging_db')." >&2
         exit 1
     fi
@@ -140,9 +176,11 @@ if [ "${IS_STAGING}" = "true" ]; then
         exit 1
     fi
 
-    if [ "${REDIS_VOLUME}" = "nexus_redis_prod_data" ] || [[ ! "${REDIS_VOLUME}" =~ _staging_data$ ]]; then
-        echo "SAFETY ERROR: In staging mode, REDIS_VOLUME cannot target production volume ('${REDIS_VOLUME}'). Must end with '_staging_data'." >&2
-        exit 1
+    if [ "${SKIP_REDIS}" != "true" ]; then
+        if [ "${REDIS_VOLUME}" = "nexus_redis_prod_data" ] || [[ ! "${REDIS_VOLUME}" =~ _staging_data$ ]]; then
+            echo "SAFETY ERROR: In staging mode, REDIS_VOLUME cannot target production volume ('${REDIS_VOLUME}'). Must end with '_staging_data'." >&2
+            exit 1
+        fi
     fi
 fi
 
@@ -269,13 +307,23 @@ COMPOSE_CMD=("docker" "compose" "-f" "${COMPOSE_FILE}")
 if [ -n "${COMPOSE_PROJECT_NAME}" ]; then
     COMPOSE_CMD+=("-p" "${COMPOSE_PROJECT_NAME}")
 fi
+if [ -n "${ENV_FILE}" ]; then
+    COMPOSE_CMD+=("--env-file" "${ENV_FILE}")
+fi
 
 # Alerting helper
 send_alert() {
     local event_type="$1"
     local message="$2"
     python -c "
-import sys
+import sys, re
+from pathlib import Path
+repo_dir = '${REPO_ROOT}'
+if sys.platform == 'win32' and re.match(r'^/[a-zA-Z]/', repo_dir):
+    repo_dir = repo_dir[1] + ':' + repo_dir[2:]
+backend_dir = Path(repo_dir) / 'backend'
+if backend_dir.is_dir() and str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 try:
     from app.core.backup import send_backup_alert
     send_backup_alert('${event_type}', '${message}')
@@ -312,7 +360,11 @@ echo "[$(date -u)] Pre-flight validation of Docker Compose configuration..."
 # Staging Mode Target Attestation Checks
 if [ "${IS_STAGING}" = "true" ]; then
     echo "[$(date -u)] Performing staging target container attestation..."
-    for svc in "postgres" "redis"; do
+    TARGET_SERVICES=("postgres")
+    if [ "${SKIP_REDIS}" != "true" ]; then
+        TARGET_SERVICES+=("redis")
+    fi
+    for svc in "${TARGET_SERVICES[@]}"; do
         SVC_CONTAINER_IDS=$("${COMPOSE_CMD[@]}" ps -q "${svc}" 2>/dev/null || true)
         SVC_ID_COUNT=$(echo ${SVC_CONTAINER_IDS} | wc -w)
         SVC_ID_COUNT=$(echo "${SVC_ID_COUNT}" | tr -d '[:space:]')
@@ -334,7 +386,11 @@ if [ "${IS_STAGING}" = "true" ]; then
     done
 
     echo "[$(date -u)] Performing staging target volume label attestation..."
-    for vol in "${DATA_VOLUME}" "${REDIS_VOLUME}"; do
+    TARGET_VOLUMES=("${DATA_VOLUME}")
+    if [ "${SKIP_REDIS}" != "true" ]; then
+        TARGET_VOLUMES+=("${REDIS_VOLUME}")
+    fi
+    for vol in "${TARGET_VOLUMES[@]}"; do
         VOL_LABEL=$(docker volume inspect -f '{{ index .Labels "com.docker.compose.project" }}' "${vol}" 2>/dev/null || true)
         if [ -z "${VOL_LABEL}" ]; then
             echo "SAFETY ERROR: Failed to inspect staging volume '${vol}' or missing 'com.docker.compose.project' label." >&2
@@ -371,34 +427,39 @@ test -s "${FILES_BACKUP}" || { echo "ERROR: Tenant files archive is missing or e
 chmod 600 "${FILES_BACKUP}"
 
 # Step 4: Consistent Redis Snapshot via Verified BGSAVE
-echo "[$(date -u)] Executing consistent Redis snapshot via BGSAVE..."
-"${COMPOSE_CMD[@]}" exec -T redis redis-cli bgsave
+if [ "${SKIP_REDIS}" = "true" ]; then
+    echo "[$(date -u)] Skipping Redis persistence snapshot (--skip-redis specified)."
+    echo "[$(date -u)] Redis state excluded from backup set. Live Redis untouched."
+else
+    echo "[$(date -u)] Executing consistent Redis snapshot via BGSAVE..."
+    "${COMPOSE_CMD[@]}" exec -T redis redis-cli bgsave
 
-# Poll until BGSAVE completes
-BGSAVE_SUCCESS=false
-for i in $(seq 1 30); do
-    IN_PROGRESS=$("${COMPOSE_CMD[@]}" exec -T redis redis-cli info persistence | grep -E '^rdb_bgsave_in_progress:' | tr -d '\r' | cut -d: -f2 || echo "1")
-    LAST_STATUS=$("${COMPOSE_CMD[@]}" exec -T redis redis-cli info persistence | grep -E '^rdb_last_bgsave_status:' | tr -d '\r' | cut -d: -f2 || echo "err")
-    if [ "${IN_PROGRESS}" = "0" ] && [ "${LAST_STATUS}" = "ok" ]; then
-        BGSAVE_SUCCESS=true
-        echo "[$(date -u)] Redis BGSAVE verified successfully."
-        break
+    # Poll until BGSAVE completes
+    BGSAVE_SUCCESS=false
+    for i in $(seq 1 30); do
+        IN_PROGRESS=$("${COMPOSE_CMD[@]}" exec -T redis redis-cli info persistence | grep -E '^rdb_bgsave_in_progress:' | tr -d '\r' | cut -d: -f2 || echo "1")
+        LAST_STATUS=$("${COMPOSE_CMD[@]}" exec -T redis redis-cli info persistence | grep -E '^rdb_last_bgsave_status:' | tr -d '\r' | cut -d: -f2 || echo "err")
+        if [ "${IN_PROGRESS}" = "0" ] && [ "${LAST_STATUS}" = "ok" ]; then
+            BGSAVE_SUCCESS=true
+            echo "[$(date -u)] Redis BGSAVE verified successfully."
+            break
+        fi
+        sleep 1
+    done
+
+    if [ "${BGSAVE_SUCCESS}" != "true" ]; then
+        echo "ERROR: Redis BGSAVE failed or timed out (last status: ${LAST_STATUS:-unknown})" >&2
+        exit 1
     fi
-    sleep 1
-done
 
-if [ "${BGSAVE_SUCCESS}" != "true" ]; then
-    echo "ERROR: Redis BGSAVE failed or timed out (last status: ${LAST_STATUS:-unknown})" >&2
-    exit 1
+    # Archive the verified dump.rdb
+    docker run --rm \
+        -v "${REDIS_VOLUME}:/data:ro" \
+        -v "${BACKUP_ROOT}":/backup \
+        alpine sh -c "test -s /data/dump.rdb && tar -czf /backup/nexus_redis_${TIMESTAMP}.tar.gz -C /data dump.rdb"
+    test -s "${REDIS_BACKUP}" || { echo "ERROR: Redis backup archive is missing or empty"; exit 1; }
+    chmod 600 "${REDIS_BACKUP}"
 fi
-
-# Archive the verified dump.rdb
-docker run --rm \
-    -v "${REDIS_VOLUME}:/data:ro" \
-    -v "${BACKUP_ROOT}":/backup \
-    alpine sh -c "test -s /data/dump.rdb && tar -czf /backup/nexus_redis_${TIMESTAMP}.tar.gz -C /data dump.rdb"
-test -s "${REDIS_BACKUP}" || { echo "ERROR: Redis backup archive is missing or empty"; exit 1; }
-chmod 600 "${REDIS_BACKUP}"
 
 # Step 5: Resume mutating services immediately after consistent snapshots are taken
 if [ "${QUIESCE_SERVICES}" = "true" ]; then
@@ -410,35 +471,60 @@ fi
 echo "[$(date -u)] Generating SHA-256 checksums..."
 sha256sum "${DB_BACKUP}" > "${DB_BACKUP}.sha256"
 sha256sum "${FILES_BACKUP}" > "${FILES_BACKUP}.sha256"
-sha256sum "${REDIS_BACKUP}" > "${REDIS_BACKUP}.sha256"
-chmod 644 "${DB_BACKUP}.sha256" "${FILES_BACKUP}.sha256" "${REDIS_BACKUP}.sha256"
+chmod 644 "${DB_BACKUP}.sha256" "${FILES_BACKUP}.sha256"
+if [ "${SKIP_REDIS}" != "true" ]; then
+    sha256sum "${REDIS_BACKUP}" > "${REDIS_BACKUP}.sha256"
+    chmod 644 "${REDIS_BACKUP}.sha256"
+fi
 
 # Step 7: Validate Archive Integrity & Header Signatures
 echo "[$(date -u)] Validating archive integrity and signatures..."
 sha256sum -c "${DB_BACKUP}.sha256"
 sha256sum -c "${FILES_BACKUP}.sha256"
-sha256sum -c "${REDIS_BACKUP}.sha256"
+if [ "${SKIP_REDIS}" != "true" ]; then
+    sha256sum -c "${REDIS_BACKUP}.sha256"
+fi
 
 # Check PGDMP custom format magic bytes
 python -c "
+import sys, re
 from pathlib import Path
-dump_path = Path('${DB_BACKUP}')
+p_str = '${DB_BACKUP}'
+if sys.platform == 'win32' and re.match(r'^/[a-zA-Z]/', p_str):
+    p_str = p_str[1] + ':' + p_str[2:]
+dump_path = Path(p_str)
 with dump_path.open('rb') as f:
     header = f.read(5)
 assert header == b'PGDMP', f'Invalid pg_dump header: {header!r}'
 "
 
 # Validate tar archives
-tar -tzf "${FILES_BACKUP}" > /dev/null
-tar -tzf "${REDIS_BACKUP}" > /dev/null
+TAR_OPTS=()
+if tar --help 2>&1 | grep -q -- '--force-local'; then
+    TAR_OPTS+=("--force-local")
+fi
+tar "${TAR_OPTS[@]}" -tzf "${FILES_BACKUP}" > /dev/null
+if [ "${SKIP_REDIS}" != "true" ]; then
+    tar "${TAR_OPTS[@]}" -tzf "${REDIS_BACKUP}" > /dev/null
+fi
 
 # Step 8: Enforce Fail-Safe Retention Policy (Python Core Engine)
 echo "[$(date -u)] Enforcing retention policy (retention: ${RETENTION_DAYS}d, min_retained: ${MIN_RETAINED_SETS})..."
 python -c "
+import sys, re
 from pathlib import Path
+repo_dir = '${REPO_ROOT}'
+if sys.platform == 'win32' and re.match(r'^/[a-zA-Z]/', repo_dir):
+    repo_dir = repo_dir[1] + ':' + repo_dir[2:]
+backend_dir = Path(repo_dir) / 'backend'
+if backend_dir.is_dir() and str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 from app.core.backup import enforce_retention
+b_str = '${BACKUP_ROOT}'
+if sys.platform == 'win32' and re.match(r'^/[a-zA-Z]/', b_str):
+    b_str = b_str[1] + ':' + b_str[2:]
 pruned = enforce_retention(
-    backup_dir=Path('${BACKUP_ROOT}'),
+    backup_dir=Path(b_str),
     retention_days=${RETENTION_DAYS},
     min_retained_sets=${MIN_RETAINED_SETS},
 )

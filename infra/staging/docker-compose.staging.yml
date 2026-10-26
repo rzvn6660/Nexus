@@ -39,7 +39,7 @@ services:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-nexus_staging_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_staging_password}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-${STAGING_DB_PASSWORD:?Operational Error - POSTGRES_PASSWORD or STAGING_DB_PASSWORD must be provided in staging environment}}"
       POSTGRES_DB: ${POSTGRES_DB:-nexus_staging_db}
     volumes:
       - nexus_postgres_staging_data:/var/lib/postgresql/data
@@ -109,7 +109,7 @@ services:
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8001}:8000"
     environment:
-      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:-nexus_staging_password}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}
+      - "DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:-${STAGING_DB_PASSWORD:?Operational Error - POSTGRES_PASSWORD or STAGING_DB_PASSWORD must be provided in staging environment}}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}"
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - REDIS_FAIL_CLOSED=${REDIS_FAIL_CLOSED:-true}
       - APP_ENV=staging
@@ -120,8 +120,8 @@ services:
       - BACKEND_HOST=0.0.0.0
       - BACKEND_PORT=8000
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-http://localhost:3001}
-      - SECRET_KEY=${SECRET_KEY:-nexus-staging-secret-key-change-me}
-      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-nexus-staging-jwt-secret-key-change-in-staging-min-32-chars}
+      - "SECRET_KEY=${SECRET_KEY:?Operational Error - SECRET_KEY must be provided in staging environment}"
+      - "AUTH_JWT_SECRET=${AUTH_JWT_SECRET:?Operational Error - AUTH_JWT_SECRET must be provided in staging environment}"
       - API_KEY_ENABLED=${API_KEY_ENABLED:-false}
       - API_KEY=${API_KEY:-}
       - CONTINUOUS_SCHEDULER_AUTOSTART=false
@@ -163,7 +163,7 @@ services:
           memory: 256M
     command: ["python", "-m", "app.scheduler_runner"]
     environment:
-      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:-nexus_staging_password}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}
+      - "DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:-${STAGING_DB_PASSWORD:?Operational Error - POSTGRES_PASSWORD or STAGING_DB_PASSWORD must be provided in staging environment}}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}"
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - REDIS_FAIL_CLOSED=${REDIS_FAIL_CLOSED:-true}
       - APP_ENV=staging
@@ -174,8 +174,8 @@ services:
       - CONTINUOUS_SCHEDULER_ENABLED=${CONTINUOUS_SCHEDULER_ENABLED:-false}
       - CONTINUOUS_SCHEDULER_AUTOSTART=false
       - CONTINUOUS_SCHEDULER_INTERVAL_SECONDS=${CONTINUOUS_SCHEDULER_INTERVAL_SECONDS:-300}
-      - SECRET_KEY=${SECRET_KEY:-nexus-staging-secret-key-change-me}
-      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-nexus-staging-jwt-secret-key-change-in-staging-min-32-chars}
+      - "SECRET_KEY=${SECRET_KEY:?Operational Error - SECRET_KEY must be provided in staging environment}"
+      - "AUTH_JWT_SECRET=${AUTH_JWT_SECRET:?Operational Error - AUTH_JWT_SECRET must be provided in staging environment}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -216,6 +216,12 @@ services:
       - backend
     volumes:
       - ../docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     networks:
       - nexus-staging-network
 
