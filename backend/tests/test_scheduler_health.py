@@ -42,6 +42,7 @@ def _write_heartbeat(
     interval_seconds: int = 60,
     db_status: str = "connected",
     redis_status: str = "connected",
+    scheduler_enabled: bool = True,
 ) -> None:
     now = time.time()
     payload = {
@@ -50,6 +51,7 @@ def _write_heartbeat(
         "uptime_seconds": uptime_seconds,
         "status": status,
         "task_alive": task_alive,
+        "scheduler_enabled": scheduler_enabled,
         "total_ticks": total_ticks,
         "last_tick_at": last_tick_at if last_tick_at is not None else now - 5.0,
         "last_tick_duration_ms": 25.0,
@@ -215,3 +217,223 @@ def test_scheduler_health_cli_main_exit_codes(temp_heartbeat_file: Path):
     with pytest.raises(SystemExit) as exc2:
         main()
     assert exc2.value.code == 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 3C.1: Dormant Standby Health Tests (CONTINUOUS_SCHEDULER_ENABLED=false)
+# ---------------------------------------------------------------------------
+
+
+def test_scheduler_health_disabled_dormant_standby_passes(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When scheduler is intentionally disabled (standby), health check passes as dormant."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+    now = time.time()
+    _write_heartbeat(
+        temp_heartbeat_file,
+        status="dormant",
+        timestamp=now - 2.0,
+        task_alive=False,
+        uptime_seconds=600.0,
+        total_ticks=0,
+        last_tick_at=None,
+        interval_seconds=300,
+        db_status="connected",
+        redis_status="connected",
+        scheduler_enabled=False,
+    )
+    ok, msg, details = check_scheduler_health()
+    assert ok is True
+    assert "Scheduler dormant (standby)" in msg
+    assert details["scheduler_enabled"] is False
+    assert details["task_alive"] is False
+    assert details["total_ticks"] == 0
+    assert details["db_status"] == "connected"
+
+
+def test_scheduler_health_disabled_dormant_cli_main_exit_0(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When in dormant standby mode, CLI main() exits with 0 (healthy container)."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+    _write_heartbeat(
+        temp_heartbeat_file,
+        status="dormant",
+        task_alive=False,
+        total_ticks=0,
+        db_status="connected",
+        scheduler_enabled=False,
+    )
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+
+
+def test_scheduler_health_disabled_dormant_fails_if_db_disconnected(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Even in dormant standby mode, database disconnection causes health check failure."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+    _write_heartbeat(
+        temp_heartbeat_file,
+        status="dormant",
+        task_alive=False,
+        total_ticks=0,
+        db_status="disconnected",
+        scheduler_enabled=False,
+    )
+    ok, msg, details = check_scheduler_health()
+    assert ok is False
+    assert "PostgreSQL database dependency is not connected" in msg
+    assert details["db_status"] == "disconnected"
+
+
+def test_scheduler_health_disabled_dormant_fails_if_runner_crashed(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Even with scheduler_enabled=False, if runner process crashed, health check fails."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+    _write_heartbeat(
+        temp_heartbeat_file,
+        status="crashed",
+        task_alive=False,
+        total_ticks=0,
+        scheduler_enabled=False,
+    )
+    ok, msg, _ = check_scheduler_health()
+    assert ok is False
+    assert "crashed" in msg
+
+
+def test_scheduler_health_disabled_dormant_fails_if_heartbeat_stale(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Even with scheduler_enabled=False, a stale heartbeat fails (runner hung or died)."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+    old_time = time.time() - 100.0
+    _write_heartbeat(
+        temp_heartbeat_file,
+        timestamp=old_time,
+        status="dormant",
+        task_alive=False,
+        total_ticks=0,
+        scheduler_enabled=False,
+    )
+    ok, msg, details = check_scheduler_health(max_heartbeat_age_seconds=45.0)
+    assert ok is False
+    assert "Heartbeat is stale" in msg
+
+
+def test_scheduler_health_enabled_failure_distinguishable_from_dormant(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Ensure enabled-with-dead-task strictly FAILS, while disabled-standby PASSES."""
+    # Scenario A: Enabled scheduler with dead/crashed task -> MUST FAIL
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", True)
+    _write_heartbeat(
+        temp_heartbeat_file,
+        status="healthy",
+        task_alive=False,
+        scheduler_enabled=True,
+    )
+    ok_enabled, msg_enabled, _ = check_scheduler_health()
+    assert ok_enabled is False
+    assert "terminated/crashed" in msg_enabled
+
+    # Scenario B: Disabled scheduler with no task -> MUST PASS as dormant
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+    _write_heartbeat(
+        temp_heartbeat_file,
+        status="dormant",
+        task_alive=False,
+        total_ticks=0,
+        scheduler_enabled=False,
+    )
+    ok_disabled, msg_disabled, _ = check_scheduler_health()
+    assert ok_disabled is True
+    assert "dormant (standby)" in msg_disabled
+
+
+def test_scheduler_health_config_enabled_heartbeat_dormant_mismatch_fails(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When container config is ENABLED but heartbeat reports dormant (scheduler_enabled=False), fail with mismatch."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", True)
+    _write_heartbeat(
+        temp_heartbeat_file,
+        status="dormant",
+        task_alive=False,
+        total_ticks=0,
+        scheduler_enabled=False,
+    )
+    ok, msg, details = check_scheduler_health()
+    assert ok is False
+    assert "does not match authoritative container configuration" in msg
+    assert details["scheduler_enabled"] is True
+    assert details["reported_scheduler_enabled"] is False
+
+
+def test_scheduler_health_config_disabled_heartbeat_enabled_mismatch_fails(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When container config is DISABLED but heartbeat reports active (scheduler_enabled=True), fail with mismatch."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+    _write_heartbeat(
+        temp_heartbeat_file,
+        status="healthy",
+        task_alive=True,
+        total_ticks=10,
+        scheduler_enabled=True,
+    )
+    ok, msg, details = check_scheduler_health()
+    assert ok is False
+    assert "does not match authoritative container configuration" in msg
+    assert details["scheduler_enabled"] is False
+    assert details["reported_scheduler_enabled"] is True
+
+
+def test_scheduler_health_config_enabled_dormant_status_mismatch_fails(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When config is ENABLED but heartbeat status is 'dormant' (even without explicit scheduler_enabled), fail."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", True)
+    now = time.time()
+    payload = {
+        "timestamp": now,
+        "pid": 12345,
+        "uptime_seconds": 30.0,
+        "status": "dormant",
+        "task_alive": False,
+        "total_ticks": 0,
+        "interval_seconds": 60,
+        "db_status": "connected",
+        "redis_status": "connected",
+    }
+    temp_heartbeat_file.write_text(json.dumps(payload), encoding="utf-8")
+    ok, msg, _ = check_scheduler_health()
+    assert ok is False
+    assert "dormant status while authoritative container configuration" in msg
+
+
+def test_scheduler_health_config_disabled_healthy_status_mismatch_fails(
+    temp_heartbeat_file: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When config is DISABLED but heartbeat status is 'healthy' (even without explicit scheduler_enabled), fail."""
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+    now = time.time()
+    payload = {
+        "timestamp": now,
+        "pid": 12345,
+        "uptime_seconds": 30.0,
+        "status": "healthy",
+        "task_alive": True,
+        "total_ticks": 1,
+        "interval_seconds": 60,
+        "db_status": "connected",
+        "redis_status": "connected",
+    }
+    temp_heartbeat_file.write_text(json.dumps(payload), encoding="utf-8")
+    ok, msg, _ = check_scheduler_health()
+    assert ok is False
+    assert "healthy active status while authoritative container configuration" in msg

@@ -60,6 +60,7 @@ class SchedulerRunner:
         db_status: str,
         redis_status: str,
         error_detail: str | None = None,
+        scheduler_enabled: bool | None = None,
     ) -> None:
         """Write an atomic, sanitized heartbeat file for external container health probes."""
         now = time.time()
@@ -70,12 +71,19 @@ class SchedulerRunner:
         def _clean_num(val: Any, default: Any = 0) -> Any:
             return val if isinstance(val, (int, float)) else default
 
+        is_enabled = (
+            scheduler_enabled
+            if scheduler_enabled is not None
+            else bool(settings.CONTINUOUS_SCHEDULER_ENABLED)
+        )
+
         payload: dict[str, Any] = {
             "timestamp": now,
             "pid": os.getpid(),
             "uptime_seconds": round(uptime, 2),
             "status": str(status),
             "task_alive": bool(task_alive),
+            "scheduler_enabled": is_enabled,
             "total_ticks": _clean_num(stats.get("total_ticks"), 0),
             "last_tick_at": stats.get("last_tick_at") if isinstance(stats.get("last_tick_at"), (int, float)) else None,
             "last_tick_duration_ms": _clean_num(stats.get("last_tick_duration_ms"), None),
@@ -114,21 +122,31 @@ class SchedulerRunner:
                 # Determine overall status
                 is_prod = settings.is_production
                 is_redis_mandatory = bool(settings.REDIS_FAIL_CLOSED or settings.REDIS_REQUIRED)
+                scheduler_enabled = bool(settings.CONTINUOUS_SCHEDULER_ENABLED)
 
-                if not task_alive:
-                    status = "unhealthy"
-                elif db_status != "connected":
-                    status = "degraded"
-                elif is_prod and is_redis_mandatory and redis_status != "connected":
-                    status = "degraded"
+                if scheduler_enabled:
+                    if not task_alive:
+                        status = "unhealthy"
+                    elif db_status != "connected":
+                        status = "degraded"
+                    elif is_prod and is_redis_mandatory and redis_status != "connected":
+                        status = "degraded"
+                    else:
+                        status = "healthy"
                 else:
-                    status = "healthy"
+                    if db_status != "connected":
+                        status = "degraded"
+                    elif is_prod and is_redis_mandatory and redis_status != "connected":
+                        status = "degraded"
+                    else:
+                        status = "dormant"
 
                 self.write_heartbeat(
                     status=status,
                     task_alive=task_alive,
                     db_status=db_status,
                     redis_status=redis_status,
+                    scheduler_enabled=scheduler_enabled,
                 )
             except Exception as exc:
                 logger.warning("Error during scheduler heartbeat pulse: %s", exc)
@@ -208,19 +226,30 @@ class SchedulerRunner:
 
         # Start continuous intelligence scheduler
         continuous_scheduler.start()
-        logger.info(
-            "Continuous intelligence scheduler started successfully [interval=%ds, max_biz=%d, batch=%d].",
-            continuous_scheduler.interval_seconds,
-            continuous_scheduler.max_businesses,
-            continuous_scheduler.batch_size,
-        )
+        scheduler_enabled = bool(settings.CONTINUOUS_SCHEDULER_ENABLED)
+        if scheduler_enabled:
+            logger.info(
+                "Continuous intelligence scheduler started successfully [interval=%ds, max_biz=%d, batch=%d].",
+                continuous_scheduler.interval_seconds,
+                continuous_scheduler.max_businesses,
+                continuous_scheduler.batch_size,
+            )
+        else:
+            logger.info(
+                "Continuous intelligence scheduler is disabled (standby mode). Runner active for heartbeat & health probes."
+            )
 
-        # Emit initial healthy heartbeat
+        task = continuous_scheduler._task
+        task_alive = bool(task is not None and not task.done())
+        initial_status = "healthy" if scheduler_enabled else "dormant"
+
+        # Emit initial healthy or dormant heartbeat
         self.write_heartbeat(
-            status="healthy",
-            task_alive=True,
+            status=initial_status,
+            task_alive=task_alive,
             db_status="connected" if deps_ok else "degraded",
             redis_status="connected" if deps_ok else "unknown",
+            scheduler_enabled=scheduler_enabled,
         )
 
         # Launch periodic background heartbeat loop task
@@ -275,6 +304,7 @@ class SchedulerRunner:
                 task_alive=False,
                 db_status="disconnected",
                 redis_status="disconnected",
+                scheduler_enabled=scheduler_enabled,
             )
 
             # Clean cache and database pool disposal

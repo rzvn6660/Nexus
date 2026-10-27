@@ -217,3 +217,46 @@ def test_scheduler_runner_fresh_subprocess_import_no_circular_dependencies() -> 
     assert proc.returncode == 0, f"Import failed with stderr: {proc.stderr}\nstdout: {proc.stdout}"
     assert "OK" in proc.stdout
 
+
+@pytest.mark.asyncio
+async def test_scheduler_runner_standby_mode_writes_dormant_heartbeat(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """When CONTINUOUS_SCHEDULER_ENABLED=False, runner runs in standby mode and writes dormant heartbeat."""
+    import json
+    hb_file = tmp_path / "standby_heartbeat.json"
+    monkeypatch.setenv("SCHEDULER_HEARTBEAT_PATH", str(hb_file))
+    monkeypatch.setattr(settings, "CONTINUOUS_SCHEDULER_ENABLED", False)
+
+    runner = SchedulerRunner()
+
+    mock_scheduler = MagicMock()
+    mock_scheduler.interval_seconds = 300
+    mock_scheduler.max_businesses = 10
+    mock_scheduler.batch_size = 5
+    mock_scheduler.stats = {"total_ticks": 0, "last_tick_at": None, "interval_seconds": 300}
+    mock_scheduler._task = None
+    mock_scheduler.stop = AsyncMock()
+
+    with patch("app.scheduler_runner.continuous_scheduler", mock_scheduler), \
+         patch("app.scheduler_runner.engine.dispose"), \
+         patch("app.scheduler_runner.close_cache"), \
+         patch.object(runner, "verify_dependencies", AsyncMock(return_value=True)):
+
+        async def _trigger_stop():
+            await asyncio.sleep(0.05)
+            runner.stop_event.set()
+
+        asyncio.create_task(_trigger_stop())
+
+        exit_code = await runner.run()
+        assert exit_code == 0
+        mock_scheduler.start.assert_called_once()
+        mock_scheduler.stop.assert_awaited_once()
+
+        # Check heartbeat file was written
+        assert hb_file.exists()
+        hb_data = json.loads(hb_file.read_text(encoding="utf-8"))
+        assert hb_data["scheduler_enabled"] is False
+        assert hb_data["task_alive"] is False
+        assert hb_data["status"] == "stopped"  # stopped on clean cooperative exit
