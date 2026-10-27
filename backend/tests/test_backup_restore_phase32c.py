@@ -775,6 +775,7 @@ case "$1" in
 esac
 """
     docker_script.write_text(content.strip() + "\n", encoding="utf-8")
+    docker_script.chmod(0o755)
     return docker_script
 
 
@@ -802,7 +803,7 @@ def test_coordinated_scripts_staging_container_discovery_fails_closed(tmp_path: 
     _create_docker_stub(bin_dir, log_file)
 
     staging_env = os.environ.copy()
-    staging_env["PATH"] = f"{str(bin_dir)};{staging_env.get('PATH', '')}"
+    staging_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{staging_env.get('PATH', '')}"
     staging_env["MOCK_POSTGRES_CONTAINERS"] = "0"
     staging_env["NEXUS_STAGING_MODE"] = "true"
     staging_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
@@ -890,7 +891,7 @@ def test_coordinated_scripts_staging_container_cardinality_and_attestation(tmp_p
     sidecar_files.write_bytes(f"{files_hash}  {_to_bash_path(files_file)}\n".encode("utf-8"))
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -1004,7 +1005,7 @@ def test_restore_script_staging_catalog_verification_and_clean_target_recovery(t
     sidecar_files.write_bytes(f"{files_hash}  {_to_bash_path(files_file)}\n".encode("utf-8"))
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -2128,7 +2129,7 @@ def test_disposable_restore_rejects_live_staging_targets_and_validates_isolation
     sidecar_files.write_bytes(f"{files_hash}  {_to_bash_path(files_file)}\n".encode("utf-8"))
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -2181,7 +2182,7 @@ def test_disposable_restore_rejects_live_staging_targets_and_validates_isolation
 
     # 10. Reverse guard: --disposable-target in production mode (without --staging)
     prod_env = os.environ.copy()
-    prod_env["PATH"] = f"{str(bin_dir)};{prod_env.get('PATH', '')}"
+    prod_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{prod_env.get('PATH', '')}"
     prod_env.pop("NEXUS_STAGING_MODE", None)
     proc_prod = subprocess.run(
         [bash_bin, restore_script, "--disposable-target", "--confirm-destructive-restore", ts, "--backup-root=" + _to_bash_path(valid_backup_dir)],
@@ -2242,7 +2243,7 @@ def test_disposable_restore_rejects_live_service_stop_start_restart_calls(tmp_pa
     sidecar_redis.write_bytes(f"{redis_hash}  {_to_bash_path(redis_file)}\n".encode("utf-8"))
 
     env = os.environ.copy()
-    env["PATH"] = f"{str(bin_dir)};{env.get('PATH', '')}"
+    env["PATH"] = f"{str(bin_dir)}{os.pathsep}{env.get('PATH', '')}"
     env["NEXUS_STAGING_MODE"] = "true"
     env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -2327,7 +2328,7 @@ def test_disposable_restore_reconciliation_receives_exact_url_and_volume(tmp_pat
     sidecar_files.write_bytes(f"{files_hash}  {_to_bash_path(files_file)}\n".encode("utf-8"))
 
     env = os.environ.copy()
-    env["PATH"] = f"{str(bin_dir)};{env.get('PATH', '')}"
+    env["PATH"] = f"{str(bin_dir)}{os.pathsep}{env.get('PATH', '')}"
     env["NEXUS_STAGING_MODE"] = "true"
     env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -2419,7 +2420,7 @@ def test_disposable_restore_redis_cannot_target_live_container_or_volume(tmp_pat
     sidecar_redis.write_bytes(f"{redis_hash}  {_to_bash_path(redis_file)}\n".encode("utf-8"))
 
     env = os.environ.copy()
-    env["PATH"] = f"{str(bin_dir)};{env.get('PATH', '')}"
+    env["PATH"] = f"{str(bin_dir)}{os.pathsep}{env.get('PATH', '')}"
     env["NEXUS_STAGING_MODE"] = "true"
     env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -2513,7 +2514,7 @@ def test_disposable_restore_failure_retains_split_state_without_touching_live_se
     sidecar_files.write_bytes(f"{files_hash}  {_to_bash_path(files_file)}\n".encode("utf-8"))
 
     env = os.environ.copy()
-    env["PATH"] = f"{str(bin_dir)};{env.get('PATH', '')}"
+    env["PATH"] = f"{str(bin_dir)}{os.pathsep}{env.get('PATH', '')}"
     env["NEXUS_STAGING_MODE"] = "true"
     env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -2624,8 +2625,8 @@ def test_backup_allow_test_db_source_scenarios(tmp_path: Path) -> None:
     _create_docker_stub(bin_dir, log_file)
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
-    base_env["PYTHONPATH"] = f"{str(repo_root / 'backend')};{base_env.get('PYTHONPATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
+    base_env["PYTHONPATH"] = f"{str(repo_root / 'backend')}{os.pathsep}{base_env.get('PYTHONPATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -2830,7 +2831,7 @@ def test_disposable_restore_reconciliation_distinguishes_inconsistency_from_oper
     sidecar_redis.write_bytes(f"{redis_hash}  {_to_bash_path(redis_file)}\n".encode("utf-8"))
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -2926,7 +2927,7 @@ def test_disposable_restore_fresh_target_isolation_and_label_attestation(tmp_pat
     fresh_db_url = f"postgresql://nexus_user:nexus_password@postgres:5432/{fresh_db}"
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -3055,7 +3056,7 @@ def test_disposable_restore_allow_target_recreate_guardrails(tmp_path: Path) -> 
     fresh_url = f"postgresql://nexus_user:pass@postgres:5432/{fresh_db}"
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -3150,7 +3151,7 @@ def test_disposable_restore_allow_target_recreate_guardrails(tmp_path: Path) -> 
 
     # 5. Production mode rejects the flag (and staging without --disposable-target rejects the flag)
     prod_env = os.environ.copy()
-    prod_env["PATH"] = f"{str(bin_dir)};{prod_env.get('PATH', '')}"
+    prod_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{prod_env.get('PATH', '')}"
     prod_env.pop("NEXUS_STAGING_MODE", None)
     proc5a = subprocess.run(
         [bash_bin, restore_script, "--allow-target-recreate", "--confirm-destructive-restore", ts, "--backup-root=" + _to_bash_path(valid_backup_dir)],
@@ -3196,8 +3197,8 @@ def test_backup_coordinated_skip_redis_flag(tmp_path: Path) -> None:
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
-    base_env["PYTHONPATH"] = f"{str(repo_root / 'backend')};{base_env.get('PYTHONPATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
+    base_env["PYTHONPATH"] = f"{str(repo_root / 'backend')}{os.pathsep}{base_env.get('PYTHONPATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -3298,8 +3299,8 @@ def test_disposable_restore_existence_guards_fail_closed_offline(tmp_path: Path)
     fresh_url = f"postgresql://nexus_user:pass@postgres:5432/{fresh_db}"
 
     base_env = os.environ.copy()
-    base_env["PATH"] = f"{str(bin_dir)};{base_env.get('PATH', '')}"
-    base_env["PYTHONPATH"] = f"{str(repo_root / 'backend')};{base_env.get('PYTHONPATH', '')}"
+    base_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_env.get('PATH', '')}"
+    base_env["PYTHONPATH"] = f"{str(repo_root / 'backend')}{os.pathsep}{base_env.get('PYTHONPATH', '')}"
     base_env["NEXUS_STAGING_MODE"] = "true"
     base_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
@@ -3589,8 +3590,8 @@ def test_staging_credentials_and_privilege_preflight_fail_closed_offline(tmp_pat
 
     # 2. Integrated Restore Preflight Tests via restore_nexus_coordinated.sh
     base_restore_env = os.environ.copy()
-    base_restore_env["PATH"] = f"{str(bin_dir)};{base_restore_env.get('PATH', '')}"
-    base_restore_env["PYTHONPATH"] = f"{str(repo_root / 'backend')};{base_restore_env.get('PYTHONPATH', '')}"
+    base_restore_env["PATH"] = f"{str(bin_dir)}{os.pathsep}{base_restore_env.get('PATH', '')}"
+    base_restore_env["PYTHONPATH"] = f"{str(repo_root / 'backend')}{os.pathsep}{base_restore_env.get('PYTHONPATH', '')}"
     base_restore_env["NEXUS_STAGING_MODE"] = "true"
     base_restore_env["COMPOSE_PROJECT_NAME"] = "nexus-staging"
     base_restore_env["COMPOSE_FILE"] = _to_bash_path(dummy_compose)
