@@ -46,6 +46,7 @@ POSTGRES_USER="${POSTGRES_USER:-nexus_user}"
 DATA_VOLUME="${DATA_VOLUME:-nexus_backend_data}"
 REDIS_VOLUME="${REDIS_VOLUME:-nexus_redis_prod_data}"
 DATABASE_URL="${DATABASE_URL:-}"
+DATABASE_URL_SPECIFIED="false"
 ENV_FILE="${ENV_FILE:-}"
 
 # Parse options
@@ -65,6 +66,7 @@ for arg in "$@"; do
             ;;
         --database-url=*)
             DATABASE_URL="${arg#*=}"
+            DATABASE_URL_SPECIFIED="true"
             ;;
         --confirm-destructive-restore)
             CONFIRMED="true"
@@ -177,6 +179,9 @@ if [ "${IS_STAGING}" = "true" ]; then
         echo "SAFETY ERROR: In staging mode, COMPOSE_FILE cannot be production/dev ('${COMPOSE_FILE}'). Must point to staging Compose file." >&2
         exit 1
     fi
+    if [ ! -f "${COMPOSE_FILE}" ] && [ -f "${REPO_ROOT}/${COMPOSE_FILE}" ]; then
+        COMPOSE_FILE="${REPO_ROOT}/${COMPOSE_FILE}"
+    fi
     if [ ! -f "${COMPOSE_FILE}" ]; then
         echo "SAFETY ERROR: Specified staging COMPOSE_FILE does not exist: '${COMPOSE_FILE}'" >&2
         exit 1
@@ -228,7 +233,7 @@ if [ "${IS_STAGING}" = "true" ]; then
         fi
 
         # 5d. Mandatory explicit disposable DATABASE_URL
-        if [ -z "${DATABASE_URL}" ]; then
+        if [ "${DATABASE_URL_SPECIFIED}" != "true" ] || [ -z "${DATABASE_URL}" ]; then
             echo "SAFETY ERROR: In disposable target mode, explicit '--database-url' is required for reconciliation." >&2
             exit 1
         fi
