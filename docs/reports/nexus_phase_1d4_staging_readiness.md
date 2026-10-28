@@ -62,9 +62,9 @@ The latest commit (`5ee7f83`) was revalidated against the project's official CI 
 - **Verification**: Verified in [`test_data_gateway_customer_resolution.py::test_missing_customer_identifier_column_auto_resolves_to_default_customer`](file:///C:/Users/rizvi/nexus/backend/tests/test_data_gateway_customer_resolution.py#L262) and full regression suite.
 
 ### Finding 2: Safe Rollback Failure Invariant on Downgrade (MEDIUM — Verified & Documented)
-- **Mechanism**: Migration `016` drops global single-column unique constraints (`uq_customers_customer_code`, `uq_customers_email`) and creates composite constraints `(business_id, customer_code)` and `(business_id, email)`. If different tenants legitimately create identical customer codes (e.g., `CUST-001` in Tenant A and Tenant B), executing `alembic downgrade -1` attempts to recreate the global single-column constraint.
+- **Mechanism**: Migration `016` drops global single-column unique constraints (`uq_customers_customer_code`, `uq_customers_email`) and creates composite constraints `(business_id, customer_code)` and `(business_id, email)`. If different tenants legitimately create identical customer codes or emails (e.g., `CUST-001` in Tenant A and Tenant B), executing `alembic downgrade -1` attempts to recreate the global single-column constraints.
 - **Database Behavior**: On PostgreSQL, this raises `IntegrityError` (`unique_violation`). Because PostgreSQL supports transactional DDL, the downgrade transaction is completely rolled back; composite constraints remain in place, and the `alembic_version` remains at `016`.
-- **Pre-Migration Operational Requirement**: Before executing any downgrade in staging or production, a pre-flight duplicate scan must confirm zero cross-tenant duplicate codes.
+- **Pre-Migration Operational Requirement**: Before executing forward migration `016`, verify that zero *intra-tenant* duplicates exist (`GROUP BY business_id, customer_code HAVING COUNT(*) > 1` and `GROUP BY business_id, LOWER(TRIM(email)) HAVING COUNT(*) > 1`). Before executing any *downgrade* back to `015`, a pre-flight scan for *global* collisions (`GROUP BY customer_code HAVING COUNT(*) > 1` and `GROUP BY LOWER(TRIM(email)) HAVING COUNT(*) > 1`) must confirm zero cross-tenant duplicate codes or emails.
 
 ### Finding 3: Case-Insensitive Email Identity Enforcement (LOW — Architecture Preserved)
 - **Mechanism**: The composite database constraint is `(business_id, email)`. Email case-insensitivity is enforced via SQLAlchemy `@validates("email")` which lowercases all emails before persistence, as well as Pydantic schemas.
@@ -99,15 +99,27 @@ This checklist must be executed by the deployment engineer during staging rollou
   SELECT version_num FROM alembic_version;
   -- Must return: 015_phase29_continuous_intelligence
   ```
-- [ ] **Step 1.3 — Scan Staging for Cross-Tenant Duplicates**:
+- [ ] **Step 1.3 — Scan Staging for Intra-Tenant Duplicates (Forward-Migration Preflight)**:
+  Prior to running `alembic upgrade head`, verify that no tenant currently contains duplicate customer codes or duplicate emails. Intra-tenant duplicates would violate the new composite unique constraints `uq_customers_business_customer_code` and `uq_customers_business_email` and fail the migration:
   ```sql
-  SELECT customer_code, COUNT(DISTINCT business_id)
+  -- Check for intra-tenant duplicate customer codes
+  SELECT business_id, customer_code, COUNT(*) AS n
   FROM customers
-  WHERE customer_code IS NOT NULL
-  GROUP BY customer_code
-  HAVING COUNT(DISTINCT business_id) > 1;
-  -- Must return 0 rows before migration
+  WHERE business_id IS NOT NULL
+    AND customer_code IS NOT NULL
+  GROUP BY business_id, customer_code
+  HAVING COUNT(*) > 1;
+
+  -- Check for intra-tenant duplicate normalized emails
+  SELECT business_id, LOWER(TRIM(email)) AS normalized_email, COUNT(*) AS n
+  FROM customers
+  WHERE business_id IS NOT NULL
+    AND email IS NOT NULL
+  GROUP BY business_id, LOWER(TRIM(email))
+  HAVING COUNT(*) > 1;
+  -- BOTH queries MUST return 0 rows before proceeding with Migration 016 upgrade.
   ```
+  *(Note: Cross-tenant duplicate customer codes or emails across different business IDs are completely valid and expected under composite scoping; they do NOT block forward migration).*
 
 ### Phase 2: Execute Migration 016
 - [ ] **Step 2.1 — Run Alembic Upgrade**:
@@ -132,10 +144,14 @@ This checklist must be executed by the deployment engineer during staging rollou
   ```
 
 ### Phase 3: Post-Migration Smoke & Integration Verification
-- [ ] **Step 3.1 — Tenant Isolation Smoke Test**:
-  - Insert customer `TEST-CUST-01` in Tenant A.
-  - Insert customer `TEST-CUST-01` in Tenant B.
+- [ ] **Step 3.1 — Tenant Isolation Smoke Test & Cleanup**:
+  - Insert customer `SMOKE-TEST-CUST-01` in Tenant A (e.g., `business_id = 'biz-smoke-a'`).
+  - Insert customer `SMOKE-TEST-CUST-01` in Tenant B (e.g., `business_id = 'biz-smoke-b'`).
   - Confirm both insert cleanly without constraint violation.
+  - Delete disposable smoke test records immediately upon verification:
+    ```sql
+    DELETE FROM customers WHERE customer_code LIKE 'SMOKE-TEST%';
+    ```
 - [ ] **Step 3.2 — Intra-Tenant Duplicate Rejection**:
   - Attempt inserting duplicate `TEST-CUST-01` within Tenant A.
   - Confirm PostgreSQL rejects with `unique_violation`.
@@ -147,14 +163,45 @@ This checklist must be executed by the deployment engineer during staging rollou
   - Run customer cadence evaluation for Tenant A; confirm one-time buyers and repeat buyers are partitioned accurately.
 
 ### Phase 4: Contingency Rollback Plan
-- [ ] If unexpected issues arise **prior** to any cross-tenant duplicate creation:
-  ```bash
-  alembic downgrade 015_phase29_continuous_intelligence
+
+Downgrading from revision 016 back to 015 recreates global single-column unique constraints `UNIQUE (customer_code)` and `UNIQUE (email)`. If cross-tenant duplicates have been introduced while on revision 016, PostgreSQL will reject the downgrade DDL with `IntegrityError` (`unique_violation`) and roll back the downgrade transaction.
+
+- [ ] **Step 4.1 — Downgrade Preflight Scan (Global Collision Check)**:
+  Before running `alembic downgrade`, execute global collision checks to determine if downgrade is possible:
+  ```sql
+  -- Check for global customer_code duplicates
+  SELECT customer_code, COUNT(*) AS n
+  FROM customers
+  WHERE customer_code IS NOT NULL
+  GROUP BY customer_code
+  HAVING COUNT(*) > 1;
+
+  -- Check for global normalized email duplicates
+  SELECT LOWER(TRIM(email)) AS normalized_email, COUNT(*) AS n
+  FROM customers
+  WHERE email IS NOT NULL
+  GROUP BY LOWER(TRIM(email))
+  HAVING COUNT(*) > 1;
   ```
-- [ ] If cross-tenant duplicate data was created during testing:
-  - First, delete or re-code the duplicate test records.
-  - Then execute `alembic downgrade 015_phase29_continuous_intelligence`.
-  - Alternatively, restore the pre-migration snapshot taken in Step 1.1.
+- [ ] **Step 4.2 — Execute Downgrade Decision**:
+  - **Scenario A (0 duplicate rows)**: If the downgrade preflight scan returns 0 rows, the schema can be cleanly downgraded via Alembic:
+    ```bash
+    alembic downgrade 015_phase29_continuous_intelligence
+    ```
+    Verify revision returns to 015:
+    ```sql
+    SELECT version_num FROM alembic_version;
+    ```
+  - **Scenario B (1+ duplicate rows exist)**: If cross-tenant duplicates exist (e.g. from smoke testing or live tenant operations), Alembic downgrade will fail safely and roll back.
+    - If duplicates are test records created during Phase 3, explicitly delete them:
+      ```sql
+      DELETE FROM customers WHERE customer_code LIKE 'SMOKE-TEST%';
+      ```
+      Then re-run Step 4.1.
+    - If real cross-tenant data was created or cleanup is non-trivial, **do not force an Alembic downgrade**. Restore the pre-migration snapshot taken in Step 1.1:
+      ```bash
+      pg_restore -v --clean --if-exists -h <staging-host> -U <staging-user> -d <staging-db> nexus_staging_pre_016_<timestamp>.dump
+      ```
 
 ---
 
