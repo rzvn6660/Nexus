@@ -287,8 +287,7 @@ class TestPhase33BusinessAcceptance:
         prod_bytes = df_prod.to_csv(index=False).encode("utf-8")
 
         # 2. customers.csv: prefix id, customer_code, and email to guarantee isolation against customers_customer_code_key and email_key
-        df_cust_raw = pd.read_csv(SAMPLE_DIR / "customers.csv")
-        df_cust = df_cust_raw.copy()
+        df_cust = pd.read_csv(SAMPLE_DIR / "customers.csv")
         df_cust["id"] = prefix + df_cust["id"].astype(str)
         df_cust["customer_code"] = prefix + df_cust["customer_code"].astype(str)
         df_cust["email"] = prefix.lower() + df_cust["email"].astype(str)
@@ -308,8 +307,7 @@ class TestPhase33BusinessAcceptance:
         df_sales = pd.read_csv(SAMPLE_DIR / "sales.csv")
         sale_id_to_txn = dict(zip(df_sales["id"], df_sales["transaction_number"]))
         df_sales["transaction_number"] = prefix + df_sales["transaction_number"].astype(str)
-        cust_id_to_code = dict(zip(df_cust_raw["id"], prefix + df_cust_raw["customer_code"].astype(str)))
-        df_sales["customer_code"] = df_sales["customer_id"].map(lambda cid: cust_id_to_code[cid])
+        df_sales["customer_code"] = df_sales["customer_id"].map(lambda cid: prefix + str(cid))
         df_sales = df_sales.drop(columns=["customer_id"])
         sales_bytes = df_sales.to_csv(index=False).encode("utf-8")
 
