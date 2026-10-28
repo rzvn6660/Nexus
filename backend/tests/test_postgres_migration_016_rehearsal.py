@@ -366,30 +366,33 @@ def test_postgres_clean_downgrade_and_reupgrade_lifecycle(pg_engine, m016_module
     with pg_engine.begin() as prep_conn:
         prep_conn.execute(text("DELETE FROM customers WHERE customer_code LIKE 'DUP-CODE%'"))
 
-    with pg_engine.connect() as conn:
-        ctx = MigrationContext.configure(conn)
-        with Operations.context(ctx):
-            # Downgrade
-            with conn.begin():
-                m016_module.downgrade()
+    # 1. Downgrade
+    with pg_engine.connect() as down_conn:
+        ctx_down = MigrationContext.configure(down_conn)
+        with Operations.context(ctx_down), down_conn.begin():
+            m016_module.downgrade()
 
-            # Verify single-column constraints restored
-            insp_down = sa.inspect(conn)
-            uqs_down = insp_down.get_unique_constraints("customers")
-            uq_down_sets = {frozenset(u["column_names"]) for u in uqs_down}
-            assert frozenset(["customer_code"]) in uq_down_sets
-            assert frozenset(["email"]) in uq_down_sets
+    # 2. Verify single-column constraints restored
+    with pg_engine.connect() as insp_conn:
+        insp_down = sa.inspect(insp_conn)
+        uqs_down = insp_down.get_unique_constraints("customers")
+        uq_down_sets = {frozenset(u["column_names"]) for u in uqs_down}
+        assert frozenset(["customer_code"]) in uq_down_sets
+        assert frozenset(["email"]) in uq_down_sets
 
-            # Re-upgrade
-            with conn.begin():
-                m016_module.upgrade()
+    # 3. Re-upgrade
+    with pg_engine.connect() as up_conn:
+        ctx_up = MigrationContext.configure(up_conn)
+        with Operations.context(ctx_up), up_conn.begin():
+            m016_module.upgrade()
 
-            # Verify composite constraints restored
-            insp_up = sa.inspect(conn)
-            uqs_up = insp_up.get_unique_constraints("customers")
-            uq_up_sets = {frozenset(u["column_names"]) for u in uqs_up}
-            assert frozenset(["business_id", "customer_code"]) in uq_up_sets
-            assert frozenset(["business_id", "email"]) in uq_up_sets
+    # 4. Verify composite constraints restored
+    with pg_engine.connect() as insp_conn2:
+        insp_up = sa.inspect(insp_conn2)
+        uqs_up = insp_up.get_unique_constraints("customers")
+        uq_up_sets = {frozenset(u["column_names"]) for u in uqs_up}
+        assert frozenset(["business_id", "customer_code"]) in uq_up_sets
+        assert frozenset(["business_id", "email"]) in uq_up_sets
 
 
 def test_postgres_customer_pk_and_sales_fk_preserved(pg_engine) -> None:
