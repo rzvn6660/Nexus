@@ -107,6 +107,19 @@ def tenant_fixture(db_session):
         business_id=biz_b.id,
     )
 
+    # Seed Customer for Tenant A
+    cust_a = Customer(
+        business_id=biz_a.id,
+        customer_code="CUST-P30-01",
+        name="Phase 30 Customer",
+        email=f"cust_p30_{uuid4().hex[:6]}@nexus.local",
+        city="Seattle",
+        customer_segment="Retail",
+        acquisition_date=datetime.now(tz=UTC).date(),
+    )
+    db_session.add(cust_a)
+    db_session.commit()
+
     return {
         "user_a": user_a,
         "org_a": org_a,
@@ -128,10 +141,10 @@ def test_p30_01_malformed_row_validation_rejected_with_row_telemetry(client, ten
 
     # CSV with invalid non-numeric amount on row 2 and invalid date on row 3
     csv_data = (
-        "order_number,date,amount\n"
-        "TXN-GOOD-01,2025-01-01,150.00\n"
-        "TXN-BAD-02,2025-01-02,NOT_A_NUMBER\n"
-        "TXN-BAD-03,2025-99-99,250.00\n"
+        "order_number,date,amount,customer_code\n"
+        "TXN-GOOD-01,2025-01-01,150.00,CUST-P30-01\n"
+        "TXN-BAD-02,2025-01-02,NOT_A_NUMBER,CUST-P30-01\n"
+        "TXN-BAD-03,2025-99-99,250.00,CUST-P30-01\n"
     )
     files = {"file": ("malformed_sales.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
     upload_res = client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -163,12 +176,12 @@ def test_p30_02_partial_failure_transaction_rollback(client, db_session, tenant_
 
     # 4 valid sales rows followed by 1 corrupted row
     csv_data = (
-        "order_number,date,amount\n"
-        "ROLL-01,2025-01-01,100.00\n"
-        "ROLL-02,2025-01-02,200.00\n"
-        "ROLL-03,2025-01-03,300.00\n"
-        "ROLL-04,2025-01-04,400.00\n"
-        "ROLL-05,2025-01-05,CORRUPT_AMOUNT\n"
+        "order_number,date,amount,customer_code\n"
+        "ROLL-01,2025-01-01,100.00,CUST-P30-01\n"
+        "ROLL-02,2025-01-02,200.00,CUST-P30-01\n"
+        "ROLL-03,2025-01-03,300.00,CUST-P30-01\n"
+        "ROLL-04,2025-01-04,400.00,CUST-P30-01\n"
+        "ROLL-05,2025-01-05,CORRUPT_AMOUNT,CUST-P30-01\n"
     )
     files = {"file": ("rollback_test.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
     upload_res = client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -399,10 +412,10 @@ def test_p30_07_in_file_duplicate_rows_deduplication(client, db_session, tenant_
 
     # CSV containing repeated transaction numbers in file
     csv_data = (
-        "order_number,date,amount\n"
-        "INFILE-DUP-01,2025-01-01,100.00\n"
-        "INFILE-DUP-01,2025-01-01,100.00\n"
-        "INFILE-DUP-02,2025-01-02,200.00\n"
+        "order_number,date,amount,customer_code\n"
+        "INFILE-DUP-01,2025-01-01,100.00,CUST-P30-01\n"
+        "INFILE-DUP-01,2025-01-01,100.00,CUST-P30-01\n"
+        "INFILE-DUP-02,2025-01-02,200.00,CUST-P30-01\n"
     )
     files = {"file": ("in_file_dups.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
     upload_res = client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -468,7 +481,7 @@ def test_p30_09_provenance_and_dataset_version_tracking(client, tenant_fixture):
     }
 
     # Version 1 upload
-    csv_v1 = "order_number,date,amount\nPROV-V1-01,2025-01-01,100.00\nPROV-V1-02,2025-01-02,200.00\n"
+    csv_v1 = "order_number,date,amount,customer_code\nPROV-V1-01,2025-01-01,100.00,CUST-P30-01\nPROV-V1-02,2025-01-02,200.00,CUST-P30-01\n"
     files_1 = {"file": ("provenance_sales.csv", io.BytesIO(csv_v1.encode("utf-8")), "text/csv")}
     res_1 = client.post("/api/v1/gateway/upload", files=files_1, headers=headers)
     assert res_1.status_code == 201
@@ -478,7 +491,7 @@ def test_p30_09_provenance_and_dataset_version_tracking(client, tenant_fixture):
     assert detail_1["filename"] == "provenance_sales.csv"
 
     # Version 2 upload with different content and same filename
-    csv_v2 = "order_number,date,amount\nPROV-V2-01,2025-02-01,300.00\nPROV-V2-02,2025-02-02,400.00\n"
+    csv_v2 = "order_number,date,amount,customer_code\nPROV-V2-01,2025-02-01,300.00,CUST-P30-01\nPROV-V2-02,2025-02-02,400.00,CUST-P30-01\n"
     files_2 = {"file": ("provenance_sales.csv", io.BytesIO(csv_v2.encode("utf-8")), "text/csv")}
     res_2 = client.post("/api/v1/gateway/upload", files=files_2, headers=headers)
     assert res_2.status_code == 201
@@ -505,9 +518,9 @@ def test_p30_10_downstream_continuous_intelligence_failure_isolation(client, db_
     }
 
     csv_data = (
-        "order_number,date,amount\n"
-        "SCAN-FAIL-01,2025-01-01,550.00\n"
-        "SCAN-FAIL-02,2025-01-02,650.00\n"
+        "order_number,date,amount,customer_code\n"
+        "SCAN-FAIL-01,2025-01-01,550.00,CUST-P30-01\n"
+        "SCAN-FAIL-02,2025-01-02,650.00,CUST-P30-01\n"
     )
     files = {"file": ("scan_fail_isolation.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
     upload_res = client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -547,9 +560,9 @@ def test_p30_11_bounded_batch_processing_and_repeated_idempotency(client, tenant
         "X-Business-ID": tenant_fixture["biz_a"].id,
     }
 
-    rows = ["order_number,date,amount"]
+    rows = ["order_number,date,amount,customer_code"]
     for i in range(50):
-        rows.append(f"BATCH-TXN-{i:03d},2025-01-01,{10.0 + i:.2f}")
+        rows.append(f"BATCH-TXN-{i:03d},2025-01-01,{10.0 + i:.2f},CUST-P30-01")
     csv_data = "\n".join(rows) + "\n"
 
     files = {"file": ("bounded_batch.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
@@ -666,10 +679,10 @@ def test_p30_14_utf8_with_bom_handling(client, tenant_fixture):
 
     # UTF-8 with BOM: \xef\xbb\xbf
     bom_csv = (
-        b"\xef\xbb\xbforder_number,date,amount\n"
-        b"BOM-TXN-01,2025-01-01,150.00\n"
-        b"BOM-TXN-02,2025-01-02,250.00\n"
-        b"BOM-TXN-03,2025-01-03,350.00\n"
+        b"\xef\xbb\xbforder_number,date,amount,customer_code\n"
+        b"BOM-TXN-01,2025-01-01,150.00,CUST-P30-01\n"
+        b"BOM-TXN-02,2025-01-02,250.00,CUST-P30-01\n"
+        b"BOM-TXN-03,2025-01-03,350.00,CUST-P30-01\n"
     )
     files = {"file": ("bom_export.csv", io.BytesIO(bom_csv), "text/csv")}
     upload_res = client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -705,11 +718,11 @@ def test_p30_15_valid_multi_line_sales_order_accumulation(client, tenant_fixture
     # ORD-MULTI-99 has 3 line items ($30, $45, $25) totaling $100
     # ORD-SINGLE-01 has 1 line item ($80)
     csv_data = (
-        "order_number,date,amount\n"
-        "ORD-MULTI-99,2025-02-01,30.00\n"
-        "ORD-MULTI-99,2025-02-01,45.00\n"
-        "ORD-MULTI-99,2025-02-01,25.00\n"
-        "ORD-SINGLE-01,2025-02-02,80.00\n"
+        "order_number,date,amount,customer_code\n"
+        "ORD-MULTI-99,2025-02-01,30.00,CUST-P30-01\n"
+        "ORD-MULTI-99,2025-02-01,45.00,CUST-P30-01\n"
+        "ORD-MULTI-99,2025-02-01,25.00,CUST-P30-01\n"
+        "ORD-SINGLE-01,2025-02-02,80.00,CUST-P30-01\n"
     )
     files = {"file": ("multi_line_orders.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
     upload_res = client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -825,10 +838,10 @@ def test_p30_17_repeated_upload_and_provenance_immutability(client, tenant_fixtu
     }
 
     csv_v1 = (
-        "order_number,date,amount\n"
-        "VER-01,2025-03-01,10.00\n"
-        "VER-02,2025-03-02,20.00\n"
-        "VER-03,2025-03-03,30.00\n"
+        "order_number,date,amount,customer_code\n"
+        "VER-01,2025-03-01,10.00,CUST-P30-01\n"
+        "VER-02,2025-03-02,20.00,CUST-P30-01\n"
+        "VER-03,2025-03-03,30.00,CUST-P30-01\n"
     )
     files = {"file": ("monthly_sales_audit.csv", io.BytesIO(csv_v1.encode("utf-8")), "text/csv")}
     res_1 = client.post("/api/v1/gateway/upload", files=files, headers=headers)
@@ -843,10 +856,10 @@ def test_p30_17_repeated_upload_and_provenance_immutability(client, tenant_fixtu
 
     # Upload updated file with same filename but modified contents -> Creates dataset version 2
     csv_v2 = (
-        "order_number,date,amount\n"
-        "VER-01,2025-03-01,10.00\n"
-        "VER-02,2025-03-02,20.00\n"
-        "VER-04,2025-03-04,40.00\n"
+        "order_number,date,amount,customer_code\n"
+        "VER-01,2025-03-01,10.00,CUST-P30-01\n"
+        "VER-02,2025-03-02,20.00,CUST-P30-01\n"
+        "VER-04,2025-03-04,40.00,CUST-P30-01\n"
     )
     files_v2 = {"file": ("monthly_sales_audit.csv", io.BytesIO(csv_v2.encode("utf-8")), "text/csv")}
     res_2 = client.post("/api/v1/gateway/upload", files=files_v2, headers=headers)
@@ -1008,12 +1021,12 @@ def test_p30_21_concurrent_ingestion_safety_and_idempotency(client, tenant_fixtu
 
     # Upload 10 distinct sales records
     prefix = uuid4().hex[:6].upper()
-    rows = ["order_number,date,amount"]
+    rows = ["order_number,date,amount,customer_code"]
     expected_orders = []
     for i in range(10):
         ord_num = f"CONCUR-{prefix}-{i:02d}"
         expected_orders.append(ord_num)
-        rows.append(f"{ord_num},2025-04-01,{15.00 + i:.2f}")
+        rows.append(f"{ord_num},2025-04-01,{15.00 + i:.2f},CUST-P30-01")
     csv_data = "\n".join(rows) + "\n"
 
     files = {"file": ("concurrent_batch.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
