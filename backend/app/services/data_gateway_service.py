@@ -1156,8 +1156,6 @@ class DataGatewayService:
                         )
                         if default_candidate:
                             resolved_fallback_cust_id = default_candidate
-                        elif cust_rows:
-                            resolved_fallback_cust_id = cust_rows[0].id
                         else:
                             cust_hex = uuid4().hex[:8]
                             fallback_cust = Customer(
