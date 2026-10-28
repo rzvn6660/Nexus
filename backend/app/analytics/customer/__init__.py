@@ -1,24 +1,68 @@
 """Customer analytics package."""
 
-from app.analytics.customer.rfm import RFMAnalyzer, RFMAnalysisSummary
+from app.analytics.customer.cadence import (
+    CadenceConfig,
+    CadenceExplanation,
+    CadenceRiskTier,
+    CustomerCadenceAnalyzer,
+    CustomerCadenceRecord,
+    CustomerCadenceSummary,
+)
 from app.analytics.customer.cohorts import (
-    CustomerCohortAnalyzer,
     CohortAnalysisResult,
-    CohortRow,
     CohortCell,
+    CohortRow,
+    CustomerCohortAnalyzer,
+)
+from app.analytics.customer.readiness import (
+    CustomerDataReadinessAssessor,
+    CustomerDataReadinessReport,
+    CutoffFeasibilityItem,
+    DataQualityDiagnostics,
+    HistoricalCoverageMetrics,
+    IngestionHealthMetrics,
+    PilotSafeguardsPolicy,
 )
 from app.analytics.customer.repeat_purchase import (
     RepeatPurchaseAnalyzer,
     RepeatPurchaseResult,
 )
+from app.analytics.customer.rfm import RFMAnalysisSummary, RFMAnalyzer
+from app.analytics.customer.validation import (
+    ConfusionMatrix,
+    CustomerOutcomeRecord,
+    CutoffEvaluationResult,
+    HistoricalCadenceValidator,
+    HistoricalValidationSummary,
+    RiskTierPerformance,
+)
 
 __all__ = [
-    "RFMAnalyzer",
-    "RFMAnalysisSummary",
-    "CustomerCohortAnalyzer",
+    "CadenceConfig",
+    "CadenceExplanation",
+    "CadenceRiskTier",
     "CohortAnalysisResult",
-    "CohortRow",
     "CohortCell",
+    "CohortRow",
+    "ConfusionMatrix",
+    "CustomerCadenceAnalyzer",
+    "CustomerCadenceRecord",
+    "CustomerCadenceSummary",
+    "CustomerCohortAnalyzer",
+    "CustomerDataReadinessAssessor",
+    "CustomerDataReadinessReport",
+    "CustomerOutcomeRecord",
+    "CutoffEvaluationResult",
+    "CutoffFeasibilityItem",
+    "DataQualityDiagnostics",
+    "HistoricalCadenceValidator",
+    "HistoricalCoverageMetrics",
+    "HistoricalValidationSummary",
+    "IngestionHealthMetrics",
+    "PilotSafeguardsPolicy",
+    "RFMAnalysisSummary",
+    "RFMAnalyzer",
     "RepeatPurchaseAnalyzer",
     "RepeatPurchaseResult",
+    "RiskTierPerformance",
 ]

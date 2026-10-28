@@ -1093,6 +1093,10 @@ class DataGatewayService:
                     next((c for c, f in field_map.items() if f == "order_number"), None)
                     or next((c for c in df.columns if str(c).lower().strip() in ("order_number", "order_id", "invoice", "invoice_no", "transaction_id", "transaction_number")), None)
                 )
+                customer_col = (
+                    next((c for c, f in field_map.items() if f in ("customer_code", "customer_id", "client_id")), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("customer_code", "customer_id", "client_id", "customer", "cust_id", "cust_code")), None)
+                )
                 discount_col = (
                     next((c for c, f in field_map.items() if f == "discount_amount"), None)
                     or next((c for c in df.columns if str(c).lower().strip() in ("discount_amount", "discount", "discounts", "promo")), None)
@@ -1116,23 +1120,61 @@ class DataGatewayService:
                         detail="Cannot ingest Sales: missing required 'amount' column mapping.",
                     )
 
-                # Ensure a valid default customer exists for this business
-                cust = db.execute(
-                    select(Customer).where(Customer.business_id == business_id)
-                ).scalars().first()
-                if not cust:
-                    cust_hex = uuid4().hex[:8]
-                    cust = Customer(
-                        business_id=business_id,
-                        customer_code=f"CUST-{cust_hex.upper()}",
-                        name="Default Customer",
-                        email=f"customer-{cust_hex}@nexus.local",
-                        city="Default City",
-                        customer_segment="Retail",
-                        acquisition_date=datetime.now(tz=UTC).date(),
-                    )
-                    db.add(cust)
-                    db.flush()
+                # Pre-fetch existing customers scoped strictly to this business_id
+                cust_rows = db.execute(
+                    select(Customer.id, Customer.customer_code).where(Customer.business_id == business_id)
+                ).all()
+                code_to_cust_id: dict[str, int] = {
+                    str(c.customer_code).strip().lower(): c.id for c in cust_rows if c.customer_code
+                }
+                id_to_cust_id: dict[int, int] = {c.id: c.id for c in cust_rows}
+
+                default_cust_ref = (
+                    (column_overrides.get("default_customer_code") if column_overrides else None)
+                    or (column_overrides.get("customer_code") if column_overrides and column_overrides.get("customer_code") not in df.columns else None)
+                    or field_map.get("default_customer_code")
+                )
+                allow_unmapped_fallback = bool(
+                    column_overrides and column_overrides.get("allow_unmapped_customer_fallback")
+                )
+
+                resolved_fallback_cust_id: int | None = None
+                if customer_col is None:
+                    if default_cust_ref:
+                        ref_str = str(default_cust_ref).strip()
+                        if ref_str.lower() in code_to_cust_id:
+                            resolved_fallback_cust_id = code_to_cust_id[ref_str.lower()]
+                        elif ref_str.isdigit() and int(ref_str) in id_to_cust_id:
+                            resolved_fallback_cust_id = id_to_cust_id[int(ref_str)]
+                        else:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Cannot ingest Sales: mapped default customer '{ref_str}' does not exist in this business.",
+                            )
+                    elif allow_unmapped_fallback:
+                        if cust_rows:
+                            resolved_fallback_cust_id = cust_rows[0].id
+                        else:
+                            cust_hex = uuid4().hex[:8]
+                            fallback_cust = Customer(
+                                business_id=business_id,
+                                customer_code=f"CUST-{cust_hex.upper()}",
+                                name="Default Customer",
+                                email=f"customer-{cust_hex}@nexus.local",
+                                city="Default City",
+                                customer_segment="Retail",
+                                acquisition_date=datetime.now(tz=UTC).date(),
+                            )
+                            db.add(fallback_cust)
+                            db.flush()
+                            resolved_fallback_cust_id = fallback_cust.id
+                            code_to_cust_id[fallback_cust.customer_code.lower()] = fallback_cust.id
+                            id_to_cust_id[fallback_cust.id] = fallback_cust.id
+                    else:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Cannot ingest Sales: missing required customer identifier column mapping ('customer_code', 'customer_id', or 'client_id'). Every transaction must be associated with an identifiable customer.",
+                        )
 
                 # Pre-fetch existing order numbers for this business in batches
                 order_vals = [
@@ -1300,6 +1342,36 @@ class DataGatewayService:
                             })
                             continue
 
+                    # Resolve customer for this row
+                    row_cust_id: int | None = None
+                    if customer_col is not None:
+                        raw_cust = row[customer_col]
+                        if raw_cust is None or str(raw_cust).strip() == "":
+                            row_errors.append({
+                                "row": row_num,
+                                "column": customer_col,
+                                "value": None,
+                                "error_type": "REQUIRED_VALUE_MISSING",
+                                "message": "Customer identifier cannot be null or empty.",
+                            })
+                            continue
+                        cust_key = str(raw_cust).strip()
+                        if cust_key.lower() in code_to_cust_id:
+                            row_cust_id = code_to_cust_id[cust_key.lower()]
+                        elif cust_key.isdigit() and int(cust_key) in id_to_cust_id:
+                            row_cust_id = id_to_cust_id[int(cust_key)]
+                        else:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": customer_col,
+                                "value": cust_key[:50],
+                                "error_type": "UNRESOLVED_CUSTOMER",
+                                "message": f"Customer identifier '{cust_key}' could not be resolved to any customer in this business.",
+                            })
+                            continue
+                    else:
+                        row_cust_id = resolved_fallback_cust_id
+
                     sale_order = (
                         str(row[order_col]).strip()
                         if order_col and row[order_col] is not None and str(row[order_col]).strip()
@@ -1311,6 +1383,17 @@ class DataGatewayService:
                     if sale_order in staged_sales_by_order:
                         existing_sale = staged_sales_by_order[sale_order]
                         meta = order_meta[sale_order]
+
+                        # 0. Reject conflicting customer metadata across multi-line order
+                        if row_cust_id != meta["customer_id"]:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": customer_col or "customer_id",
+                                "value": str(row[customer_col]) if customer_col else str(row_cust_id),
+                                "error_type": "CONFLICTING_ORDER_METADATA",
+                                "message": f"Conflicting customer identifier on multi-line order '{sale_order}' (row {meta['first_row_num']} had customer ID {meta['customer_id']}).",
+                            })
+                            continue
 
                         # 1. Reject conflicting status metadata with clear validation error
                         if status_val != meta["status"]:
@@ -1341,26 +1424,24 @@ class DataGatewayService:
                         if meta["is_line_discount"]:
                             # Explicit line discount column: always aggregate line discounts
                             existing_sale.discount_amount += disc_val
-                        elif meta["has_discount_col"]:
+                        elif meta["has_discount_col"] and disc_val != meta["first_discount"]:
                             # Generic discount column: if value differs across lines, treat as line discounts
-                            if disc_val != meta["first_discount"]:
-                                existing_sale.discount_amount += disc_val
-                                meta["is_line_discount"] = True
+                            existing_sale.discount_amount += disc_val
+                            meta["is_line_discount"] = True
                             # If identical value repeated across lines: preserve order-level discount (no multiplication)
 
                         # 5. Handle tax: preserve order-level tax without multiplication
                         if meta["is_line_tax"]:
                             existing_sale.tax_amount += tax_val
-                        elif meta["has_tax_col"]:
-                            if tax_val != meta["first_tax"]:
-                                row_errors.append({
-                                    "row": row_num,
-                                    "column": tax_col,
-                                    "value": str(row[tax_col]),
-                                    "error_type": "CONFLICTING_ORDER_METADATA",
-                                    "message": f"Conflicting order-level tax amount '{tax_val}' on multi-line order '{sale_order}' (row {meta['first_row_num']} had '{meta['first_tax']}').",
-                                })
-                                continue
+                        elif meta["has_tax_col"] and tax_val != meta["first_tax"]:
+                            row_errors.append({
+                                "row": row_num,
+                                "column": tax_col,
+                                "value": str(row[tax_col]),
+                                "error_type": "CONFLICTING_ORDER_METADATA",
+                                "message": f"Conflicting order-level tax amount '{tax_val}' on multi-line order '{sale_order}' (row {meta['first_row_num']} had '{meta['first_tax']}').",
+                            })
+                            continue
                             # Repeated identical order-level tax: do NOT add again
 
                         # 6. Handle total: preserve order-level total without multiplication
@@ -1390,7 +1471,7 @@ class DataGatewayService:
                     sale = Sale(
                         business_id=business_id,
                         transaction_number=sale_order,
-                        customer_id=cust.id,
+                        customer_id=row_cust_id,
                         transaction_date=sale_dt,
                         subtotal=num_amount,
                         discount_amount=disc_val,
@@ -1401,6 +1482,7 @@ class DataGatewayService:
                     staged_sales_by_order[sale_order] = sale
                     staged_objects.append(sale)
                     order_meta[sale_order] = {
+                        "customer_id": row_cust_id,
                         "first_row_num": row_num,
                         "status": status_val,
                         "transaction_date": sale_dt,
@@ -1570,9 +1652,9 @@ class DataGatewayService:
                 ).all()
                 for c_code, c_email in existing_custs:
                     if c_code:
-                        existing_codes_set.add(c_code)
+                        existing_codes_set.add(str(c_code).strip())
                     if c_email:
-                        existing_emails_set.add(c_email.lower())
+                        existing_emails_set.add(str(c_email).strip().lower())
 
                 seen_codes_in_file: set[str] = set()
                 seen_emails_in_file: set[str] = set()

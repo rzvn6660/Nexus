@@ -2,9 +2,10 @@ name: NEXUS CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feat/**" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   backend-test:
@@ -49,7 +50,7 @@ jobs:
           python -c "import os; from sqlalchemy import create_engine, text; e = create_engine(os.environ['DATABASE_URL']); conn = e.connect(); conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector;')); conn.commit(); conn.close()"
           alembic upgrade head
 
-      - name: Run PostgreSQL integration tests (Phase 30 live pgvector, Phase 33 business acceptance & financial correctness)
+      - name: Run PostgreSQL integration tests (Phase 30 live pgvector, Phase 33 business acceptance, Phase 1D migration rehearsal)
         if: success() || failure()
         env:
           DATABASE_URL: postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db
@@ -59,7 +60,7 @@ jobs:
           REQUIRE_POSTGRES: "true"
         run: |
           cd backend
-          pytest tests/test_postgres_integration_phase30.py tests/test_e2e_business_acceptance_phase33.py tests/test_financial_correctness_remediation.py -v -rA
+          pytest tests/test_postgres_integration_phase30.py tests/test_e2e_business_acceptance_phase33.py tests/test_financial_correctness_remediation.py tests/test_postgres_migration_016_rehearsal.py -v -rA
 
       - name: Run backend tests
         if: success() || failure()
@@ -69,7 +70,7 @@ jobs:
           DEBUG: "false"
         run: |
           cd backend
-          pytest --ignore=tests/test_postgres_integration_phase30.py --ignore=tests/test_e2e_business_acceptance_phase33.py --ignore=tests/test_financial_correctness_remediation.py
+          pytest --ignore=tests/test_postgres_integration_phase30.py --ignore=tests/test_e2e_business_acceptance_phase33.py --ignore=tests/test_financial_correctness_remediation.py --ignore=tests/test_postgres_migration_016_rehearsal.py
 
       - name: Run evaluation benchmark regression check
         run: |
