@@ -1134,9 +1134,6 @@ class DataGatewayService:
                     or (column_overrides.get("customer_code") if column_overrides and column_overrides.get("customer_code") not in df.columns else None)
                     or field_map.get("default_customer_code")
                 )
-                allow_unmapped_fallback = bool(
-                    column_overrides and column_overrides.get("allow_unmapped_customer_fallback")
-                )
 
                 resolved_fallback_cust_id: int | None = None
                 if customer_col is None:
@@ -1151,14 +1148,21 @@ class DataGatewayService:
                                 status_code=status.HTTP_400_BAD_REQUEST,
                                 detail=f"Cannot ingest Sales: mapped default customer '{ref_str}' does not exist in this business.",
                             )
-                    elif allow_unmapped_fallback:
-                        if cust_rows:
+                    else:
+                        # Auto-resolve or create tenant-scoped default customer for unmapped POS/receipt uploads
+                        default_candidate = next(
+                            (c.id for c in cust_rows if c.customer_code and c.customer_code.upper().startswith("CUST-DEFAULT")),
+                            None,
+                        )
+                        if default_candidate:
+                            resolved_fallback_cust_id = default_candidate
+                        elif cust_rows:
                             resolved_fallback_cust_id = cust_rows[0].id
                         else:
                             cust_hex = uuid4().hex[:8]
                             fallback_cust = Customer(
                                 business_id=business_id,
-                                customer_code=f"CUST-{cust_hex.upper()}",
+                                customer_code=f"CUST-DEFAULT-{cust_hex.upper()}",
                                 name="Default Customer",
                                 email=f"customer-{cust_hex}@nexus.local",
                                 city="Default City",
@@ -1170,11 +1174,6 @@ class DataGatewayService:
                             resolved_fallback_cust_id = fallback_cust.id
                             code_to_cust_id[fallback_cust.customer_code.lower()] = fallback_cust.id
                             id_to_cust_id[fallback_cust.id] = fallback_cust.id
-                    else:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Cannot ingest Sales: missing required customer identifier column mapping ('customer_code', 'customer_id', or 'client_id'). Every transaction must be associated with an identifiable customer.",
-                        )
 
                 # Pre-fetch existing order numbers for this business in batches
                 order_vals = [

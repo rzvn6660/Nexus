@@ -212,10 +212,10 @@ def test_pg_01_migration_and_pgvector_compatibility(pg_engine):
         ext_res = conn.execute(text("SELECT extname FROM pg_extension WHERE extname = 'vector'")).scalar()
         assert ext_res == "vector", "pgvector extension must be active in PostgreSQL."
 
-        # Verify Alembic head migration revision 015
+        # Verify Alembic head migration revision 015 or 016
         alembic_rev = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         assert alembic_rev is not None
-        assert "015" in alembic_rev or alembic_rev == "015_phase29_continuous_intelligence"
+        assert alembic_rev in ("015_phase29_continuous_intelligence", "016_phase1c2_tenant_scoped_customer_identity")
 
 
 def test_pg_02_failure_rollback_and_diagnostic_persistence(pg_client, pg_tenant, pg_session_factory):

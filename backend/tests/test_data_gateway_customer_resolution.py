@@ -259,8 +259,8 @@ def test_unknown_customer_identifier_rejected(client, tenant_fixture):
     assert "CUST-DOES-NOT-EXIST" in detail["errors"][0]["message"]
 
 
-def test_missing_customer_identifier_column_rejected(client, tenant_fixture):
-    """Scenario 4: An upload with no customer identifier column is rejected with actionable HTTP 400."""
+def test_missing_customer_identifier_column_auto_resolves_to_default_customer(client, tenant_fixture):
+    """Scenario 4: An upload with no customer identifier column auto-resolves safely to tenant default customer."""
     headers = {
         "Authorization": f"Bearer {tenant_fixture['token_a']}",
         "X-Business-ID": tenant_fixture["biz_a"].id,
@@ -282,10 +282,21 @@ def test_missing_customer_identifier_column_rejected(client, tenant_fixture):
         headers=headers,
         json={"target_entity": "Sale"},
     )
-    assert ingest.status_code == 400
-    detail = ingest.json()["detail"]
-    assert "missing required customer identifier column mapping" in detail.lower()
-    assert "customer_code" in detail
+    assert ingest.status_code == 200
+    assert ingest.json()["records_persisted"] == 2
+
+    with TestingSessionLocal() as db:
+        sales = db.execute(
+            select(Sale).where(
+                Sale.business_id == tenant_fixture["biz_a"].id,
+                Sale.transaction_number.in_(["TXN-NO-CUST-01", "TXN-NO-CUST-02"]),
+            )
+        ).scalars().all()
+        assert len(sales) == 2
+        for s in sales:
+            assert s.customer_id is not None
+            cust = db.execute(select(Customer).where(Customer.id == s.customer_id)).scalar_one()
+            assert cust.business_id == tenant_fixture["biz_a"].id
 
 
 def test_conflicting_customer_identifiers_across_order_rows_rejected(client, tenant_fixture):

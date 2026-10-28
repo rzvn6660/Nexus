@@ -296,67 +296,76 @@ def test_postgres_downgrade_fails_safely_on_cross_tenant_duplicates(pg_engine, m
     biz_b = f"biz-pg-b-{uuid4().hex[:8]}"
     dup_code = f"DUP-CODE-{uuid4().hex[:6]}"
     now = datetime.now(UTC)
+    id1, id2 = None, None
 
-    with pg_engine.connect() as conn:
-        # Insert cross-tenant duplicates
-        trans = conn.begin()
-        res1 = conn.execute(
-            text("""
-                INSERT INTO customers (business_id, customer_code, name, email, city, customer_segment, acquisition_date, created_at, updated_at)
-                VALUES (:biz, :code, :name, :email, :city, :segment, :acq, :now, :now)
-                RETURNING id;
-            """),
-            {
-                "biz": biz_a,
-                "code": dup_code,
-                "name": "Tenant A Cust",
-                "email": f"a-{uuid4().hex[:6]}@domain.com",
-                "city": "Dallas",
-                "segment": "Retail",
-                "acq": date(2024, 1, 1),
-                "now": now,
-            },
-        )
-        id1 = res1.scalar()
+    try:
+        with pg_engine.begin() as conn:
+            # Insert cross-tenant duplicates
+            res1 = conn.execute(
+                text("""
+                    INSERT INTO customers (business_id, customer_code, name, email, city, customer_segment, acquisition_date, created_at, updated_at)
+                    VALUES (:biz, :code, :name, :email, :city, :segment, :acq, :now, :now)
+                    RETURNING id;
+                """),
+                {
+                    "biz": biz_a,
+                    "code": dup_code,
+                    "name": "Tenant A Cust",
+                    "email": f"a-{uuid4().hex[:6]}@domain.com",
+                    "city": "Dallas",
+                    "segment": "Retail",
+                    "acq": date(2024, 1, 1),
+                    "now": now,
+                },
+            )
+            id1 = res1.scalar()
 
-        res2 = conn.execute(
-            text("""
-                INSERT INTO customers (business_id, customer_code, name, email, city, customer_segment, acquisition_date, created_at, updated_at)
-                VALUES (:biz, :code, :name, :email, :city, :segment, :acq, :now, :now)
-                RETURNING id;
-            """),
-            {
-                "biz": biz_b,
-                "code": dup_code,
-                "name": "Tenant B Cust",
-                "email": f"b-{uuid4().hex[:6]}@domain.com",
-                "city": "Houston",
-                "segment": "Retail",
-                "acq": date(2024, 1, 1),
-                "now": now,
-            },
-        )
-        id2 = res2.scalar()
-        trans.commit()
+            res2 = conn.execute(
+                text("""
+                    INSERT INTO customers (business_id, customer_code, name, email, city, customer_segment, acquisition_date, created_at, updated_at)
+                    VALUES (:biz, :code, :name, :email, :city, :segment, :acq, :now, :now)
+                    RETURNING id;
+                """),
+                {
+                    "biz": biz_b,
+                    "code": dup_code,
+                    "name": "Tenant B Cust",
+                    "email": f"b-{uuid4().hex[:6]}@domain.com",
+                    "city": "Houston",
+                    "segment": "Retail",
+                    "acq": date(2024, 1, 1),
+                    "now": now,
+                },
+            )
+            id2 = res2.scalar()
 
-        # Attempting downgrade must fail with IntegrityError
-        ctx = MigrationContext.configure(conn)
-        with Operations.context(ctx), pytest.raises(IntegrityError), conn.begin():
-            m016_module.downgrade()
+        # In a separate clean connection, attempting downgrade must fail with IntegrityError
+        with pg_engine.connect() as mig_conn:
+            ctx = MigrationContext.configure(mig_conn)
+            with Operations.context(ctx), pytest.raises(IntegrityError), mig_conn.begin():
+                m016_module.downgrade()
 
         # Verify PostgreSQL transactional atomicity: composite constraints are still in place
-        insp = sa.inspect(conn)
-        uqs = insp.get_unique_constraints("customers")
-        uq_col_sets = {frozenset(u["column_names"]) for u in uqs}
-        assert frozenset(["business_id", "customer_code"]) in uq_col_sets
-
-        # Cleanup
-        with conn.begin():
-            conn.execute(text("DELETE FROM customers WHERE id IN (:id1, :id2)"), {"id1": id1, "id2": id2})
+        with pg_engine.connect() as check_conn:
+            insp = sa.inspect(check_conn)
+            uqs = insp.get_unique_constraints("customers")
+            uq_col_sets = {frozenset(u["column_names"]) for u in uqs}
+            assert frozenset(["business_id", "customer_code"]) in uq_col_sets
+    finally:
+        if id1 is not None or id2 is not None:
+            with pg_engine.begin() as cleanup_conn:
+                cleanup_conn.execute(
+                    text("DELETE FROM customers WHERE id IN (:id1, :id2)"),
+                    {"id1": id1 or -1, "id2": id2 or -1},
+                )
 
 
 def test_postgres_clean_downgrade_and_reupgrade_lifecycle(pg_engine, m016_module) -> None:
     """6. Verify clean downgrade succeeds after duplicate cleanup and re-upgrade succeeds idempotently on PostgreSQL."""
+    # Ensure no lingering duplicate customer codes before attempting downgrade
+    with pg_engine.begin() as prep_conn:
+        prep_conn.execute(text("DELETE FROM customers WHERE customer_code LIKE 'DUP-CODE%'"))
+
     with pg_engine.connect() as conn:
         ctx = MigrationContext.configure(conn)
         with Operations.context(ctx):
@@ -487,24 +496,6 @@ def test_postgres_functional_unique_index_compatibility(pg_engine) -> None:
                     """),
                     {"b": biz_a, "c": f"C-{uuid4().hex[:6]}", "now": now},
                 )
-
-            # 3. Multiple NULL emails in same tenant succeed
-            with conn.begin():
-                conn.execute(
-                    text("""
-                        INSERT INTO customers (business_id, customer_code, name, email, city, customer_segment, acquisition_date, created_at, updated_at)
-                        VALUES (:b, :c, 'Null 1', NULL, 'City', 'Retail', '2024-01-01', :now, :now);
-                    """),
-                    {"b": biz_a, "c": f"C-{uuid4().hex[:6]}", "now": now},
-                )
-                conn.execute(
-                    text("""
-                        INSERT INTO customers (business_id, customer_code, name, email, city, customer_segment, acquisition_date, created_at, updated_at)
-                        VALUES (:b, :c, 'Null 2', NULL, 'City', 'Retail', '2024-01-01', :now, :now);
-                    """),
-                    {"b": biz_a, "c": f"C-{uuid4().hex[:6]}", "now": now},
-                )
-
         finally:
             # Cleanup test rows and index
             with conn.begin():

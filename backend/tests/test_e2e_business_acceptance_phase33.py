@@ -303,9 +303,13 @@ class TestPhase33BusinessAcceptance:
         exp_bytes = df_exp.to_csv(index=False).encode("utf-8")
 
         # 5. sales.csv: prefix transaction_number to guarantee isolation against sales_transaction_number_key
+        # and resolve natural customer key to match customer catalog
         df_sales = pd.read_csv(SAMPLE_DIR / "sales.csv")
         sale_id_to_txn = dict(zip(df_sales["id"], df_sales["transaction_number"]))
         df_sales["transaction_number"] = prefix + df_sales["transaction_number"].astype(str)
+        cust_id_to_code = dict(zip(df_cust["id"], df_cust["customer_code"]))
+        df_sales["customer_code"] = df_sales["customer_id"].map(lambda cid: cust_id_to_code[cid])
+        df_sales = df_sales.drop(columns=["customer_id"])
         sales_bytes = df_sales.to_csv(index=False).encode("utf-8")
 
         # 6. sale_items.csv: resolve natural keys using transaction_number and product SKU
@@ -368,6 +372,7 @@ class TestPhase33BusinessAcceptance:
                 "transaction_number": "order_number",
                 "subtotal": "amount",
                 "transaction_date": "date",
+                "customer_code": "customer_code",
             }),
             ("sale_items.csv", "SaleItem", {
                 "transaction_number": "sale_id",
