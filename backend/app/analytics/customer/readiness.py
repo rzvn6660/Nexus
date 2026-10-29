@@ -152,7 +152,23 @@ class IngestionHealthMetrics(BaseModel):
         description="UTC ISO-8601 timestamp of certified authoritative ingestion watermark.",
     )
     watermark_status: str = Field(
-        description="Watermark verification state: 'verified_present' or 'unverified_missing'."
+        description="Watermark verification state: 'verified_present', 'unverified_missing', 'incomplete_in_flight', 'incomplete_watermark_gap', 'invalidated'."
+    )
+    effective_watermark_status: str | None = Field(
+        default=None,
+        description="Detailed status from tenant watermark service evaluation.",
+    )
+    source_watermarks: dict[str, str | None] = Field(
+        default_factory=dict,
+        description="Per-source certified complete-through timestamps.",
+    )
+    unverified_sources: list[str] = Field(
+        default_factory=list,
+        description="Required sources missing verified watermarks.",
+    )
+    watermark_invalidation_reasons: list[str] = Field(
+        default_factory=list,
+        description="Reasons why active watermarks were invalidated.",
     )
     unavailable_signals: list[str] = Field(
         default_factory=list,
@@ -173,7 +189,11 @@ class CutoffFeasibilityItem(BaseModel):
         description="Customers with exactly 1 purchase prior to cutoff."
     )
     followup_status: str = Field(
-        description="Follow-up completeness status: 'verified_complete', 'unverified_complete', or 'incomplete_censored'."
+        description="Follow-up completeness status: 'verified_complete', 'unverified_complete', 'incomplete_censored', 'incomplete_in_flight', 'incomplete_watermark_gap', 'invalidated_watermark'."
+    )
+    is_verified: bool = Field(
+        default=False,
+        description="Whether outcome window completeness is certified by an authoritative watermark.",
     )
     is_pilot_ready: bool = Field(
         description="Whether this cutoff satisfies all data-quality and sample-size criteria."
@@ -492,9 +512,52 @@ class CustomerDataReadinessAssessor:
             1 for j in tenant_jobs if j.status in ("PENDING", "PROCESSING", "FAILED", "REQUIRES_REVIEW")
         )
 
-        has_wm = ingestion_watermark is not None
-        wm_ts = ingestion_watermark.isoformat() if ingestion_watermark else None
-        wm_status = "verified_present" if has_wm else "unverified_missing"
+        effective_wm = None
+        if biz_id and ingestion_watermark is None:
+            try:
+                from app.services.watermark_service import WatermarkService
+                effective_wm = WatermarkService.get_effective_tenant_watermark(session, biz_id)
+            except Exception:  # noqa: BLE001
+                effective_wm = None
+
+        if ingestion_watermark is not None:
+            has_wm = True
+            if hasattr(ingestion_watermark, "complete_through_dt"):
+                wm_utc = ingestion_watermark.complete_through_dt
+            elif hasattr(ingestion_watermark, "effective_complete_through_dt"):
+                wm_utc = ingestion_watermark.effective_complete_through_dt
+            elif isinstance(ingestion_watermark, datetime):
+                wm_utc = ingestion_watermark if ingestion_watermark.tzinfo else ingestion_watermark.replace(tzinfo=UTC)
+            elif isinstance(ingestion_watermark, date):
+                wm_utc = datetime.combine(ingestion_watermark, datetime.max.time().replace(microsecond=0), tzinfo=UTC)
+            else:
+                wm_utc = None
+            if wm_utc and wm_utc.tzinfo:
+                wm_utc = wm_utc.astimezone(UTC)
+            wm_ts = wm_utc.isoformat() if wm_utc else None
+            wm_status = "verified_present" if wm_utc else "unverified_missing"
+            eff_status = "verified_complete" if wm_utc else "unverified_missing"
+            source_map = {}
+            unverified_src = []
+            inv_reasons = []
+        elif effective_wm and effective_wm.is_verified:
+            has_wm = True
+            wm_utc = effective_wm.effective_complete_through_dt
+            wm_ts = wm_utc.isoformat() if wm_utc else None
+            wm_status = "verified_present"
+            eff_status = effective_wm.status
+            source_map = effective_wm.source_watermarks
+            unverified_src = effective_wm.unverified_sources
+            inv_reasons = effective_wm.blocking_reasons
+        else:
+            has_wm = False
+            wm_utc = None
+            wm_ts = None
+            eff_status = effective_wm.status if effective_wm else "unverified_missing"
+            wm_status = eff_status if effective_wm and eff_status != "unverified_missing" else "unverified_missing"
+            source_map = effective_wm.source_watermarks if effective_wm else {}
+            unverified_src = effective_wm.unverified_sources if effective_wm else []
+            inv_reasons = effective_wm.blocking_reasons if effective_wm else []
 
         unavailable_signals = [
             "Real-time Change Data Capture (CDC) audit trail is unavailable; past refund timestamps cannot be reconstructed point-in-time.",
@@ -513,6 +576,10 @@ class CustomerDataReadinessAssessor:
             authoritative_watermark_present=has_wm,
             authoritative_watermark_timestamp=wm_ts,
             watermark_status=wm_status,
+            effective_watermark_status=eff_status,
+            source_watermarks=source_map,
+            unverified_sources=unverified_src,
+            watermark_invalidation_reasons=inv_reasons,
             unavailable_signals=unavailable_signals,
         )
 
@@ -538,9 +605,13 @@ class CustomerDataReadinessAssessor:
             cutoff_d = cutoff_dt.date()
 
             # Determine follow-up status
-            if has_wm:
-                wm_utc = ingestion_watermark if ingestion_watermark.tzinfo else ingestion_watermark.replace(tzinfo=UTC)
-                wm_utc = wm_utc.astimezone(UTC)
+            if active_or_failed_jobs > 0 or (effective_wm and effective_wm.status == "incomplete_in_flight"):
+                f_status = "incomplete_in_flight"
+            elif effective_wm and effective_wm.status == "invalidated":
+                f_status = "invalidated_watermark"
+            elif effective_wm and effective_wm.status == "incomplete_watermark_gap":
+                f_status = "incomplete_watermark_gap"
+            elif has_wm and wm_utc:
                 if wm_utc >= outcome_end:
                     f_status = "verified_complete"
                 else:
@@ -572,6 +643,7 @@ class CustomerDataReadinessAssessor:
                 f_status in ("verified_complete", "unverified_complete")
                 and rep_at_cutoff >= cls.MIN_PILOT_REPEAT_BUYERS
                 and active_or_failed_jobs == 0
+                and (not effective_wm or effective_wm.status not in ("incomplete_in_flight", "invalidated", "incomplete_watermark_gap"))
             )
 
             notes = (
@@ -588,6 +660,7 @@ class CustomerDataReadinessAssessor:
                     eligible_repeat_buyers_at_cutoff=rep_at_cutoff,
                     one_time_buyers_at_cutoff=one_at_cutoff,
                     followup_status=f_status,
+                    is_verified=(f_status == "verified_complete"),
                     is_pilot_ready=is_ready,
                     notes=notes,
                 )
@@ -596,6 +669,15 @@ class CustomerDataReadinessAssessor:
         # 7. Readiness Verdict, Blockers & Cautions
         blockers: list[str] = []
         cautions: list[str] = []
+
+        if effective_wm and effective_wm.status == "invalidated":
+            blockers.append(
+                f"Authoritative watermark has been invalidated: {'; '.join(effective_wm.blocking_reasons)}"
+            )
+        if effective_wm and effective_wm.status == "incomplete_watermark_gap":
+            blockers.append(
+                f"Required ingestion sources lack verified watermarks: {', '.join(effective_wm.unverified_sources)}"
+            )
 
         if total_tx == 0:
             blockers.append("No transactions found for tenant in database.")

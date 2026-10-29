@@ -9,6 +9,7 @@ or definitive permanent churn.
 """
 
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -70,6 +71,8 @@ class CustomerOutcomeRecord(BaseModel):
     outcome_no_purchase: bool | None = None
     is_censored: bool = False
     is_repeat_buyer: bool = False
+    is_followup_verified: bool = False
+    unverified_negative_outcome: bool = False
 
 
 class RiskTierPerformance(BaseModel):
@@ -209,7 +212,8 @@ class HistoricalCadenceValidator:
         cadence_config: CadenceConfig | None = None,
         eligible_statuses: list[str] | None = None,
         include_customer_records: bool = True,
-        ingestion_watermark: datetime | date | None = None,
+        ingestion_watermark: datetime | date | Any | None = None,
+        require_verified_watermark: bool = False,
     ) -> CutoffEvaluationResult:
         """
         Evaluate customer cadence risk at a historical cutoff and measure subsequent reordering.
@@ -277,6 +281,14 @@ class HistoricalCadenceValidator:
                 .limit(1)
             ).scalar_one_or_none()
 
+        effective_wm = None
+        if context and context.business_id and ingestion_watermark is None:
+            try:
+                from app.services.watermark_service import WatermarkService
+                effective_wm = WatermarkService.get_effective_tenant_watermark(session, context.business_id)
+            except Exception:  # noqa: BLE001
+                effective_wm = None
+
         max_dt_stmt = select(func.max(Sale.transaction_date))
         if context and context.business_id:
             max_dt_stmt = max_dt_stmt.where(Sale.business_id == context.business_id)
@@ -290,20 +302,40 @@ class HistoricalCadenceValidator:
                 "Unresolved or in-flight data ingestion job detected for tenant; "
                 "follow-up transactions are incomplete."
             )
-        elif ingestion_watermark is not None:
-            if isinstance(ingestion_watermark, datetime):
+        elif effective_wm and effective_wm.status == "incomplete_in_flight":
+            is_complete = False
+            is_verified = False
+            followup_status = "incomplete_in_flight"
+            censoring_reason = "; ".join(effective_wm.blocking_reasons)
+        elif effective_wm and effective_wm.status == "invalidated":
+            is_complete = False
+            is_verified = False
+            followup_status = "incomplete_watermark_invalidated"
+            censoring_reason = "; ".join(effective_wm.blocking_reasons)
+        elif effective_wm and effective_wm.status == "incomplete_watermark_gap":
+            is_complete = False
+            is_verified = False
+            followup_status = "incomplete_watermark_gap"
+            censoring_reason = "; ".join(effective_wm.blocking_reasons)
+        elif ingestion_watermark is not None or (effective_wm and effective_wm.is_verified):
+            wm_obj = ingestion_watermark if ingestion_watermark is not None else effective_wm.effective_complete_through_dt
+            if hasattr(wm_obj, "complete_through_dt"):
+                watermark_dt = wm_obj.complete_through_dt
+            elif hasattr(wm_obj, "effective_complete_through_dt"):
+                watermark_dt = wm_obj.effective_complete_through_dt
+            elif isinstance(wm_obj, datetime):
                 watermark_dt = (
-                    ingestion_watermark
-                    if ingestion_watermark.tzinfo is not None
-                    else ingestion_watermark.replace(tzinfo=UTC)
+                    wm_obj
+                    if wm_obj.tzinfo is not None
+                    else wm_obj.replace(tzinfo=UTC)
                 )
                 watermark_dt = watermark_dt.astimezone(UTC)
-            elif isinstance(ingestion_watermark, date):
+            elif isinstance(wm_obj, date):
                 watermark_dt = datetime.combine(
-                    ingestion_watermark, datetime.max.time().replace(microsecond=0), tzinfo=UTC
+                    wm_obj, datetime.max.time().replace(microsecond=0), tzinfo=UTC
                 )
             else:
-                raise ValueError(f"Invalid ingestion_watermark type: {type(ingestion_watermark)}")
+                raise ValueError(f"Invalid ingestion_watermark type: {type(wm_obj)}")
 
             if watermark_dt < outcome_end:
                 is_complete = False
@@ -330,6 +362,14 @@ class HistoricalCadenceValidator:
                 censoring_reason = (
                     f"Latest transaction in database ({db_max_utc.isoformat()}) precedes "
                     f"outcome window end ({outcome_end.isoformat()}). Outcome follow-up was right-censored due to incomplete data."
+                )
+            elif require_verified_watermark:
+                is_complete = False
+                is_verified = False
+                followup_status = "incomplete_censored"
+                censoring_reason = (
+                    "Follow-up was right-censored because require_verified_watermark=True "
+                    "and no verified authoritative watermark exists."
                 )
             else:
                 is_complete = True
@@ -404,9 +444,12 @@ class HistoricalCadenceValidator:
         for r in cadence_summary.records:
             f_orders = future_orders_map.get(r.customer_id, 0)
             has_repeat = f_orders > 0
+            rec_unverified_neg = False
             if is_complete:
                 rec_no_purchase = not has_repeat
                 rec_censored = False
+                if not is_verified and rec_no_purchase:
+                    rec_unverified_neg = True
             else:
                 if has_repeat:
                     rec_no_purchase = False
@@ -431,6 +474,8 @@ class HistoricalCadenceValidator:
                 outcome_no_purchase=rec_no_purchase,
                 is_censored=rec_censored,
                 is_repeat_buyer=getattr(r, "is_repeat_buyer", r.eligible_order_count >= 2),
+                is_followup_verified=is_verified,
+                unverified_negative_outcome=rec_unverified_neg,
             )
             outcome_records.append(rec)
 
@@ -565,6 +610,10 @@ class HistoricalCadenceValidator:
                 "Follow-up completeness is unverified: MAX(Sale.transaction_date) reaches outcome window end, "
                 "but no authoritative ingestion watermark or reporting-period close was provided. "
                 "Late-arriving or un-ingested transactions cannot be ruled out."
+            )
+            limitations.append(
+                "UNVERIFIED OUTCOMES NOTICE: Observed non-purchases in unverified follow-up windows must NOT "
+                "be silently treated as definitive customer churn or used for uncalibrated commercial action."
             )
 
         return CutoffEvaluationResult(

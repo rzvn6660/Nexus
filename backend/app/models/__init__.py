@@ -24,6 +24,7 @@ from app.models.tenant import (
     UploadedDataset,
     UserIdentity,
 )
+from app.models.watermark import TenantIngestionWatermark
 
 __all__ = [
     "AnalysisRun",
@@ -46,6 +47,7 @@ __all__ = [
     "Product",
     "Sale",
     "SaleItem",
+    "TenantIngestionWatermark",
     "TenantSemanticModel",
     "TimestampMixin",
     "UploadedDataset",

@@ -2225,6 +2225,51 @@ class DataGatewayService:
                 running_job.completed_at = datetime.now(UTC)
                 running_job.rows_processed = records_inserted
 
+            # Phase 1F.2: Authoritative Watermark Management and Backfill Invalidation
+            if entity == "Sale":
+                tx_dates = [getattr(obj, "transaction_date", None) for obj in staged_objects if hasattr(obj, "transaction_date")]
+                valid_tx_dates = [d for d in tx_dates if d is not None]
+                if valid_tx_dates:
+                    try:
+                        from app.services.watermark_service import WatermarkService
+                        source_id = (dataset.schema_json or {}).get("source_id") or dataset.filename or "default"
+                        # If incoming transactions precede an active watermark, invalidate it
+                        WatermarkService.detect_backfill_and_handle(
+                            session=db,
+                            business_id=business_id,
+                            source_id=source_id,
+                            transaction_dates=valid_tx_dates,
+                            job_id=job_id,
+                        )
+
+                        # If dataset explicitly includes a certified_complete_through date in schema_json:
+                        certified_raw = (dataset.schema_json or {}).get("certified_complete_through")
+                        if certified_raw:
+                            if isinstance(certified_raw, str):
+                                cert_dt = datetime.fromisoformat(certified_raw)
+                            elif isinstance(certified_raw, (datetime, date)):
+                                cert_dt = certified_raw
+                            else:
+                                cert_dt = None
+                            if cert_dt:
+                                WatermarkService.record_watermark(
+                                    session=db,
+                                    contract={
+                                        "business_id": business_id,
+                                        "source_id": source_id,
+                                        "complete_through_dt": cert_dt,
+                                        "provenance_type": "batch_file",
+                                        "ingestion_job_id": job_id,
+                                        "metadata_json": {
+                                            "dataset_id": dataset.id,
+                                            "filename": dataset.filename,
+                                            "records_persisted": records_inserted,
+                                        },
+                                    },
+                                )
+                    except Exception as wm_exc:  # noqa: BLE001
+                        logger.debug("Watermark lifecycle evaluation notice: %s", wm_exc)
+
             # Update dataset metadata with new dict copy and flag_modified
             schema_copy = dict(dataset.schema_json or {})
             schema_copy["ingestion_status"] = "COMPLETED"

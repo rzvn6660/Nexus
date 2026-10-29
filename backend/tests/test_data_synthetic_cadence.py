@@ -21,19 +21,12 @@ def test_cadence_generator_reproducibility():
     gen2 = CadenceValidationDatasetGenerator(seed=123)
     data2 = gen2.generate(CadenceGeneratorConfig(seed=123, num_customers=30, end_date=date(2023, 6, 30)))
 
-    assert len(data1["customers"]) == len(data2["customers"])
-    assert len(data1["sales"]) == len(data2["sales"])
-    assert len(data1["sale_items"]) == len(data2["sale_items"])
+    assert data1 == data2
 
-    for c1, c2 in zip(data1["customers"], data2["customers"]):
-        assert c1["customer_code"] == c2["customer_code"]
-        assert c1["acquisition_date"] == c2["acquisition_date"]
-
-    for s1, s2 in zip(data1["sales"], data2["sales"]):
-        assert s1["transaction_number"] == s2["transaction_number"]
-        assert s1["transaction_date"] == s2["transaction_date"]
-        assert s1["created_at"] == s2["created_at"]
-        assert s1["total_amount"] == s2["total_amount"]
+    # Also verify scenario helper produces identical datasets under identical seed
+    scen1 = CadenceValidationDatasetGenerator.create_scenario("multi_customer_cadence_validation", seed=42)
+    scen2 = CadenceValidationDatasetGenerator.create_scenario("multi_customer_cadence_validation", seed=42)
+    assert scen1 == scen2
 
 
 def test_cadence_generator_different_seeds():
@@ -318,3 +311,75 @@ def test_robustness_seeds_multi_seed_generation():
         assert s in scenarios_by_seed
         assert len(scenarios_by_seed[s]["customers"]) == 80
         assert len(scenarios_by_seed[s]["sales"]) > 0
+
+
+def test_multi_customer_cadence_validation_scenario():
+    """Verify the 100-customer validation cohort exhibits the intended archetype mix and prefixes."""
+    ds = CadenceValidationDatasetGenerator.create_scenario(
+        "multi_customer_cadence_validation", seed=42
+    )
+
+    customers = ds["customers"]
+    sales = ds["sales"]
+    meta = ds["metadata"]
+
+    assert len(customers) == 100
+    assert meta["business_id"] == "biz-synth-val-phase1f"
+    assert meta["zero_purchase_buyers_count"] > 0
+    assert meta["one_time_buyers_count"] > 20
+
+    # Verify prefixes
+    for c in customers:
+        assert c["customer_code"].startswith("CUST-SYNTH-VAL-")
+        assert c["email"].endswith("@nexus-val-synth.io")
+
+    for s in sales:
+        assert s["transaction_number"].startswith("TXN-SYNTH-VAL-")
+
+    for p in ds["products"]:
+        assert p["sku"].startswith("SKU-VAL-")
+
+
+def test_load_into_session_collision_protection(db_session: Session):
+    """Verify load_into_session offsets IDs and prevents cross-tenant data overwrites."""
+    from app.models.customer import Customer
+    from app.models.tenant import Business, Organization
+
+    # 1. Pre-seed Tenant A with Customer ID 1
+    org_a = Organization(id="org-preexisting", name="Preexisting Org", slug="slug-preexisting")
+    biz_a = Business(id="biz-preexisting", organization_id="org-preexisting", name="Preexisting Biz")
+    cust_a = Customer(
+        id=1,
+        business_id="biz-preexisting",
+        customer_code="CUST-PREEXISTING-01",
+        name="Existing Customer",
+        email="existing@preexisting.io",
+        city="Denver",
+        customer_segment="Retail",
+        acquisition_date=date(2022, 1, 1),
+    )
+    db_session.add_all([org_a, biz_a, cust_a])
+    db_session.commit()
+
+    # 2. Generate and load Tenant B dataset starting at ID 1
+    ds_b = CadenceValidationDatasetGenerator.create_scenario(
+        "complete_pipeline", seed=99, num_customers=10
+    )
+    CadenceValidationDatasetGenerator.load_into_session(
+        session=db_session,
+        dataset=ds_b,
+        business_id="biz-tenant-b",
+        organization_id="org-tenant-b",
+    )
+
+    # 3. Verify Tenant A's customer 1 was NOT modified or overwritten
+    reloaded_a = db_session.get(Customer, 1)
+    assert reloaded_a is not None
+    assert reloaded_a.business_id == "biz-preexisting"
+    assert reloaded_a.customer_code == "CUST-PREEXISTING-01"
+
+    # 4. Verify Tenant B's customers were safely offset
+    b_customers = db_session.query(Customer).filter_by(business_id="biz-tenant-b").all()
+    assert len(b_customers) == 10
+    for c in b_customers:
+        assert c.id > 1  # Offset past 1

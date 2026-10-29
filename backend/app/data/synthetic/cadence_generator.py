@@ -65,6 +65,17 @@ class CadenceGeneratorConfig(BaseModel):
     organization_id: str | None = Field(
         default="org-cadence-synth", description="Tenant organization ID."
     )
+    customer_id_start: int = Field(default=1, ge=1, description="Initial customer integer ID.")
+    sale_id_start: int = Field(default=1, ge=1, description="Initial sale integer ID.")
+    product_id_start: int = Field(default=1, ge=1, description="Initial product integer ID.")
+    sale_item_id_start: int = Field(default=1, ge=1, description="Initial sale item integer ID.")
+    customer_code_prefix: str = Field(default="CUST-SYNTH", description="Prefix for customer codes.")
+    transaction_prefix: str = Field(default="TXN-SYNTH", description="Prefix for transaction numbers.")
+    sku_prefix: str = Field(default="SKU", description="Prefix for product SKUs.")
+    email_domain: str = Field(default="nexus-cadence-test.io", description="Email domain for synthetic customers.")
+    zero_purchase_pct: float = Field(
+        default=0.0, ge=0.0, le=0.5, description="Proportion of registered customers who make 0 purchases."
+    )
     one_time_buyer_pct: float = Field(
         default=0.45,
         ge=0.0,
@@ -161,13 +172,17 @@ class CadenceValidationDatasetGenerator:
             cid = s["customer_id"]
             cust_order_counts[cid] = cust_order_counts.get(cid, 0) + 1
         one_time_count = sum(1 for c in customers if cust_order_counts.get(c["id"], 0) == 1)
+        zero_count = sum(1 for c in customers if cust_order_counts.get(c["id"], 0) == 0)
         actual_one_time_share = round(one_time_count / n_cust, 4) if n_cust > 0 else 0.0
 
         metadata = {
             "seed": cfg.seed,
+            "business_id": cfg.business_id,
+            "organization_id": cfg.organization_id,
             "total_customers": n_cust,
             "total_sales": len(sales),
             "total_sale_items": len(sale_items),
+            "zero_purchase_buyers_count": zero_count,
             "one_time_buyers_count": one_time_count,
             "one_time_buyers_share": actual_one_time_share,
             "archetype_distribution": archetype_counts,
@@ -188,8 +203,8 @@ class CadenceValidationDatasetGenerator:
     def _generate_products(self, cfg: CadenceGeneratorConfig) -> list[dict[str, Any]]:
         """Generate a small, consistent product catalog."""
         products = []
-        p_id = 1
-        now_utc = datetime.now(UTC)
+        p_id = cfg.product_id_start
+        prod_base_dt = datetime.combine(cfg.start_date, datetime.min.time(), tzinfo=UTC)
 
         for cat_name, cat_info in SYNTH_CATEGORIES.items():
             for subcat in cat_info["subcategories"]:
@@ -203,15 +218,15 @@ class CadenceValidationDatasetGenerator:
                 products.append({
                     "id": p_id,
                     "business_id": cfg.business_id,
-                    "sku": f"SKU-{cat_name[:3].upper()}-{p_id:04d}",
+                    "sku": f"{cfg.sku_prefix}-{cat_name[:3].upper()}-{p_id:04d}",
                     "name": f"Pro {subcat} Unit #{p_id}",
                     "category": cat_name,
                     "subcategory": subcat,
                     "unit_cost": _quantize_currency(cost),
                     "selling_price": _quantize_currency(price),
                     "active": True,
-                    "created_at": now_utc,
-                    "updated_at": now_utc,
+                    "created_at": prod_base_dt,
+                    "updated_at": prod_base_dt,
                 })
                 p_id += 1
 
@@ -224,7 +239,6 @@ class CadenceValidationDatasetGenerator:
         customers = []
         customer_archetypes: dict[int, CustomerBehaviorArchetype] = {}
         total_days = max(1, (cfg.end_date - cfg.start_date).days)
-        now_utc = datetime.now(UTC)
 
         segment_names, segment_weights, _, _ = zip(*SEGMENT_PROFILES)
 
@@ -251,32 +265,36 @@ class CadenceValidationDatasetGenerator:
         w_sum = sum(arch_weights)
         norm_arch_weights = [w / w_sum for w in arch_weights]
 
-        for i in range(1, cfg.num_customers + 1):
+        for idx in range(cfg.num_customers):
+            i = cfg.customer_id_start + idx
             segment = self.rng.choices(segment_names, weights=segment_weights, k=1)[0]
             archetype = self.rng.choices(arch_enums, weights=norm_arch_weights, k=1)[0]
 
             # Acquisition date distribution:
             if archetype == CustomerBehaviorArchetype.NEWLY_ACQUIRED:
                 # Acquired in the final 45 days of observation window
-                acq_offset = max(0, total_days - self.rng.randint(5, 45))
+                max_days = max(5, min(45, total_days))
+                min_days = min(5, max_days)
+                acq_offset = max(0, total_days - self.rng.randint(min_days, max_days))
             else:
                 # Triangularly distributed earlier in history
                 acq_offset = int(self.rng.triangular(0, total_days, total_days * 0.25))
 
             acq_date = min(cfg.start_date + timedelta(days=acq_offset), cfg.end_date)
 
+            cust_dt = datetime.combine(acq_date, datetime.min.time(), tzinfo=UTC)
             c_dict = {
                 "id": i,
                 "business_id": cfg.business_id,
-                "customer_code": f"CUST-SYNTH-{i:05d}",
+                "customer_code": f"{cfg.customer_code_prefix}-{i:05d}",
                 "name": f"Customer {i} ({archetype.value})",
-                "email": f"cust_{i}@nexus-cadence-test.io",
+                "email": f"cust_{i}@{cfg.email_domain}",
                 "phone": f"+1-555-{i:04d}",
                 "city": self.rng.choice(["Seattle", "Portland", "Chicago", "Denver", "Austin"]),
                 "customer_segment": segment,
                 "acquisition_date": acq_date,
-                "created_at": datetime.combine(acq_date, datetime.min.time(), tzinfo=UTC),
-                "updated_at": now_utc,
+                "created_at": cust_dt,
+                "updated_at": cust_dt,
             }
             customers.append(c_dict)
             customer_archetypes[i] = archetype
@@ -295,9 +313,15 @@ class CadenceValidationDatasetGenerator:
         """
         sales: list[dict[str, Any]] = []
         sale_items: list[dict[str, Any]] = []
-        sale_id = 1
-        item_id = 1
-        now_utc = datetime.now(UTC)
+        sale_id = cfg.sale_id_start
+        item_id = cfg.sale_item_id_start
+
+        # Select zero-purchase customers if configured
+        zero_cust_ids: set[int] = set()
+        if cfg.zero_purchase_pct > 0.0 and customers:
+            num_zero = round(len(customers) * cfg.zero_purchase_pct)
+            if num_zero > 0:
+                zero_cust_ids = set(self.rng.sample([c["id"] for c in customers], k=num_zero))
 
         segment_rules = {name: (items_rng, qty_rng) for name, _, items_rng, qty_rng in SEGMENT_PROFILES}
 
@@ -315,6 +339,10 @@ class CadenceValidationDatasetGenerator:
 
         for cust in customers:
             c_id = cust["id"]
+            if c_id in zero_cust_ids:
+                # Registered customer with no purchases
+                continue
+
             c_seg = cust["customer_segment"]
             c_acq = cust["acquisition_date"]
             archetype = customer_archetypes[c_id]
@@ -436,7 +464,7 @@ class CadenceValidationDatasetGenerator:
                         "discount_amount": line_disc,
                         "line_total": line_tot,
                         "created_at": ingest_dt,
-                        "updated_at": now_utc,
+                        "updated_at": ingest_dt,
                     })
                     item_id += 1
 
@@ -447,7 +475,7 @@ class CadenceValidationDatasetGenerator:
                 sales.append({
                     "id": sale_id,
                     "business_id": cfg.business_id,
-                    "transaction_number": f"TXN-SYNTH-{sale_id:07d}",
+                    "transaction_number": f"{cfg.transaction_prefix}-{sale_id:07d}",
                     "customer_id": c_id,
                     "transaction_date": o_dt,
                     "status": status,
@@ -456,7 +484,7 @@ class CadenceValidationDatasetGenerator:
                     "tax_amount": tax_amt,
                     "total_amount": tot_amt,
                     "created_at": ingest_dt,
-                    "updated_at": now_utc,
+                    "updated_at": ingest_dt,
                 })
                 sale_items.extend(sale_items_local)
                 sale_id += 1
@@ -480,6 +508,63 @@ class CadenceValidationDatasetGenerator:
         """
         biz_id = business_id or dataset["metadata"].get("business_id") or "biz-cadence-synth"
         org_id = organization_id or "org-cadence-synth"
+
+        # Check existing database max IDs to prevent primary key collisions with existing tenants
+        from sqlalchemy import func, select
+
+        db_max_cust = session.execute(select(func.coalesce(func.max(Customer.id), 0))).scalar() or 0
+        db_max_prod = session.execute(select(func.coalesce(func.max(Product.id), 0))).scalar() or 0
+        db_max_sale = session.execute(select(func.coalesce(func.max(Sale.id), 0))).scalar() or 0
+        db_max_item = session.execute(select(func.coalesce(func.max(SaleItem.id), 0))).scalar() or 0
+
+        # Check if dataset IDs collide with existing records from other businesses
+        cust_ids = [c["id"] for c in dataset["customers"]]
+        collision_cust = session.execute(
+            select(Customer.id).where(Customer.id.in_(cust_ids[:20]), Customer.business_id != biz_id).limit(1)
+        ).scalar_one_or_none() if cust_ids else None
+
+        cust_offset = db_max_cust if collision_cust is not None else 0
+        prod_offset = db_max_prod if collision_cust is not None else 0
+        sale_offset = db_max_sale if collision_cust is not None else 0
+        item_offset = db_max_item if collision_cust is not None else 0
+
+        if cust_offset > 0:
+            for c in dataset["customers"]:
+                c["id"] += cust_offset
+            for s in dataset["sales"]:
+                s["customer_id"] += cust_offset
+
+        if prod_offset > 0:
+            for p in dataset["products"]:
+                p["id"] += prod_offset
+            for it in dataset["sale_items"]:
+                it["product_id"] += prod_offset
+
+        if sale_offset > 0:
+            for s in dataset["sales"]:
+                s["id"] += sale_offset
+            for it in dataset["sale_items"]:
+                it["sale_id"] += sale_offset
+
+        if item_offset > 0:
+            for it in dataset["sale_items"]:
+                it["id"] += item_offset
+
+        # Check for cross-tenant SKU collisions
+        for p in dataset["products"]:
+            existing_prod = session.execute(
+                select(Product.business_id).where(Product.sku == p["sku"]).limit(1)
+            ).scalar_one_or_none()
+            if existing_prod is not None and existing_prod != biz_id:
+                p["sku"] = f"{biz_id[:8].upper()}-{p['sku']}"
+
+        # Check for cross-tenant transaction_number collisions
+        for s in dataset["sales"]:
+            existing_sale = session.execute(
+                select(Sale.business_id).where(Sale.transaction_number == s["transaction_number"]).limit(1)
+            ).scalar_one_or_none()
+            if existing_sale is not None and existing_sale != biz_id:
+                s["transaction_number"] = f"{biz_id[:8].upper()}-{s['transaction_number']}"
 
         # 1. Ensure Organization and Business exist
         org = session.get(Organization, org_id)
@@ -622,42 +707,43 @@ class CadenceValidationDatasetGenerator:
         """
         gen = cls(seed=seed)
 
+        def _make_cfg(defaults: dict[str, Any]) -> CadenceGeneratorConfig:
+            merged = {**defaults, **overrides}
+            return CadenceGeneratorConfig(**merged)
+
         if scenario_name == "complete_pipeline":
-            cfg = CadenceGeneratorConfig(
-                seed=seed,
-                num_customers=150,
-                start_date=date(2022, 1, 1),
-                end_date=date(2023, 12, 31),
-                one_time_buyer_pct=0.40,
-                mean_ingestion_delay_days=1.5,
-                **overrides,
-            )
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 150,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 12, 31),
+                "one_time_buyer_pct": 0.40,
+                "mean_ingestion_delay_days": 1.5,
+            })
             return gen.generate(cfg)
 
         elif scenario_name == "delayed_ingestion_valid_watermark":
             # Orders occur up to Dec 31, 2023; pipeline has higher mean delay (4d)
-            cfg = CadenceGeneratorConfig(
-                seed=seed,
-                num_customers=120,
-                start_date=date(2022, 1, 1),
-                end_date=date(2023, 12, 31),
-                mean_ingestion_delay_days=4.0,
-                tail_delay_prob=0.10,
-                **overrides,
-            )
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 120,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 12, 31),
+                "mean_ingestion_delay_days": 4.0,
+                "tail_delay_prob": 0.10,
+            })
             ds = gen.generate(cfg)
             ds["metadata"]["ingestion_watermark"] = datetime(2023, 12, 31, 23, 59, tzinfo=UTC).isoformat()
             return ds
 
         elif scenario_name == "incomplete_future_followup":
             # Dataset terminates early (e.g. March 15, 2023), so evaluating a cutoff at March 1 with 60d horizon is right-censored
-            cfg = CadenceGeneratorConfig(
-                seed=seed,
-                num_customers=80,
-                start_date=date(2022, 1, 1),
-                end_date=date(2023, 3, 15),
-                **overrides,
-            )
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 80,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 3, 15),
+            })
             return gen.generate(cfg)
 
         elif scenario_name == "seasonal_active":
@@ -668,15 +754,14 @@ class CadenceValidationDatasetGenerator:
                 CustomerBehaviorArchetype.REGULAR_REPEAT: 0.20,
                 CustomerBehaviorArchetype.FREQUENT_REPLENISHMENT: 0.10,
             }
-            cfg = CadenceGeneratorConfig(
-                seed=seed,
-                num_customers=100,
-                start_date=date(2022, 1, 1),
-                end_date=date(2023, 12, 31),
-                one_time_buyer_pct=0.20,
-                archetype_weights=weights,
-                **overrides,
-            )
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 100,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 12, 31),
+                "one_time_buyer_pct": 0.20,
+                "archetype_weights": weights,
+            })
             return gen.generate(cfg)
 
         elif scenario_name == "long_cycle_short_horizon":
@@ -687,15 +772,14 @@ class CadenceValidationDatasetGenerator:
                 CustomerBehaviorArchetype.REGULAR_REPEAT: 0.20,
                 CustomerBehaviorArchetype.LONG_INTERVAL_ACTIVE: 0.15,
             }
-            cfg = CadenceGeneratorConfig(
-                seed=seed,
-                num_customers=100,
-                start_date=date(2022, 1, 1),
-                end_date=date(2023, 12, 31),
-                one_time_buyer_pct=0.15,
-                archetype_weights=weights,
-                **overrides,
-            )
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 100,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 12, 31),
+                "one_time_buyer_pct": 0.15,
+                "archetype_weights": weights,
+            })
             return gen.generate(cfg)
 
         elif scenario_name == "high_recency":
@@ -705,15 +789,14 @@ class CadenceValidationDatasetGenerator:
                 CustomerBehaviorArchetype.CHURNING_DROPOUT: 0.25,
                 CustomerBehaviorArchetype.REGULAR_REPEAT: 0.10,
             }
-            cfg = CadenceGeneratorConfig(
-                seed=seed,
-                num_customers=120,
-                start_date=date(2022, 1, 1),
-                end_date=date(2023, 12, 31),
-                one_time_buyer_pct=0.65,
-                archetype_weights=weights,
-                **overrides,
-            )
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 120,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 12, 31),
+                "one_time_buyer_pct": 0.65,
+                "archetype_weights": weights,
+            })
             return gen.generate(cfg)
 
         elif scenario_name == "irregular_purchasers":
@@ -723,27 +806,25 @@ class CadenceValidationDatasetGenerator:
                 CustomerBehaviorArchetype.ONE_TIME: 0.30,
                 CustomerBehaviorArchetype.REGULAR_REPEAT: 0.20,
             }
-            cfg = CadenceGeneratorConfig(
-                seed=seed,
-                num_customers=100,
-                start_date=date(2022, 1, 1),
-                end_date=date(2023, 12, 31),
-                one_time_buyer_pct=0.30,
-                archetype_weights=weights,
-                **overrides,
-            )
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 100,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 12, 31),
+                "one_time_buyer_pct": 0.30,
+                "archetype_weights": weights,
+            })
             return gen.generate(cfg)
 
         elif scenario_name == "sparse_segments":
             # Small total customer base to test segment fallback thresholds
-            cfg = CadenceGeneratorConfig(
-                seed=seed,
-                num_customers=15,
-                start_date=date(2022, 1, 1),
-                end_date=date(2023, 6, 30),
-                one_time_buyer_pct=0.30,
-                **overrides,
-            )
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 15,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 6, 30),
+                "one_time_buyer_pct": 0.30,
+            })
             return gen.generate(cfg)
 
         elif scenario_name == "cross_tenant":
@@ -816,6 +897,34 @@ class CadenceValidationDatasetGenerator:
                 "scenarios_by_seed": multi_ds,
                 "metadata": {"seeds": seeds, "num_customers_per_seed": 80},
             }
+
+        elif scenario_name == "multi_customer_cadence_validation":
+            # Representative 100-customer validation cohort across all behavioral archetypes (Phase 1F)
+            weights = {
+                CustomerBehaviorArchetype.ONE_TIME: 0.35,
+                CustomerBehaviorArchetype.REGULAR_REPEAT: 0.20,
+                CustomerBehaviorArchetype.FREQUENT_REPLENISHMENT: 0.15,
+                CustomerBehaviorArchetype.IRREGULAR: 0.10,
+                CustomerBehaviorArchetype.LONG_CYCLE: 0.08,
+                CustomerBehaviorArchetype.SEASONAL: 0.06,
+                CustomerBehaviorArchetype.CHURNING_DROPOUT: 0.06,
+            }
+            cfg = _make_cfg({
+                "seed": seed,
+                "num_customers": 100,
+                "start_date": date(2022, 1, 1),
+                "end_date": date(2023, 12, 31),
+                "one_time_buyer_pct": 0.35,
+                "archetype_weights": weights,
+                "customer_code_prefix": "CUST-SYNTH-VAL",
+                "transaction_prefix": "TXN-SYNTH-VAL",
+                "sku_prefix": "SKU-VAL",
+                "email_domain": "nexus-val-synth.io",
+                "business_id": "biz-synth-val-phase1f",
+                "organization_id": "org-synth-val-phase1f",
+                "zero_purchase_pct": 0.05,
+            })
+            return gen.generate(cfg)
 
         else:
             raise ValueError(f"Unknown scenario name: '{scenario_name}'")

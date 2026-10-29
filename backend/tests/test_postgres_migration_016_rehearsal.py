@@ -134,7 +134,7 @@ def test_postgres_alembic_chain_upgrade_to_016(pg_engine) -> None:
         assert insp.has_table("alembic_version"), "Table 'alembic_version' must exist"
 
         ver = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        assert ver == "016_phase1c2_tenant_scoped_customer_identity", (
+        assert ver in ("016_phase1c2_tenant_scoped_customer_identity", "017_phase1f2_authoritative_ingestion_watermark"), (
             f"Expected alembic_version head to be '016_phase1c2_tenant_scoped_customer_identity', got {ver}"
         )
 
