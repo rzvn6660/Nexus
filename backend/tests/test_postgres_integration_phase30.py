@@ -215,7 +215,7 @@ def test_pg_01_migration_and_pgvector_compatibility(pg_engine):
         # Verify Alembic head migration revision 015 or 016
         alembic_rev = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         assert alembic_rev is not None
-        assert alembic_rev in ("015_phase29_continuous_intelligence", "016_phase1c2_tenant_scoped_customer_identity")
+        assert alembic_rev in ("015_phase29_continuous_intelligence", "016_phase1c2_tenant_scoped_customer_identity", "017_phase1f2_authoritative_ingestion_watermark")
 
 
 def test_pg_02_failure_rollback_and_diagnostic_persistence(pg_client, pg_tenant, pg_session_factory):
