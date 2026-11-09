@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session, sessionmaker
 # Database URL pointing to live staging postgres container on localhost:5433 or DATABASE_URL
 STAGING_DB_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+psycopg://nexus_staging_user:2HdXqcozgE-bBa6LjY9Qd0fj9PDtEZMkTuvj1q6QCqU@localhost:5433/nexus_staging_db",
+    "postgresql+psycopg://nexus_staging_user:local_dev_password@localhost:5433/nexus_staging_db",
 )
 engine = create_engine(STAGING_DB_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

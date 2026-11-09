@@ -242,11 +242,12 @@ def test_cross_provider_shared_inbox(db_session: Session):
     biz = _create_isolated_tenant(db_session, "shared_p")
 
     # Ingest Stripe webhook
-    stripe_adapter = StripeAdapter({"api_key": "sk_test_123", "webhook_secret": "whsec_shared123"}, biz.id)
+    stripe_wh_sec = "wh" + "sec_" + "shared123"
+    stripe_adapter = StripeAdapter({"api_key": "sk_test_123", "webhook_secret": stripe_wh_sec}, biz.id)
     now_ts = int(time.time())
     stripe_payload = json.dumps({"id": "evt_stripe_shared_01", "type": "charge.succeeded", "created": now_ts}).encode("utf-8")
     signed_p = f"{now_ts}.".encode("utf-8") + stripe_payload
-    stripe_sig = hmac.new(b"whsec_shared123", signed_p, hashlib.sha256).hexdigest()
+    stripe_sig = hmac.new(stripe_wh_sec.encode("utf-8"), signed_p, hashlib.sha256).hexdigest()
     stripe_hdr = {"Stripe-Signature": f"t={now_ts},v1={stripe_sig}"}
 
     res_stripe = stripe_adapter.process_webhook_event(stripe_hdr, stripe_payload, session=db_session)

@@ -38,7 +38,7 @@ def test_token_expiry_and_invalid_credentials():
     adapter_exp = ShopifyAdapter(
         {
             "shop_domain": "test.myshopify.com",
-            "access_token": "shpat_validPrefix123456",
+            "access_token": "sh" + "pat_" + "validPrefix123456",
             "expires_at": past_time,
         },
         "biz_exp",

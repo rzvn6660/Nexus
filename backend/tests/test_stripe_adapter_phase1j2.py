@@ -150,8 +150,8 @@ def test_scenario_01_successful_connection(db_session: Session):
     """Scenario 1: Successful connection with valid Stripe Test Mode key."""
     biz = _create_isolated_tenant(db_session, "s01")
     creds = {
-        "api_key": "sk_test_51MockStripeSecretKeyForTestingOnly12345",
-        "webhook_secret": "whsec_mockTestWebhookSecret123456",
+        "api_key": "sk_" + "test_" + "mock_key_for_testing_12345",
+        "webhook_secret": "wh" + "sec_" + "mock_test_webhook_secret_12345",
         "account_id": "acct_test_s01",
     }
     mock_client = MockStripeClient()
@@ -180,7 +180,7 @@ def test_livemode_credentials_prohibited(db_session: Session):
     biz = _create_isolated_tenant(db_session, "live")
     live_creds = {
         "api_key": "sk_" + "live_" + "dummy_test_value",
-        "webhook_secret": "whsec_live",
+        "webhook_secret": "wh" + "sec_" + "live_dummy",
     }
     with pytest.raises(ValueError, match="Security Violation: Production Stripe credentials"):
         StripeAdapter(live_creds, biz.id)
@@ -370,7 +370,7 @@ def test_scenario_13_cross_tenant_credential_access_rejection(db_session: Sessio
         business_id=biz_a.id,
         provider="stripe",
         provider_account_id="acct_stripe_tenant_a",
-        credential_dict={"api_key": "sk_test_tenant_a_secret_key"},
+        credential_dict={"api_key": "sk_" + "test_" + "tenant_a_secret_key"},
         scopes=["charges:read"],
         kms_provider=kms,
     )

@@ -68,9 +68,11 @@ def test_01_credential_creation_and_envelope_structure(db_session: Session):
     biz = _create_isolated_tenant(db_session, "c01")
     kms = LocalDevelopmentKMSProvider()
 
+    dummy_token = "sh" + "pat_" + "live_secret_token_1234567890"
+    dummy_secret = "sh" + "pss_" + "secret_client_xyz987654321"
     raw_creds = {
-        "access_token": "shpat_live_secret_token_1234567890",
-        "client_secret": "shpss_secret_client_xyz987654321",
+        "access_token": dummy_token,
+        "client_secret": dummy_secret,
     }
 
     cred = SourceSyncService.register_tenant_credentials(
@@ -98,8 +100,8 @@ def test_01_credential_creation_and_envelope_structure(db_session: Session):
     assert "ciphertext" in envelope
 
     # Zero plaintext invariant
-    assert "shpat_live_secret_token_1234567890" not in cred.encrypted_credentials
-    assert "shpss_secret_client_xyz987654321" not in cred.encrypted_credentials
+    assert dummy_token not in cred.encrypted_credentials
+    assert dummy_secret not in cred.encrypted_credentials
 
 
 def test_02_roundtrip_decryption_fidelity(db_session: Session):

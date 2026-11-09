@@ -30,6 +30,7 @@ Executes non-mocked, adversarial concurrency and immutability tests against live
 
 import copy
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -58,8 +59,9 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-POSTGRES_STAGING_URL = (
-    "postgresql+psycopg://nexus_staging_user:2HdXqcozgE-bBa6LjY9Qd0fj9PDtEZMkTuvj1q6QCqU@127.0.0.1:5433/nexus_staging_db"
+POSTGRES_STAGING_URL = os.getenv(
+    "STAGING_DATABASE_URL",
+    os.getenv("DATABASE_URL", "postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:5433/nexus_staging_db"),
 )
 
 

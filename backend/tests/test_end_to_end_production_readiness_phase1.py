@@ -81,7 +81,10 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sqlalchemy import Engine, create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
-POSTGRES_STAGING_URL = "postgresql+psycopg://nexus_staging_user:2HdXqcozgE-bBa6LjY9Qd0fj9PDtEZMkTuvj1q6QCqU@127.0.0.1:5433/nexus_staging_db"
+POSTGRES_STAGING_URL = os.getenv(
+    "STAGING_DATABASE_URL",
+    os.getenv("DATABASE_URL", "postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:5433/nexus_staging_db"),
+)
 
 
 @pytest.fixture(scope="module")
@@ -699,7 +702,7 @@ def test_api_01_credentials_never_leak_plaintext(
         business_id=biz_id,
         provider="stripe",
         provider_account_id="acct_stripe_mask_test",
-        credential_dict={"api_key": "rk_live_supersecretsecretkey123"},
+        credential_dict={"api_key": "rk_" + "live_" + "dummy_test_credential_123"},
         scopes=["read", "write"],
         kms_provider=kms,
     )

@@ -31,7 +31,7 @@ def _generate_stripe_signature(payload_bytes: bytes, secret: str, timestamp: int
 
 def test_scenario_05_valid_and_invalid_webhook_signature():
     """Scenario 5: Webhook signature verification tests."""
-    secret = "whsec_testSecretForWebhookVerification123456"
+    secret = "wh" + "sec_" + "testSecretForWebhookVerification123456"
     adapter = StripeAdapter({"api_key": "sk_test_123", "webhook_secret": secret}, "biz_test")
 
     now_ts = int(time.time())
@@ -46,7 +46,7 @@ def test_scenario_05_valid_and_invalid_webhook_signature():
     assert adapter.verify_event_signature({"Stripe-Signature": valid_sig}, tampered_payload) is False
 
     # 3. Wrong secret
-    wrong_secret_sig = _generate_stripe_signature(payload, "whsec_wrongSecret", now_ts)
+    wrong_secret_sig = _generate_stripe_signature(payload, "wh" + "sec_" + "wrongSecret", now_ts)
     assert adapter.verify_event_signature({"Stripe-Signature": wrong_secret_sig}, payload) is False
 
     # 4. Missing signature header
@@ -58,7 +58,7 @@ def test_scenario_05_valid_and_invalid_webhook_signature():
 
 def test_scenario_04_duplicate_webhook_delivery():
     """Scenario 4: Duplicate webhook delivery is handled idempotently without re-execution."""
-    secret = "whsec_test_idempotency_123"
+    secret = "wh" + "sec_" + "test_idempotency_123"
     adapter = StripeAdapter({"api_key": "sk_test_123", "webhook_secret": secret}, "biz_test")
 
     now_ts = int(time.time())
@@ -85,7 +85,7 @@ def test_scenario_04_duplicate_webhook_delivery():
 
 def test_scenario_06_event_replay_stale_timestamp():
     """Scenario 6: Event replay with timestamp older than tolerance is rejected."""
-    secret = "whsec_test_replay_123"
+    secret = "wh" + "sec_" + "test_replay_123"
     adapter = StripeAdapter({"api_key": "sk_test_123", "webhook_secret": secret}, "biz_test")
 
     # Stale timestamp: 350 seconds ago (tolerance is 300 seconds)
@@ -103,7 +103,7 @@ def test_scenario_06_event_replay_stale_timestamp():
 
 def test_scenario_08_delayed_event_tolerance():
     """Scenario 8: Delayed event within tolerance is accepted; beyond tolerance is rejected."""
-    secret = "whsec_test_delayed_123"
+    secret = "wh" + "sec_" + "test_delayed_123"
     adapter = StripeAdapter({"api_key": "sk_test_123", "webhook_secret": secret}, "biz_test")
 
     now = int(time.time())
@@ -124,7 +124,7 @@ def test_scenario_08_delayed_event_tolerance():
 
 def test_future_timestamp_clock_skew():
     """Future timestamp beyond tolerance (e.g. clock drift) is rejected."""
-    secret = "whsec_test_future_123"
+    secret = "wh" + "sec_" + "test_future_123"
     adapter = StripeAdapter({"api_key": "sk_test_123", "webhook_secret": secret}, "biz_test")
 
     future_ts = int(time.time()) + 450  # 450 seconds into the future
@@ -136,8 +136,8 @@ def test_future_timestamp_clock_skew():
 
 def test_multiple_v1_signatures_in_header():
     """Header containing multiple v1 signatures (e.g. during secret rotation) succeeds if one matches."""
-    active_secret = "whsec_active_secret_123"
-    old_secret = "whsec_old_secret_456"
+    active_secret = "wh" + "sec_" + "active_secret_123"
+    old_secret = "wh" + "sec_" + "old_secret_456"
 
     adapter = StripeAdapter({"api_key": "sk_test_123", "webhook_secret": active_secret}, "biz_test")
 

@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 STAGING_DB_URL = os.getenv(
     "STAGING_DATABASE_URL",
-    "postgresql+psycopg://nexus_staging_user:2HdXqcozgE-bBa6LjY9Qd0fj9PDtEZMkTuvj1q6QCqU@127.0.0.1:5433/nexus_staging_db",
+    os.getenv("DATABASE_URL", "postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:5433/nexus_staging_db"),
 )
 
 

@@ -15,6 +15,7 @@ Independently proves the 10 critical webhook inbox guarantees on live PostgreSQL
 """
 
 import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -27,8 +28,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 # Live PostgreSQL 16 staging database URI (psycopg v3 driver)
-POSTGRES_STAGING_URI = (
-    "postgresql+psycopg://nexus_staging_user:2HdXqcozgE-bBa6LjY9Qd0fj9PDtEZMkTuvj1q6QCqU@127.0.0.1:5433/nexus_staging_db"
+POSTGRES_STAGING_URI = os.getenv(
+    "STAGING_DATABASE_URL",
+    os.getenv("DATABASE_URL", "postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:5433/nexus_staging_db"),
 )
 
 

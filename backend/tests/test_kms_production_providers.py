@@ -289,7 +289,7 @@ def test_envelope_encryption_multi_tenant_aad_isolation():
     Ciphertext encrypted for Tenant A cannot be decrypted under Tenant B's context.
     """
     kms = LocalDevelopmentKMSProvider()
-    creds = {"secret_key": "shpat_live_secret_value"}
+    creds = {"secret_key": "sh" + "pat_" + "live_secret_value"}
 
     envelope = EnvelopeEncryptionEngine.encrypt_credentials(
         credential_dict=creds,

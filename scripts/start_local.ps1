@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # NEXUS — One-Command Zero-Cost Local Operations Startup Script (PowerShell)
 #
 # Launches the complete NEXUS platform locally with ₹0 budget:
@@ -26,7 +26,7 @@ Write-Host " Intelligence | Retention | Pulse" -ForegroundColor Cyan
 Write-Host "==================================================================" -ForegroundColor Cyan
 
 # 1. Check Docker Daemon
-Write-Host "`n[1/5] Checking Docker daemon status..." -ForegroundColor Yellow
+Write-Host "`n[1/6] Checking Docker daemon status..." -ForegroundColor Yellow
 try {
     $dockerInfo = docker info --format '{{.ServerVersion}}' 2>$null
     if (-not $dockerInfo) {
@@ -38,8 +38,27 @@ try {
     exit 1
 }
 
-# 2. Ensure Storage Directories Exist
-Write-Host "`n[2/5] Initializing local storage directories..." -ForegroundColor Yellow
+# 2. Verify Local Environment Configuration (.env)
+Write-Host "`n[2/6] Verifying local environment configuration (.env)..." -ForegroundColor Yellow
+if (-not (Test-Path ".env")) {
+    Write-Host "      Generating local .env from .env.zero_cost.template..." -ForegroundColor Gray
+    $pgPass = [System.Guid]::NewGuid().ToString("N")
+    $secKey = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+    $jwtSec = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+    $kmsKey = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+    $template = Get-Content ".env.zero_cost.template" -Raw
+    $envContent = $template -replace "GENERATE_LOCAL_POSTGRES_PASSWORD_MIN_16_CHARS", $pgPass `
+                            -replace "GENERATE_LOCAL_SECRET_KEY_MIN_32_CHARS", $secKey `
+                            -replace "GENERATE_LOCAL_JWT_SECRET_KEY_MIN_32_CHARS", $jwtSec `
+                            -replace "GENERATE_LOCAL_DEV_KMS_MASTER_KEY_256BITS", $kmsKey
+    Set-Content -Path ".env" -Value $envContent -Encoding utf8
+    Write-Host "      ✓ Created local .env with generated secrets (Git-ignored)." -ForegroundColor Green
+} else {
+    Write-Host "      ✓ Existing .env file verified." -ForegroundColor Green
+}
+
+# 3. Ensure Storage Directories Exist
+Write-Host "`n[3/6] Initializing local storage directories..." -ForegroundColor Yellow
 $storageDirs = @("./data/reports", "./data/uploads", "./backups/local")
 foreach ($dir in $storageDirs) {
     if (-not (Test-Path $dir)) {
@@ -49,8 +68,8 @@ foreach ($dir in $storageDirs) {
 }
 Write-Host "      ✓ Local storage paths verified." -ForegroundColor Green
 
-# 3. Launch Docker Compose Stack
-Write-Host "`n[3/5] Starting zero-cost infrastructure..." -ForegroundColor Yellow
+# 4. Launch Docker Compose Stack
+Write-Host "`n[4/6] Starting zero-cost infrastructure..." -ForegroundColor Yellow
 if ($Backing) {
     Write-Host "      Starting backing services: postgres, redis, mailpit..." -ForegroundColor Gray
     docker compose -f docker-compose.local.yml up -d postgres redis mailpit
@@ -59,8 +78,8 @@ if ($Backing) {
     docker compose -f docker-compose.local.yml up -d
 }
 
-# 4. Wait for Health Probes
-Write-Host "`n[4/5] Waiting for health status..." -ForegroundColor Yellow
+# 5. Wait for Health Probes
+Write-Host "`n[5/6] Waiting for health status..." -ForegroundColor Yellow
 $maxAttempts = 30
 $attempt = 0
 $dbHealthy = $false
@@ -84,7 +103,7 @@ if ($dbHealthy) {
     Write-Host " [WARNING] PostgreSQL is still initializing. Check logs via: docker logs nexus_postgres_local" -ForegroundColor Yellow
 }
 
-# 5. Optional Demo Seeder
+# 6. Optional Demo Seeder
 if ($SeedDemo) {
     Write-Host "`n[Optional] Seeding demo retail organization and dataset..." -ForegroundColor Yellow
     python scripts/seed_demo_business.py --confirm-disposable --owner-email demo.owner@nexus.local --owner-password Password123!

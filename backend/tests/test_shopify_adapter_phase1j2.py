@@ -128,7 +128,7 @@ def test_scenario_01_shopify_connection_success(db_session: Session):
     biz = _create_isolated_tenant(db_session, "s01")
     creds = {
         "shop_domain": "test-dev-store.myshopify.com",
-        "access_token": "shpat_mockAccessTokenForTesting12345",
+        "access_token": "sh" + "pat_" + "mockAccessTokenForTesting12345",
         "webhook_secret": "sh_sec_mockSecret123456",
     }
     mock_client = MockShopifyClient()

@@ -42,7 +42,7 @@ services:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-nexus_staging_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-2HdXqcozgE-bBa6LjY9Qd0fj9PDtEZMkTuvj1q6QCqU}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD must be configured in .env}
       POSTGRES_DB: ${POSTGRES_DB:-nexus_staging_db}
     volumes:
       - nexus_postgres_staging_data:/var/lib/postgresql/data
@@ -118,7 +118,7 @@ services:
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     environment:
-      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:-2HdXqcozgE-bBa6LjY9Qd0fj9PDtEZMkTuvj1q6QCqU}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD must be configured in .env}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}
       - REDIS_URL=redis://redis:6379/0
       - REDIS_FAIL_CLOSED=true
       - SMTP_HOST=mailpit
@@ -133,12 +133,12 @@ services:
       - DEFAULT_LLM_PROVIDER=mock
       - EMBEDDING_PROVIDER=mock
       - NEXUS_KMS_PROVIDER=local
-      - NEXUS_DEV_KMS_MASTER_KEY=nexus_local_zero_cost_master_key_256bits
+      - NEXUS_DEV_KMS_MASTER_KEY=${NEXUS_DEV_KMS_MASTER_KEY:-}
       - BACKEND_HOST=0.0.0.0
       - BACKEND_PORT=8000
       - BACKEND_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173
-      - SECRET_KEY=${SECRET_KEY:-8770fc3fa2e8bab6315aa3c7b79ed8d16506eb422c665c6f4327bcd1803f0317}
-      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-5e8f17a0326f24f7707e81600d99a257e3653afc9f363227998db89617159e42}
+      - SECRET_KEY=${SECRET_KEY:?Error: SECRET_KEY must be configured in .env}
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:?Error: AUTH_JWT_SECRET must be configured in .env}
       - CONTINUOUS_SCHEDULER_AUTOSTART=false
       - WEB_CONCURRENCY=2
       - DATA_UPLOAD_MAX_MEMORY_SIZE_MB=50
@@ -172,7 +172,7 @@ services:
     stop_grace_period: 30s
     command: ["python", "-m", "app.scheduler_runner"]
     environment:
-      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:-2HdXqcozgE-bBa6LjY9Qd0fj9PDtEZMkTuvj1q6QCqU}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-nexus_staging_user}:${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD must be configured in .env}@postgres:5432/${POSTGRES_DB:-nexus_staging_db}
       - REDIS_URL=redis://redis:6379/0
       - REDIS_FAIL_CLOSED=true
       - SMTP_HOST=mailpit
@@ -187,12 +187,12 @@ services:
       - DEFAULT_LLM_PROVIDER=mock
       - EMBEDDING_PROVIDER=mock
       - NEXUS_KMS_PROVIDER=local
-      - NEXUS_DEV_KMS_MASTER_KEY=nexus_local_zero_cost_master_key_256bits
+      - NEXUS_DEV_KMS_MASTER_KEY=${NEXUS_DEV_KMS_MASTER_KEY:-}
       - CONTINUOUS_SCHEDULER_ENABLED=true
       - CONTINUOUS_SCHEDULER_AUTOSTART=false
       - CONTINUOUS_SCHEDULER_INTERVAL_SECONDS=60
-      - SECRET_KEY=${SECRET_KEY:-8770fc3fa2e8bab6315aa3c7b79ed8d16506eb422c665c6f4327bcd1803f0317}
-      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-5e8f17a0326f24f7707e81600d99a257e3653afc9f363227998db89617159e42}
+      - SECRET_KEY=${SECRET_KEY:?Error: SECRET_KEY must be configured in .env}
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:?Error: AUTH_JWT_SECRET must be configured in .env}
     depends_on:
       postgres:
         condition: service_healthy
