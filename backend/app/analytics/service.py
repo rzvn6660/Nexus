@@ -1,7 +1,8 @@
 """Core Analytics Service Layer facade coordinating deterministic queries, metrics, and evidence generation."""
 
+from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Literal
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import Session
 from app.models.sale import Sale
@@ -57,6 +58,25 @@ from app.analytics.customer.cohorts import (
 from app.analytics.customer.repeat_purchase import (
     RepeatPurchaseAnalyzer,
 )
+from app.analytics.customer.cadence import (
+    CadenceConfig,
+    CustomerCadenceSummary,
+)
+from app.analytics.customer.safety import (
+    CadenceSafetyGate,
+    CadenceSafetyVerdict,
+)
+from app.analytics.customer.retention import CustomerRetentionService
+from app.schemas.retention import (
+    CustomerRetentionRecommendation,
+    CustomerRiskDetail,
+    RetentionActionType,
+    RetentionCustomerFilter,
+    RetentionCustomerListResponse,
+    RetentionOutcomeEvaluation,
+    RetentionOverview,
+)
+from app.models.history import DecisionRecord
 from app.analytics.inventory.stock import (
     InventoryStockAnalyzer,
     InventoryOverviewResult,
@@ -407,6 +427,301 @@ class AnalyticsService:
             })
         )
         return result, builder.build()
+
+    def get_customer_cadence_analysis(
+        self,
+        context: Optional[AnalysisContext] = None,
+        as_of_date: Optional[datetime] = None,
+        config: Optional[CadenceConfig] = None,
+        required_sources: Optional[List[str]] = None,
+        max_staleness_days: Optional[int] = 90,
+        seasonal_context: Optional[str] = None,
+        min_repeat_buyers: int = 30,
+    ) -> Tuple[CustomerCadenceSummary, CadenceSafetyVerdict, EvidenceRecord]:
+        """Evaluate customer purchase cadence and heuristic inactivity risk with safety gates."""
+        context = self._ensure_context(context)
+        biz_id = context.business_id if context else self.business_id
+        if not biz_id:
+            raise ValueError("business_id is required for customer cadence analysis")
+
+        cutoff = as_of_date or (context.date_to if context else None)
+
+        summary, verdict = CadenceSafetyGate.evaluate_customer_cadence_with_safety(
+            session=self.session,
+            business_id=biz_id,
+            as_of_date=cutoff,
+            config=config,
+            required_sources=required_sources,
+            max_staleness_days=max_staleness_days,
+            seasonal_context=seasonal_context,
+            min_repeat_buyers=min_repeat_buyers,
+        )
+
+        builder = (
+            EvidenceBuilder.create("customer_cadence_analysis", context)
+            .with_sources(
+                ["customers", "sales", "tenant_ingestion_watermarks"],
+                ["id", "customer_id", "transaction_date", "complete_through_dt", "verification_status"],
+            )
+            .with_calculation(summary.methodology)
+            .with_limitations(summary.limitations)
+            .with_result_summary({
+                "as_of_date": summary.as_of_date,
+                "is_actionable": verdict.is_actionable,
+                "eligibility_status": verdict.eligibility_status.value,
+                "safety_reason_code": verdict.reason_code.value,
+                "total_customers_evaluated": summary.total_customers_evaluated,
+                "customers_scored": summary.customers_scored,
+                "repeat_buyers_count": summary.repeat_buyers_count,
+                "insufficient_history_count": summary.insufficient_history_count,
+                "risk_tier_counts": summary.risk_tier_counts,
+                "has_seasonal_caution": verdict.seasonal_disclosure.has_seasonal_caution,
+            })
+        )
+        return summary, verdict, builder.build()
+
+    def get_retention_overview(
+        self,
+        context: Optional[AnalysisContext] = None,
+        as_of_date: Optional[datetime] = None,
+        cadence_config: Optional[CadenceConfig] = None,
+        required_sources: Optional[List[str]] = None,
+        max_staleness_days: Optional[int] = 90,
+        seasonal_context: Optional[str] = None,
+    ) -> Tuple[RetentionOverview, EvidenceRecord]:
+        """Compute executive and operational customer retention overview with safety gates."""
+        context = self._ensure_context(context)
+        biz_id = context.business_id if context else self.business_id
+        if not biz_id:
+            raise ValueError("business_id is required for customer retention overview")
+
+        cutoff = as_of_date or (context.date_to if context else None)
+        overview = CustomerRetentionService.get_retention_overview(
+            session=self.session,
+            business_id=biz_id,
+            as_of_date=cutoff,
+            cadence_config=cadence_config,
+            required_sources=required_sources,
+            max_staleness_days=max_staleness_days,
+            seasonal_context=seasonal_context,
+        )
+
+        builder = (
+            EvidenceBuilder.create("customer_retention_overview", context)
+            .with_sources(
+                ["customers", "sales", "tenant_ingestion_watermarks"],
+                ["id", "customer_id", "total_amount", "transaction_date", "complete_through_dt"],
+            )
+            .with_calculation("Aggregated customer churn risk, revenue at risk, and actionable intervention urgency.")
+            .with_limitations(overview.limitations)
+            .with_result_summary({
+                "as_of_date": overview.as_of_date,
+                "total_customers_evaluated": overview.total_customers_evaluated,
+                "revenue_at_risk_usd": overview.total_revenue_at_risk_usd,
+                "attention_count": overview.customers_requiring_attention_count,
+                "is_actionable": overview.safety_verdict.is_actionable,
+            })
+        )
+        return overview, builder.build()
+
+    def list_customers_at_risk(
+        self,
+        context: Optional[AnalysisContext] = None,
+        filters: Optional[RetentionCustomerFilter] = None,
+        as_of_date: Optional[datetime] = None,
+        cadence_config: Optional[CadenceConfig] = None,
+    ) -> Tuple[RetentionCustomerListResponse, EvidenceRecord]:
+        """List and prioritize customers at risk of churn with contextual retention recommendations."""
+        context = self._ensure_context(context)
+        biz_id = context.business_id if context else self.business_id
+        if not biz_id:
+            raise ValueError("business_id is required for listing customers at risk")
+
+        cutoff = as_of_date or (context.date_to if context else None)
+        data = CustomerRetentionService.list_customers_at_risk(
+            session=self.session,
+            business_id=biz_id,
+            filters=filters,
+            as_of_date=cutoff,
+            cadence_config=cadence_config,
+        )
+
+        builder = (
+            EvidenceBuilder.create("customer_retention_list", context)
+            .with_sources(
+                ["customers", "sales", "decision_records"],
+                ["id", "customer_code", "transaction_date", "status"],
+            )
+            .with_calculation("Filtered and prioritized customers by purchase cadence ratio, urgency, and lifetime value.")
+            .with_result_summary({
+                "total_count": data.total_count,
+                "page": data.page,
+                "page_size": data.page_size,
+                "items_returned": len(data.items),
+            })
+        )
+        return data, builder.build()
+
+    def get_customer_risk_detail(
+        self,
+        customer_id: int,
+        context: Optional[AnalysisContext] = None,
+        as_of_date: Optional[datetime] = None,
+        cadence_config: Optional[CadenceConfig] = None,
+    ) -> Tuple[CustomerRiskDetail, EvidenceRecord]:
+        """Retrieve deep-dive risk telemetry, cadence trend, and prescriptive retention action for a customer."""
+        context = self._ensure_context(context)
+        biz_id = context.business_id if context else self.business_id
+        if not biz_id:
+            raise ValueError("business_id is required for customer risk detail")
+
+        cutoff = as_of_date or (context.date_to if context else None)
+        detail = CustomerRetentionService.get_customer_risk_detail(
+            session=self.session,
+            business_id=biz_id,
+            customer_id=customer_id,
+            as_of_date=cutoff,
+            cadence_config=cadence_config,
+        )
+
+        builder = (
+            EvidenceBuilder.create("customer_risk_detail", context)
+            .with_sources(
+                ["customers", "sales", "sale_items", "products", "decision_records", "decision_audit_events"],
+                ["id", "customer_id", "transaction_date", "total_amount", "category"],
+            )
+            .with_calculation("Evaluated individual customer purchase interval progression, spend trajectory, and retention proposal.")
+            .with_result_summary({
+                "customer_code": detail.customer_code,
+                "risk_tier": detail.risk_tier.value,
+                "urgency": detail.urgency.value,
+                "cadence_ratio": detail.cadence_ratio,
+                "recommended_action": detail.recommended_action.action_type.value if detail.recommended_action else None,
+            })
+        )
+        return detail, builder.build()
+
+    def create_retention_decision(
+        self,
+        customer_id: int,
+        action_type: Optional[RetentionActionType] = None,
+        custom_notes: Optional[str] = None,
+        current_user: Optional[Any] = None,
+    ) -> DecisionRecord:
+        """Register a retention recommendation in the HITL DecisionRecord ledger."""
+        if not self.business_id:
+            raise ValueError("business_id is required for creating retention decision")
+        return CustomerRetentionService.create_retention_decision(
+            session=self.session,
+            business_id=self.business_id,
+            customer_id=customer_id,
+            action_type=action_type,
+            custom_notes=custom_notes,
+            current_user=current_user,
+        )
+
+    def review_retention_decision(
+        self,
+        decision_id: int,
+        status: Literal["APPROVED", "REJECTED", "MODIFIED", "DEFERRED"],
+        reviewer_id: str,
+        reviewer_notes: Optional[str] = None,
+        modified_action_type: Optional[RetentionActionType] = None,
+    ) -> DecisionRecord:
+        """Record merchant review of a retention decision."""
+        if not self.business_id:
+            raise ValueError("business_id is required for reviewing retention decision")
+        return CustomerRetentionService.review_retention_decision(
+            session=self.session,
+            business_id=self.business_id,
+            decision_id=decision_id,
+            status=status,
+            reviewer_id=reviewer_id,
+            reviewer_notes=reviewer_notes,
+            modified_action_type=modified_action_type,
+        )
+
+    def execute_retention_action(
+        self,
+        decision_id: int,
+        execution_channel: str,
+        executed_by: str,
+        execution_notes: Optional[str] = None,
+        offer_code: Optional[str] = None,
+        execution_date: Optional[datetime] = None,
+    ) -> DecisionRecord:
+        """Record execution of an approved retention action."""
+        if not self.business_id:
+            raise ValueError("business_id is required for executing retention action")
+        return CustomerRetentionService.execute_retention_action(
+            session=self.session,
+            business_id=self.business_id,
+            decision_id=decision_id,
+            execution_channel=execution_channel,
+            executed_by=executed_by,
+            execution_notes=execution_notes,
+            offer_code=offer_code,
+            execution_date=execution_date,
+        )
+
+    def log_customer_response(
+        self,
+        decision_id: int,
+        response_status: Literal["opened", "replied", "redeemed_code", "no_response", "declined", "purchased"],
+        logged_by: str,
+        response_notes: Optional[str] = None,
+        response_date: Optional[datetime] = None,
+    ) -> DecisionRecord:
+        """Record customer response to an executed retention action."""
+        if not self.business_id:
+            raise ValueError("business_id is required for logging customer response")
+        return CustomerRetentionService.log_customer_response(
+            session=self.session,
+            business_id=self.business_id,
+            decision_id=decision_id,
+            response_status=response_status,
+            logged_by=logged_by,
+            response_notes=response_notes,
+            response_date=response_date,
+        )
+
+    def evaluate_retention_outcomes(
+        self,
+        context: Optional[AnalysisContext] = None,
+        evaluation_window_days: int = 30,
+        as_of_date: Optional[datetime] = None,
+    ) -> Tuple[RetentionOutcomeEvaluation, EvidenceRecord]:
+        """Evaluate observational retention outcomes comparing intervened customers vs non-intervened at-risk peers."""
+        context = self._ensure_context(context)
+        biz_id = context.business_id if context else self.business_id
+        if not biz_id:
+            raise ValueError("business_id is required for retention outcome evaluation")
+
+        cutoff = as_of_date or (context.date_to if context else None)
+        evaluation = CustomerRetentionService.evaluate_retention_outcomes(
+            session=self.session,
+            business_id=biz_id,
+            evaluation_window_days=evaluation_window_days,
+            as_of_date=cutoff,
+        )
+
+        builder = (
+            EvidenceBuilder.create("customer_retention_outcomes", context)
+            .with_sources(
+                ["decision_records", "decision_audit_events", "sales"],
+                ["decision_id", "event_type", "customer_id", "transaction_date", "total_amount"],
+            )
+            .with_calculation(evaluation.methodology_disclaimer)
+            .with_limitations(evaluation.limitations)
+            .with_result_summary({
+                "evaluation_window_days": evaluation.evaluation_window_days,
+                "intervened_customers": evaluation.intervened_customers_count,
+                "intervened_reorder_rate_pct": evaluation.intervened_reorder_rate_pct,
+                "comparison_reorder_rate_pct": evaluation.comparison_reorder_rate_pct,
+                "retention_lift_pct_points": evaluation.retention_lift_pct_points,
+            })
+        )
+        return evaluation, builder.build()
 
     def get_inventory_overview(
         self, warehouse: Optional[str] = None, category: Optional[str] = None

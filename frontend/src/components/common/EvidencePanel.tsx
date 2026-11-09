@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Database,
@@ -66,6 +66,16 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({
   const [copied, setCopied] = useState(false);
   const [expandedRAG, setExpandedRAG] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (asModal && isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [asModal, isOpen]);
+
   if (!isOpen) return null;
 
   const handleCopyChecksum = (hash?: string | null) => {
@@ -130,7 +140,7 @@ export const EvidencePanel: React.FC<EvidencePanelProps> = ({
     typeof val === 'number' && !isNaN(val) ? val.toFixed(decimals) : '—';
 
   const content = (
-    <div className="flex flex-col min-w-0 max-w-full">
+    <div className="flex flex-col flex-1 min-h-0 min-w-0 max-w-full overflow-hidden">
       {/* Sticky Header Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-elevated p-4 sm:p-6 bg-void-sub/95 backdrop-blur-sm shrink-0 min-w-0">
         <div className="min-w-0 flex-1 pr-2">

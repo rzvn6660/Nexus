@@ -600,6 +600,29 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({
                 </p>
               </label>
 
+              {/* Automated Source Connector Option */}
+              <div className="card-obsidian p-4 border border-cyan-500/20 bg-cyan-950/10 flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-white">Live Commercial & Payment Connectors</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      Shopify & Stripe
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Prefer connecting live store or payment sandboxes directly? Manage envelope-encrypted connectors in the Connectors console.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/connectors')}
+                  className="btn-secondary text-xs shrink-0 flex items-center gap-1.5 ml-4"
+                >
+                  <span>Open Connectors</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               {/* Uploaded Datasets List */}
               {onboardingData?.datasets && onboardingData.datasets.length > 0 && (
                 <div className="space-y-3">

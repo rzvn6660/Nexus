@@ -28,6 +28,17 @@ from app.analytics.customer.repeat_purchase import (
     RepeatPurchaseResult,
 )
 from app.analytics.customer.rfm import RFMAnalysisSummary, RFMAnalyzer
+from app.analytics.customer.safety import (
+    ActionExecutionResult,
+    ActionExecutionStatus,
+    CadenceActionGate,
+    CadenceEligibilityStatus,
+    CadenceSafetyGate,
+    CadenceSafetyVerdict,
+    SafetyReasonCode,
+    SeasonalCautionDisclosure,
+    SeasonalContextType,
+)
 from app.analytics.customer.validation import (
     ConfusionMatrix,
     CustomerOutcomeRecord,
@@ -38,9 +49,15 @@ from app.analytics.customer.validation import (
 )
 
 __all__ = [
+    "ActionExecutionResult",
+    "ActionExecutionStatus",
+    "CadenceActionGate",
     "CadenceConfig",
+    "CadenceEligibilityStatus",
     "CadenceExplanation",
     "CadenceRiskTier",
+    "CadenceSafetyGate",
+    "CadenceSafetyVerdict",
     "CohortAnalysisResult",
     "CohortCell",
     "CohortRow",
@@ -65,4 +82,7 @@ __all__ = [
     "RepeatPurchaseAnalyzer",
     "RepeatPurchaseResult",
     "RiskTierPerformance",
+    "SafetyReasonCode",
+    "SeasonalCautionDisclosure",
+    "SeasonalContextType",
 ]

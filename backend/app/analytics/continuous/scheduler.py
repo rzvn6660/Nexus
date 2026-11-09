@@ -284,6 +284,20 @@ class ContinuousIntelligenceScheduler:
                 )
                 errors.append({"business_id": biz.id, "error": str(biz_err)})
 
+        # 3. Autonomous Execution of Due Pulse Executive Reporting Schedules
+        try:
+            from app.analytics.pulse.scheduler import PulseScheduler
+            due_pulse = PulseScheduler().process_due_schedules(session=db)
+            if due_pulse:
+                logger.info(
+                    "Continuous scheduler executed %d due Pulse schedules: %s",
+                    len(due_pulse),
+                    due_pulse,
+                )
+        except Exception as pulse_err:  # noqa: BLE001
+            logger.warning("Pulse schedule execution encountered error in scheduler tick: %s", pulse_err)
+            errors.append({"business_id": "pulse_schedules", "error": str(pulse_err)})
+
         return {
             "businesses_scanned": businesses_scanned,
             "total_reconciled": total_reconciled,

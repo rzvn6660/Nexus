@@ -48,6 +48,7 @@ import {
 } from '../utils/formatters';
 import { CardSkeleton } from '../components/common/LoadingState';
 import { EvidencePanel } from '../components/common/EvidencePanel';
+import { DemonstrationModeBanner } from '../components/common/DemonstrationModeBanner';
 import { MetricStatement, MetricItem } from '../components/intelligence/MetricStatement';
 import { SignalRow, SignalData } from '../components/intelligence/SignalRow';
 
@@ -356,13 +357,13 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   // Build executive business state metric items (Above the fold)
   const businessMetrics: MetricItem[] = [
     {
-      label: 'NET REVENUE',
+      label: 'NET REVENUE (EXCL. TAX)',
       value: formatCurrency(netSalesMetric?.value, true),
       change: netSalesPctChange !== null && netSalesPctChange !== undefined
         ? `${netSalesPctChange >= 0 ? '+' : ''}${formatPercent(netSalesPctChange)}`
         : undefined,
       changeType: (netSalesPctChange ?? 0) >= 0 ? 'positive' : 'negative',
-      annotation: `${formatNumber(ordersValue)} completed orders`,
+      annotation: `${formatNumber(ordersValue)} orders (${formatCurrency(Number(netSalesMetric?.value ?? 0) * 1.08, true)} gross incl. 8% tax)`,
       onClick: () => onNavigate('/analytics'),
     },
     {
@@ -460,6 +461,8 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-200">
+      <DemonstrationModeBanner onInspectData={() => setSelectedEvidence(summary?.evidence || null)} />
+
       {/* 1. COMPACT EXECUTIVE BRIEFING HEADER */}
       <section className="p-5 sm:p-6 rounded-2xl bg-surface/70 border border-surface-elevated shadow-obsidian flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="space-y-1 max-w-2xl">

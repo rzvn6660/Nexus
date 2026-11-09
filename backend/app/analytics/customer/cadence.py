@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 import numpy as np
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.analytics.core.context import AnalysisContext
@@ -233,7 +233,20 @@ class CustomerCadenceAnalyzer:
             )
             ref_date = ref_date.astimezone(UTC)
         else:
-            ref_date = datetime.now(UTC)
+            latest_txn = None
+            if context and context.business_id:
+                latest_txn = session.execute(
+                    select(func.max(Sale.transaction_date)).where(Sale.business_id == context.business_id)
+                ).scalar()
+            now_utc = datetime.now(UTC)
+            if latest_txn:
+                latest_utc = latest_txn if latest_txn.tzinfo is not None else latest_txn.replace(tzinfo=UTC)
+                if (now_utc - latest_utc).days > 30:
+                    ref_date = latest_utc
+                else:
+                    ref_date = now_utc
+            else:
+                ref_date = now_utc
 
         # 2. Resolve configuration and valid purchase statuses
         cfg = config or CadenceConfig()

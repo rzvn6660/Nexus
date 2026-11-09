@@ -37,6 +37,18 @@ from app.schemas.analytics import (
     CorrelationResponse,
     StatisticalTestResponse,
     GrossToNetResponse,
+    CadenceResponse,
+    RetentionOverviewResponse,
+    RetentionCustomerListApiResponse,
+    RetentionCustomerDetailResponse,
+    RetentionOutcomeEvaluationResponse,
+)
+from app.schemas.retention import (
+    RetentionCustomerFilter,
+    RetentionActionCreateRequest,
+    RetentionActionReviewRequest,
+    RetentionActionExecuteRequest,
+    RetentionCustomerResponseRequest,
 )
 
 router = APIRouter()
@@ -315,6 +327,275 @@ def get_repeat_purchase(
     service = AnalyticsService(db, business_id=biz_id)
     data, evidence = service.get_repeat_purchase_metrics(ctx)
     return {"success": True, "data": data, "evidence": evidence}
+
+
+@router.get("/cadence", response_model=CadenceResponse, summary="Customer purchase cadence with safety gates")
+def get_cadence(
+    date_to: Optional[datetime] = Query(None),
+    required_sources: Optional[List[str]] = Query(None),
+    seasonal_context: Optional[str] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    db: Session = Depends(get_db_session),
+):
+    ctx = _build_context(date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
+    summary, verdict, evidence = service.get_customer_cadence_analysis(
+        context=ctx,
+        as_of_date=date_to,
+        required_sources=required_sources,
+        seasonal_context=seasonal_context,
+    )
+    return {
+        "success": True,
+        "data": {
+            "summary": summary,
+            "safety_verdict": verdict,
+        },
+        "evidence": evidence,
+    }
+
+
+# ==============================================================================
+# Customer Retention & Intelligent Churn Prediction Endpoints
+# ==============================================================================
+
+@router.get("/retention/overview", response_model=RetentionOverviewResponse, summary="Executive & operational retention overview with safety gates")
+def get_retention_overview(
+    date_to: Optional[datetime] = Query(None),
+    required_sources: Optional[List[str]] = Query(None),
+    seasonal_context: Optional[str] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    db: Session = Depends(get_db_session),
+):
+    if not biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required. Provide X-Business-ID header.",
+        )
+    ctx = _build_context(date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
+    overview, evidence = service.get_retention_overview(
+        context=ctx,
+        as_of_date=date_to,
+        required_sources=required_sources,
+        seasonal_context=seasonal_context,
+    )
+    return {"success": True, "data": overview, "evidence": evidence}
+
+
+@router.get("/retention/customers", response_model=RetentionCustomerListApiResponse, summary="List & prioritize at-risk customers with retention recommendations")
+def list_retention_customers(
+    risk_tier: Optional[str] = Query(None, description="Filter by risk tier: critical, high, medium, low, insufficient_history"),
+    urgency: Optional[str] = Query(None, description="Filter by urgency: immediate, proactive, watchlist, healthy, insufficient_history"),
+    segment: Optional[str] = Query(None, description="Filter by customer segment"),
+    search: Optional[str] = Query(None, description="Search by customer code or name"),
+    requires_attention_only: bool = Query(False, description="Filter strictly to Critical and High risk repeat buyers"),
+    is_repeat_only: bool = Query(True, description="Filter strictly to repeat buyers (>= 2 completed purchases)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    db: Session = Depends(get_db_session),
+):
+    if not biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required. Provide X-Business-ID header.",
+        )
+    ctx = _build_context(date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
+
+    filters = RetentionCustomerFilter(
+        risk_tiers=[risk_tier] if risk_tier else None,
+        urgencies=[urgency] if urgency else None,
+        segments=[segment] if segment else None,
+        search=search,
+        requires_attention_only=requires_attention_only,
+        is_repeat_only=is_repeat_only,
+        page=page,
+        page_size=page_size,
+    )
+    data, evidence = service.list_customers_at_risk(
+        context=ctx,
+        filters=filters,
+        as_of_date=date_to,
+    )
+    return {"success": True, "data": data, "evidence": evidence}
+
+
+@router.get("/retention/customers/{customer_id}", response_model=RetentionCustomerDetailResponse, summary="Deep-dive customer risk profile, cadence progression, and retention proposal")
+def get_retention_customer_detail(
+    customer_id: int,
+    date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    db: Session = Depends(get_db_session),
+):
+    if not biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required. Provide X-Business-ID header.",
+        )
+    ctx = _build_context(date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
+    detail, evidence = service.get_customer_risk_detail(
+        customer_id=customer_id,
+        context=ctx,
+        as_of_date=date_to,
+    )
+    return {"success": True, "data": detail, "evidence": evidence}
+
+
+@router.post("/retention/actions/recommend", summary="Register a prescriptive retention recommendation in the HITL ledger")
+def create_retention_recommendation(
+    payload: RetentionActionCreateRequest,
+    current_user: Optional[UserIdentity] = Depends(get_optional_current_user),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    db: Session = Depends(get_db_session),
+):
+    if not biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required. Provide X-Business-ID header.",
+        )
+    service = AnalyticsService(db, business_id=biz_id)
+    record = service.create_retention_decision(
+        customer_id=payload.customer_id,
+        action_type=payload.action_type,
+        custom_notes=payload.custom_notes,
+        current_user=current_user,
+    )
+    return {
+        "success": True,
+        "data": {
+            "decision_id": record.id,
+            "status": record.status,
+            "recommendation_text": record.recommendation_text,
+            "action_target_id": record.action_target_id,
+            "current_revision": record.current_revision,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+        },
+    }
+
+
+@router.post("/retention/actions/review", summary="Record merchant review disposition for a retention decision (HITL)")
+def review_retention_recommendation(
+    payload: RetentionActionReviewRequest,
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    current_user: Optional[UserIdentity] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db_session),
+):
+    if not biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required. Provide X-Business-ID header.",
+        )
+    reviewer_identity = (current_user.email if current_user and current_user.email else None) or payload.reviewer_id or "merchant_admin"
+    service = AnalyticsService(db, business_id=biz_id)
+    record = service.review_retention_decision(
+        decision_id=payload.decision_id,
+        status=payload.status,
+        reviewer_id=reviewer_identity,
+        reviewer_notes=payload.reviewer_notes,
+        modified_action_type=payload.modified_action_type,
+    )
+    return {
+        "success": True,
+        "data": {
+            "decision_id": record.id,
+            "status": record.status,
+            "reviewed_by": record.reviewed_by,
+            "reviewed_at": record.reviewed_at.isoformat() if record.reviewed_at else None,
+            "current_revision": record.current_revision,
+        },
+    }
+
+
+@router.post("/retention/actions/execute", summary="Record execution of an approved retention action")
+def execute_retention_action_endpoint(
+    payload: RetentionActionExecuteRequest,
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    current_user: Optional[UserIdentity] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db_session),
+):
+    if not biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required. Provide X-Business-ID header.",
+        )
+    executor_identity = (current_user.email if current_user and current_user.email else None) or payload.executed_by or "merchant_operator"
+    service = AnalyticsService(db, business_id=biz_id)
+    record = service.execute_retention_action(
+        decision_id=payload.decision_id,
+        execution_channel=payload.execution_channel,
+        executed_by=executor_identity,
+        execution_notes=payload.execution_notes,
+        offer_code=payload.offer_code,
+        execution_date=payload.execution_date,
+    )
+    return {
+        "success": True,
+        "data": {
+            "decision_id": record.id,
+            "status": "EXECUTED",
+            "current_revision": record.current_revision,
+            "executed_by": executor_identity,
+            "execution_channel": payload.execution_channel,
+        },
+    }
+
+
+@router.post("/retention/actions/response", summary="Log customer response to an executed retention intervention")
+def log_customer_response_endpoint(
+    payload: RetentionCustomerResponseRequest,
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    current_user: Optional[UserIdentity] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db_session),
+):
+    if not biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required. Provide X-Business-ID header.",
+        )
+    logger_identity = (current_user.email if current_user and current_user.email else None) or payload.logged_by or "merchant_operator"
+    service = AnalyticsService(db, business_id=biz_id)
+    record = service.log_customer_response(
+        decision_id=payload.decision_id,
+        response_status=payload.response_status,
+        logged_by=logger_identity,
+        response_notes=payload.response_notes,
+        response_date=payload.response_date,
+    )
+    return {
+        "success": True,
+        "data": {
+            "decision_id": record.id,
+            "current_revision": record.current_revision,
+            "response_status": payload.response_status,
+            "logged_by": logger_identity,
+        },
+    }
+
+
+@router.get("/retention/evaluation", response_model=RetentionOutcomeEvaluationResponse, summary="Evaluate retention intervention outcomes vs comparison cohorts")
+def get_retention_evaluation(
+    evaluation_window_days: int = Query(30, ge=7, le=365, description="Forward evaluation window in days"),
+    date_to: Optional[datetime] = Query(None),
+    biz_id: Optional[str] = Depends(get_analytics_business_id),
+    db: Session = Depends(get_db_session),
+):
+    if not biz_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context is required. Provide X-Business-ID header.",
+        )
+    ctx = _build_context(date_to=date_to, business_id=biz_id)
+    service = AnalyticsService(db, business_id=biz_id)
+    evaluation, evidence = service.evaluate_retention_outcomes(
+        context=ctx,
+        evaluation_window_days=evaluation_window_days,
+        as_of_date=date_to,
+    )
+    return {"success": True, "data": evaluation, "evidence": evidence}
 
 
 @router.get("/inventory", response_model=InventoryOverviewResponse, summary="Current inventory health and alerts")

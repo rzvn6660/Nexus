@@ -36,9 +36,9 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-void text-slate-100 flex font-sans selection:bg-cyan-500/20 selection:text-cyan-200 w-full overflow-x-hidden">
-      {/* Desktop Workspace Sidebar */}
-      <div className="hidden md:block shrink-0">
+    <div className="h-screen w-screen overflow-hidden bg-void text-slate-100 flex font-sans selection:bg-cyan-500/20 selection:text-cyan-300">
+      {/* Desktop Workspace Stationary Sidebar */}
+      <div className="hidden md:flex h-full shrink-0 flex-col">
         <Sidebar
           currentRoute={currentRoute}
           onNavigate={onNavigate}
@@ -50,7 +50,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
       {/* Mobile Drawer Navigation with backdrop blur & slide animation */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden bg-void/85 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex md:hidden bg-void/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-72 bg-void h-full shadow-2xl border-r border-surface-elevated/80 animate-in slide-in-from-left duration-200 flex flex-col">
             <Sidebar
               currentRoute={currentRoute}
@@ -69,8 +69,9 @@ export const AppShell: React.FC<AppShellProps> = ({
         </div>
       )}
 
-      {/* Main Intelligence Workspace Canvas */}
-      <div className="flex-1 flex flex-col min-w-0 w-full overflow-x-hidden">
+      {/* Main Workspace Column with Independent Vertical Scrolling */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+        {/* Sticky Top Bar Header */}
         <TopBar
           currentRoute={currentRoute}
           onOpenCommand={() => setCommandPaletteOpen(true)}
@@ -86,31 +87,36 @@ export const AppShell: React.FC<AppShellProps> = ({
           onSwitchBusiness={onSwitchBusiness}
         />
 
-        {/* Primary Content Container: constrained max width, responsive padding, zero horizontal overflow */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-8 min-w-0">
-          {children}
-        </main>
-
-        {/* Quiet Enterprise Workspace Footer */}
-        <footer className="border-t border-surface-elevated/70 bg-void-sub/40 py-5 text-xs text-slate-400 mt-auto shrink-0">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-white tracking-[0.2em] font-sans uppercase text-[11px]">NEXUS</span>
-              <span className="text-slate-600">—</span>
-              <span className="text-slate-400 font-sans text-xs">Where Business Data Becomes Intelligence</span>
-            </div>
-
-            <div className="flex items-center gap-3 font-sans text-xs text-slate-400 flex-wrap justify-center">
-              <span>Deterministic Analytics</span>
-              <span className="text-slate-600">•</span>
-              <span>Agentic Reasoning</span>
-              <span className="text-slate-600">•</span>
-              <span>Verifiable Provenance</span>
-              <span className="text-slate-600">•</span>
-              <span>Human Authority</span>
-            </div>
+        {/* Primary Content Container: Independent Vertical Scrolling with Contained Layout */}
+        <main
+          className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 flex flex-col justify-between"
+          id="nexus-main-scroll-container"
+        >
+          <div className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-8 flex-1">
+            {children}
           </div>
-        </footer>
+
+          {/* Clean Enterprise Workspace Footer anchored at end of content */}
+          <footer className="border-t border-surface-elevated/70 bg-void-sub/40 py-5 text-xs text-slate-400 shrink-0 mt-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white tracking-[0.2em] font-sans uppercase text-[11px]">NEXUS</span>
+                <span className="text-slate-400">—</span>
+                <span className="text-slate-400 font-sans text-xs">Where Business Data Becomes Intelligence</span>
+              </div>
+
+              <div className="flex items-center gap-3 font-sans text-xs text-slate-400 flex-wrap justify-center">
+                <span>Deterministic Analytics</span>
+                <span className="text-slate-400">•</span>
+                <span>Customer Retention</span>
+                <span className="text-slate-400">•</span>
+                <span>Automated Pulse</span>
+                <span className="text-slate-400">•</span>
+                <span>₹0 Local Sovereign Stack</span>
+              </div>
+            </div>
+          </footer>
+        </main>
       </div>
 
       {/* Command Palette / Search Dialog */}

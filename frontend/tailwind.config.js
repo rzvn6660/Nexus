@@ -9,18 +9,18 @@ export default {
     extend: {
       colors: {
         void: {
-          DEFAULT: '#070A12',
-          sub: '#0B0F19',
-          dark: '#04060A',
-          card: '#0D121F',
+          DEFAULT: 'var(--color-void)',
+          sub: 'var(--color-void-sub)',
+          dark: 'var(--color-void-dark)',
+          card: 'var(--color-void-card)',
         },
         surface: {
-          DEFAULT: '#0F172A',
-          elevated: '#1E293B',
-          highlight: '#334155',
-          card: '#0F1626',
-          hover: '#172239',
-          border: 'rgba(255, 255, 255, 0.08)',
+          DEFAULT: 'var(--color-surface)',
+          elevated: 'var(--color-surface-elevated)',
+          highlight: 'var(--color-surface-highlight)',
+          card: 'var(--color-surface-card)',
+          hover: 'var(--color-surface-hover)',
+          border: 'var(--color-surface-border)',
         },
         obsidian: {
           50: '#F8FAFC',
@@ -65,8 +65,8 @@ export default {
         },
       },
       boxShadow: {
-        'obsidian': '0 4px 20px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06)',
-        'obsidian-lg': '0 10px 30px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+        'obsidian': 'var(--shadow-card)',
+        'obsidian-lg': 'var(--shadow-elevated)',
         'cyan-glow': '0 0 20px -4px rgba(6, 182, 212, 0.25)',
         'cyan-subtle': '0 0 12px -2px rgba(6, 182, 212, 0.15)',
       },

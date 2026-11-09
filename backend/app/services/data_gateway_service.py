@@ -458,7 +458,7 @@ class DataGatewayService:
         try:
             db.commit()
             db.refresh(dataset)
-        except Exception as db_exc:
+        except Exception:
             db.rollback()
             try:
                 if storage_file_path.exists():
@@ -467,7 +467,7 @@ class DataGatewayService:
                     storage_rel_dir.rmdir()
             except OSError as cleanup_err:
                 logger.warning("Failed to clean up unindexed storage file %s: %s", storage_file_path, cleanup_err)
-            raise db_exc
+            raise
 
         logger.info(
             "Dataset upload accepted: business_id=%s dataset_id=%s filename='%s' "
@@ -960,6 +960,24 @@ class DataGatewayService:
                 detail="Dataset storage file not found.",
             )
 
+        # Import Authorization Verification: Ensure written merchant authorization before processing real merchant data
+        auth_ref = (
+            (column_overrides.get("written_authorization_ref") if column_overrides else None)
+            or (dataset.schema_json or {}).get("written_authorization_ref")
+        )
+        try:
+            from app.services.tenant_certification_policy import TenantCertificationPolicy
+            TenantCertificationPolicy.assert_merchant_import_authorized(
+                business_id=business_id,
+                session=db,
+                authorization_ref=auth_ref,
+            )
+        except PermissionError as auth_err:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(auth_err),
+            )
+
         schema_json = dataset.schema_json or {}
         mapping_info = schema_json.get("mapping_proposal", {})
         entity = target_entity or mapping_info.get("target_entity", "Sale")
@@ -1129,10 +1147,46 @@ class DataGatewayService:
                 }
                 id_to_cust_id: dict[int, int] = {c.id: c.id for c in cust_rows}
 
+                # Pre-fetch existing products scoped strictly to this business_id for itemized line attribution
+                sku_col = (
+                    next((c for c, f in field_map.items() if f in ("sku", "product_sku", "product_id")), None)
+                    or next((c for c in df.columns if str(c).lower().strip() in ("sku", "product_sku", "product_id", "product_code", "item_code", "item_id")), None)
+                )
+                prod_rows = db.execute(select(Product).where(Product.business_id == business_id)).scalars().all()
+                sku_to_prod: dict[str, Product] = {str(p.sku).strip(): p for p in prod_rows if p.sku}
+
                 default_cust_ref = (
                     (column_overrides.get("default_customer_code") if column_overrides else None)
                     or (column_overrides.get("customer_code") if column_overrides and column_overrides.get("customer_code") not in df.columns else None)
                     or field_map.get("default_customer_code")
+                )
+
+                allow_anonymous = (
+                    (column_overrides and column_overrides.get("allow_anonymous_customer") in (True, "true", "True", 1))
+                    or (column_overrides and column_overrides.get("allow_anonymous") in (True, "true", "True", 1))
+                )
+                anonymous_policy_approver = (
+                    (column_overrides.get("anonymous_policy_approved_by") if column_overrides else None)
+                    or (column_overrides.get("approved_by") if column_overrides else None)
+                )
+
+                # Strict customer governance check (active for real operational merchants or when requested)
+                biz_record = db.execute(select(Business).where(Business.id == business_id)).scalar_one_or_none()
+                biz_meta = getattr(biz_record, "metadata_json", None) or {}
+                is_real_merchant = (
+                    TenantCertificationPolicy.is_real_operational_merchant(business_id, session=db)
+                    or bool((dataset.schema_json or {}).get("is_real_merchant"))
+                    or bool(column_overrides and column_overrides.get("is_real_merchant"))
+                    or bool(biz_meta.get("is_real_merchant"))
+                    or bool(biz_meta.get("tenant_type") == "real_operational")
+                )
+
+                strict_customer_governance = (
+                    is_real_merchant
+                    or bool(column_overrides and "allow_anonymous_customer" in column_overrides)
+                    or bool(column_overrides and column_overrides.get("require_customer_resolution"))
+                    or bool((dataset.schema_json or {}).get("require_customer_resolution"))
+                    or bool(biz_meta.get("require_customer_resolution"))
                 )
 
                 resolved_fallback_cust_id: int | None = None
@@ -1148,8 +1202,42 @@ class DataGatewayService:
                                 status_code=status.HTTP_400_BAD_REQUEST,
                                 detail=f"Cannot ingest Sales: mapped default customer '{ref_str}' does not exist in this business.",
                             )
+                    elif allow_anonymous and anonymous_policy_approver:
+                        # Audited manager-approved anonymous customer resolution
+                        anon_code = f"ANON_{business_id[:8].upper()}"
+                        anon_candidate = next(
+                            (c.id for c in cust_rows if c.customer_code and c.customer_code.upper() == anon_code),
+                            None,
+                        )
+                        if anon_candidate:
+                            resolved_fallback_cust_id = anon_candidate
+                        else:
+                            anon_cust = Customer(
+                                business_id=business_id,
+                                customer_code=anon_code,
+                                name="Audited Anonymous Customer",
+                                email=f"anonymous.{business_id[:8]}@nexus.local",
+                                city="Unknown",
+                                customer_segment="Retail",
+                                acquisition_date=datetime.now(tz=UTC).date(),
+                            )
+                            db.add(anon_cust)
+                            db.flush()
+                            resolved_fallback_cust_id = anon_cust.id
+                            code_to_cust_id[anon_cust.customer_code.lower()] = anon_cust.id
+                            id_to_cust_id[anon_cust.id] = anon_cust.id
+                    elif strict_customer_governance:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=(
+                                "Cannot ingest Sales: Customer mapping is required. "
+                                "Silent default-anonymous assignment is prohibited. "
+                                "Anonymous customer mapping requires an explicit, audited manager-approved policy "
+                                "('allow_anonymous_customer'=True and 'anonymous_policy_approved_by'=<manager>)."
+                            ),
+                        )
                     else:
-                        # Auto-resolve or create tenant-scoped default customer for unmapped POS/receipt uploads
+                        # Fallback ONLY for synthetic/demo sandbox fixtures
                         default_candidate = next(
                             (c.id for c in cust_rows if c.customer_code and c.customer_code.upper().startswith("CUST-DEFAULT")),
                             None,
@@ -1344,28 +1432,37 @@ class DataGatewayService:
                     if customer_col is not None:
                         raw_cust = row[customer_col]
                         if raw_cust is None or str(raw_cust).strip() == "":
-                            row_errors.append({
-                                "row": row_num,
-                                "column": customer_col,
-                                "value": None,
-                                "error_type": "REQUIRED_VALUE_MISSING",
-                                "message": "Customer identifier cannot be null or empty.",
-                            })
-                            continue
-                        cust_key = str(raw_cust).strip()
-                        if cust_key.lower() in code_to_cust_id:
-                            row_cust_id = code_to_cust_id[cust_key.lower()]
-                        elif cust_key.isdigit() and int(cust_key) in id_to_cust_id:
-                            row_cust_id = id_to_cust_id[int(cust_key)]
+                            if allow_anonymous and anonymous_policy_approver and resolved_fallback_cust_id is not None:
+                                row_cust_id = resolved_fallback_cust_id
+                            else:
+                                row_errors.append({
+                                    "row": row_num,
+                                    "column": customer_col,
+                                    "value": None,
+                                    "error_type": "REQUIRED_VALUE_MISSING",
+                                    "message": "Customer identifier cannot be null or empty. Row quarantined.",
+                                    "quarantined": True,
+                                })
+                                continue
                         else:
-                            row_errors.append({
-                                "row": row_num,
-                                "column": customer_col,
-                                "value": cust_key[:50],
-                                "error_type": "UNRESOLVED_CUSTOMER",
-                                "message": f"Customer identifier '{cust_key}' could not be resolved to any customer in this business.",
-                            })
-                            continue
+                            cust_key = str(raw_cust).strip()
+                            if cust_key.lower() in code_to_cust_id:
+                                row_cust_id = code_to_cust_id[cust_key.lower()]
+                            elif cust_key.isdigit() and int(cust_key) in id_to_cust_id:
+                                row_cust_id = id_to_cust_id[int(cust_key)]
+                            else:
+                                if allow_anonymous and anonymous_policy_approver and resolved_fallback_cust_id is not None:
+                                    row_cust_id = resolved_fallback_cust_id
+                                else:
+                                    row_errors.append({
+                                        "row": row_num,
+                                        "column": customer_col,
+                                        "value": cust_key[:50],
+                                        "error_type": "UNRESOLVED_CUSTOMER",
+                                        "message": f"Customer identifier '{cust_key}' could not be resolved to any customer in this business. Row quarantined.",
+                                        "quarantined": True,
+                                    })
+                                    continue
                     else:
                         row_cust_id = resolved_fallback_cust_id
 
@@ -1459,6 +1556,39 @@ class DataGatewayService:
                                 Decimal("0.00"),
                                 existing_sale.subtotal - existing_sale.discount_amount + existing_sale.tax_amount,
                             )
+
+                        # Auto-attribute SaleItem for additional line on multi-line order
+                        if sku_col and row[sku_col] is not None and str(row[sku_col]).strip():
+                            raw_sku = str(row[sku_col]).strip()
+                            matched_prod = sku_to_prod.get(raw_sku)
+                            if not matched_prod:
+                                # When unit cost is unprovided in sale row, do not fabricate artificial margins.
+                                # Register placeholder catalog product with unit_cost=0.00 and explicit uncataloged naming.
+                                unit_c = Decimal("0.00")
+                                matched_prod = Product(
+                                    business_id=business_id,
+                                    sku=raw_sku,
+                                    name=f"Uncataloged Product {raw_sku}",
+                                    selling_price=num_amount,
+                                    unit_cost=unit_c,
+                                    category="General",
+                                    subcategory="General",
+                                    active=True,
+                                )
+                                db.add(matched_prod)
+                                db.flush()
+                                sku_to_prod[raw_sku] = matched_prod
+
+                            s_item = SaleItem(
+                                sale=existing_sale,
+                                product_id=matched_prod.id,
+                                quantity=1,
+                                unit_price=num_amount,
+                                discount_amount=disc_val,
+                                line_total=tot_val,
+                            )
+                            staged_objects.append(s_item)
+
                         continue
 
                     # Deduplication guard: Skip if already committed in DB from previous ingestion
@@ -1478,6 +1608,38 @@ class DataGatewayService:
                     )
                     staged_sales_by_order[sale_order] = sale
                     staged_objects.append(sale)
+
+                    # Auto-attribute SaleItem if SKU is present in dataset
+                    if sku_col and row[sku_col] is not None and str(row[sku_col]).strip():
+                        raw_sku = str(row[sku_col]).strip()
+                        matched_prod = sku_to_prod.get(raw_sku)
+                        if not matched_prod:
+                            # When unit cost is unprovided in sale row, do not fabricate artificial margins.
+                            # Register placeholder catalog product with unit_cost=0.00 and explicit uncataloged naming.
+                            unit_c = Decimal("0.00")
+                            matched_prod = Product(
+                                business_id=business_id,
+                                sku=raw_sku,
+                                name=f"Uncataloged Product {raw_sku}",
+                                selling_price=num_amount,
+                                unit_cost=unit_c,
+                                category="General",
+                                subcategory="General",
+                                active=True,
+                            )
+                            db.add(matched_prod)
+                            db.flush()
+                            sku_to_prod[raw_sku] = matched_prod
+
+                        s_item = SaleItem(
+                            sale=sale,
+                            product_id=matched_prod.id,
+                            quantity=1,
+                            unit_price=num_amount,
+                            discount_amount=disc_val,
+                            line_total=tot_val,
+                        )
+                        staged_objects.append(s_item)
                     order_meta[sale_order] = {
                         "customer_id": row_cust_id,
                         "first_row_num": row_num,
@@ -2148,7 +2310,7 @@ class DataGatewayService:
                         try:
                             clean_lt = str(row[line_total_col]).replace("$", "").replace(",", "").strip()
                             l_total = max(Decimal("0.00"), round(Decimal(clean_lt), 2))
-                        except Exception:  # noqa: BLE001
+                        except (InvalidOperation, ValueError, TypeError):
                             pass
 
                     # 7. Idempotency deduplication check
@@ -2182,13 +2344,16 @@ class DataGatewayService:
                 dataset_ref = db.execute(select(UploadedDataset).where(UploadedDataset.id == dataset_id)).scalar_one_or_none()
                 sanitized_errors = []
                 for err in row_errors[:50]:
-                    sanitized_errors.append({
+                    sanitized_err = {
                         "row": int(err.get("row", 0)),
                         "column": str(err.get("column", ""))[:100],
                         "value": str(err.get("value", ""))[:100] if err.get("value") is not None else None,
                         "error_type": str(err.get("error_type", "VALIDATION_ERROR"))[:50],
                         "message": str(err.get("message", ""))[:250],
-                    })
+                    }
+                    if "quarantined" in err:
+                        sanitized_err["quarantined"] = bool(err["quarantined"])
+                    sanitized_errors.append(sanitized_err)
                 if dataset_ref:
                     s_copy = dict(dataset_ref.schema_json or {})
                     s_copy["ingestion_status"] = "FAILED"
@@ -2211,6 +2376,27 @@ class DataGatewayService:
                         "errors": sanitized_errors,
                     },
                 )
+
+            # Phase 1J.3.2 / End-to-End Writer Coordination: Acquire shared ingestion lock
+            if entity in ("Sale", "SaleItem"):
+                tx_dates = [getattr(obj, "transaction_date", None) for obj in staged_objects if hasattr(obj, "transaction_date")]
+                valid_tx_dates = [d for d in tx_dates if d is not None]
+                if valid_tx_dates:
+                    min_tx = min(valid_tx_dates)
+                    max_tx = max(valid_tx_dates)
+                    min_dt = min_tx if min_tx.tzinfo is not None else min_tx.replace(tzinfo=UTC)
+                    max_dt = max_tx if max_tx.tzinfo is not None else max_tx.replace(tzinfo=UTC)
+                    if max_dt <= min_dt:
+                        from datetime import timedelta
+                        max_dt = min_dt + timedelta(seconds=1)
+                    from app.services.ingestion_writer_coordinator import IngestionWriterCoordinator
+                    IngestionWriterCoordinator.acquire_ingestion_lock(
+                        session=db,
+                        business_id=business_id,
+                        period_start=min_dt,
+                        period_end=max_dt,
+                        blocking=True,
+                    )
 
             # 4. Commit Validated Records
             for obj in staged_objects:
@@ -2242,31 +2428,36 @@ class DataGatewayService:
                             job_id=job_id,
                         )
 
-                        # If dataset explicitly includes a certified_complete_through date in schema_json:
+                        # Authoritative Watermark Governance:
+                        # Record import completion with distinct governance states:
+                        # - IMPORT_COMPLETED and LATEST_OBSERVED_DATE
+                        # - If certified_raw is provided, SOURCE_COMPLETENESS_VERIFIED
+                        # - Otherwise, SOURCE_COMPLETENESS_UNVERIFIED (provisional)
+                        # - Never manufactures PERIOD_CLOSE_CERTIFIED automatically
                         certified_raw = (dataset.schema_json or {}).get("certified_complete_through")
-                        if certified_raw:
-                            if isinstance(certified_raw, str):
-                                cert_dt = datetime.fromisoformat(certified_raw)
-                            elif isinstance(certified_raw, (datetime, date)):
-                                cert_dt = certified_raw
-                            else:
-                                cert_dt = None
-                            if cert_dt:
-                                WatermarkService.record_watermark(
-                                    session=db,
-                                    contract={
-                                        "business_id": business_id,
-                                        "source_id": source_id,
-                                        "complete_through_dt": cert_dt,
-                                        "provenance_type": "batch_file",
-                                        "ingestion_job_id": job_id,
-                                        "metadata_json": {
-                                            "dataset_id": dataset.id,
-                                            "filename": dataset.filename,
-                                            "records_persisted": records_inserted,
-                                        },
-                                    },
-                                )
+                        wm_meta = {
+                            "dataset_id": dataset.id,
+                            "filename": dataset.filename,
+                            "file_hash": dataset.content_hash,
+                            "records_persisted": records_inserted,
+                            "rows_ingested": records_inserted,
+                            "rows_skipped": 0,
+                            "db_reconciled": True,
+                        }
+                        if allow_anonymous and anonymous_policy_approver:
+                            wm_meta["anonymous_policy_approved_by"] = anonymous_policy_approver
+                        if auth_ref:
+                            wm_meta["written_authorization_ref"] = auth_ref
+
+                        WatermarkService.record_import_completion(
+                            session=db,
+                            business_id=business_id,
+                            source_id=source_id,
+                            transaction_dates=valid_tx_dates,
+                            certified_complete_through=certified_raw,
+                            job_id=job_id,
+                            metadata_json=wm_meta,
+                        )
                     except Exception as wm_exc:  # noqa: BLE001
                         logger.debug("Watermark lifecycle evaluation notice: %s", wm_exc)
 
@@ -2352,6 +2543,8 @@ class DataGatewayService:
                 "entity": entity,
                 "target_entity": entity,
                 "records_persisted": records_inserted,
+                "rows_ingested": records_inserted,
+                "rows_skipped": 0,
                 "status": "COMPLETED",
                 "message": f"Successfully ingested {records_inserted} records into {entity} domain.",
             }
@@ -2377,10 +2570,9 @@ class DataGatewayService:
                 failed_job.completed_at = datetime.now(UTC)
                 failed_job.error_message = safe_msg[:500]
                 db.commit()
-            logger.error(
+            logger.exception(
                 "Ingestion job FAILED (exception): business_id=%s dataset_id=%s entity=%s job_id=%s error=%s",
                 business_id, dataset_id, entity, job_id, safe_msg,
-                exc_info=True,
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

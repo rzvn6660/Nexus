@@ -260,7 +260,7 @@ def test_unknown_customer_identifier_rejected(client, tenant_fixture):
 
 
 def test_missing_customer_identifier_column_auto_resolves_to_default_customer(client, tenant_fixture):
-    """Scenario 4: An upload with no customer identifier column auto-resolves safely to tenant default customer."""
+    """Scenario 4: Missing customer identifier is rejected without policy, but succeeds under audited manager approval."""
     headers = {
         "Authorization": f"Bearer {tenant_fixture['token_a']}",
         "X-Business-ID": tenant_fixture["biz_a"].id,
@@ -277,13 +277,29 @@ def test_missing_customer_identifier_column_auto_resolves_to_default_customer(cl
     assert up.status_code == 201
     dataset_id = up.json()["dataset_id"]
 
-    ingest = client.post(
+    # 1. Attempt ingestion without audited manager policy -> Must be rejected with HTTP 400
+    ingest_unapproved = client.post(
         f"/api/v1/gateway/datasets/{dataset_id}/ingest",
         headers=headers,
-        json={"target_entity": "Sale"},
+        json={"target_entity": "Sale", "column_overrides": {"allow_anonymous_customer": False}},
     )
-    assert ingest.status_code == 200
-    assert ingest.json()["records_persisted"] == 2
+    assert ingest_unapproved.status_code == 400
+    assert "Silent default-anonymous assignment is prohibited" in ingest_unapproved.json()["detail"]
+
+    # 2. Ingest with explicit audited manager-approved anonymous policy -> Succeeds
+    ingest_approved = client.post(
+        f"/api/v1/gateway/datasets/{dataset_id}/ingest",
+        headers=headers,
+        json={
+            "target_entity": "Sale",
+            "column_overrides": {
+                "allow_anonymous_customer": True,
+                "anonymous_policy_approved_by": "manager@tenant-a.com",
+            },
+        },
+    )
+    assert ingest_approved.status_code == 200
+    assert ingest_approved.json()["records_persisted"] == 2
 
     with TestingSessionLocal() as db:
         sales = db.execute(
@@ -297,6 +313,7 @@ def test_missing_customer_identifier_column_auto_resolves_to_default_customer(cl
             assert s.customer_id is not None
             cust = db.execute(select(Customer).where(Customer.id == s.customer_id)).scalar_one()
             assert cust.business_id == tenant_fixture["biz_a"].id
+            assert "ANON" in cust.customer_code or "DEFAULT" in cust.customer_code
 
 
 def test_conflicting_customer_identifiers_across_order_rows_rejected(client, tenant_fixture):
@@ -589,3 +606,98 @@ def test_readiness_assessor_detects_unlinked_and_ambiguous_customer_sales(db_ses
         "unresolvable or foreign tenant customer records" in b.lower()
         for b in report.blockers
     )
+
+
+def test_regression_multi_customer_dataset_does_not_collapse_to_single_customer(client, db_session):
+    """Scenario 12 (Phase 1H.4 Regression): Verify that a multi-customer sales dataset
+    persists distinct customer foreign keys and does NOT collapse all sales to the first customer.
+    """
+    user, org, biz = AuthService.signup(
+        db=db_session,
+        email=f"p1h4_owner_{uuid4().hex[:6]}@tenant-multi.com",
+        password="SecurePassword123!",
+        full_name="Phase 1H.4 Multi-Customer Owner",
+        organization_name="Multi Retail Inc",
+        business_name="Multi Retail",
+    )
+    token = AuthService.create_access_token(
+        user_id=user.id,
+        email=user.email,
+        organization_id=org.id,
+        business_id=biz.id,
+    )
+
+    # Create 3 distinct customers in this tenant
+    c1 = Customer(
+        business_id=biz.id,
+        customer_code="CUST-P1H4-01",
+        name="Customer One",
+        email="c1@tenant-multi.com",
+        city="Chicago",
+        customer_segment="Retail",
+        acquisition_date=date(2025, 1, 1),
+    )
+    c2 = Customer(
+        business_id=biz.id,
+        customer_code="CUST-P1H4-02",
+        name="Customer Two",
+        email="c2@tenant-multi.com",
+        city="Austin",
+        customer_segment="VIP",
+        acquisition_date=date(2025, 1, 2),
+    )
+    c3 = Customer(
+        business_id=biz.id,
+        customer_code="CUST-P1H4-03",
+        name="Customer Three",
+        email="c3@tenant-multi.com",
+        city="Boston",
+        customer_segment="Retail",
+        acquisition_date=date(2025, 1, 3),
+    )
+    db_session.add_all([c1, c2, c3])
+    db_session.commit()
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Business-ID": biz.id,
+    }
+
+    # Upload multi-customer CSV
+    csv_data = (
+        "order_number,date,amount,customer_code\n"
+        "TXN-MULTI-01,2025-03-01,110.00,CUST-P1H4-01\n"
+        "TXN-MULTI-02,2025-03-02,220.00,CUST-P1H4-02\n"
+        "TXN-MULTI-03,2025-03-03,330.00,CUST-P1H4-03\n"
+        "TXN-MULTI-04,2025-03-04,440.00,CUST-P1H4-02\n"
+    )
+    files = {"file": ("multi_customer_sales.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")}
+    up = client.post("/api/v1/gateway/upload", files=files, headers=headers)
+    assert up.status_code == 201
+    dataset_id = up.json()["dataset_id"]
+
+    ingest = client.post(
+        f"/api/v1/gateway/datasets/{dataset_id}/ingest",
+        headers=headers,
+        json={"target_entity": "Sale"},
+    )
+    assert ingest.status_code == 200
+    assert ingest.json()["records_persisted"] == 4
+
+    with TestingSessionLocal() as db:
+        sales = db.execute(
+            select(Sale).where(Sale.business_id == biz.id).order_by(Sale.transaction_number)
+        ).scalars().all()
+        assert len(sales) == 4
+
+        # Verify distinct customer mapping:
+        cust_ids_by_txn = {s.transaction_number: s.customer_id for s in sales}
+        assert cust_ids_by_txn["TXN-MULTI-01"] == c1.id
+        assert cust_ids_by_txn["TXN-MULTI-02"] == c2.id
+        assert cust_ids_by_txn["TXN-MULTI-03"] == c3.id
+        assert cust_ids_by_txn["TXN-MULTI-04"] == c2.id
+
+        # Explicit anti-collapse invariant:
+        distinct_customer_ids = {s.customer_id for s in sales}
+        assert len(distinct_customer_ids) == 3, "Sales must not collapse to a single customer ID!"
+        assert distinct_customer_ids == {c1.id, c2.id, c3.id}

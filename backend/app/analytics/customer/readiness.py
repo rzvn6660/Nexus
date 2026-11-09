@@ -706,6 +706,8 @@ class CustomerDataReadinessAssessor:
             cautions.append(
                 "Authoritative ingestion watermark is absent. Follow-up completeness is unverified and relies on database max timestamp."
             )
+        elif effective_wm and effective_wm.is_stale and effective_wm.stale_warning:
+            cautions.append(effective_wm.stale_warning)
         if refund_pct and refund_pct > 15.0:
             cautions.append(f"Elevated refund prevalence ({refund_pct}% of transactions); verify return policies.")
         if one_time_share and one_time_share > 75.0:

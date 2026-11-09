@@ -143,6 +143,12 @@ def create_application() -> FastAPI:
     # API Routing
     app.include_router(root_api_router, prefix="/api")
 
+    # Root-level health aliases for standard container/CLI probes
+    from app.api.v1.endpoints.health import get_health, get_readiness, get_liveness
+    app.add_api_route("/health", get_health, methods=["GET"], include_in_schema=False)
+    app.add_api_route("/health/ready", get_readiness, methods=["GET"], include_in_schema=False)
+    app.add_api_route("/health/live", get_liveness, methods=["GET"], include_in_schema=False)
+
     @app.get("/", summary="Root Index", tags=["system"])
     def root_index() -> dict[str, str]:
         """Root landing endpoint providing system identification and navigation."""

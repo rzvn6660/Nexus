@@ -57,6 +57,7 @@ export interface UserProfileResponse {
 
 const TOKEN_KEY = 'nexus_access_token';
 const ACTIVE_BIZ_KEY = 'nexus_business_id';
+const ACTIVE_BIZ_NAME_KEY = 'nexus_business_name';
 const ACTIVE_ORG_KEY = 'nexus_org_id';
 const USER_CACHE_KEY = 'nexus_user_profile';
 
@@ -76,6 +77,7 @@ export const AuthService = {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(ACTIVE_BIZ_KEY);
+      localStorage.removeItem(ACTIVE_BIZ_NAME_KEY);
       localStorage.removeItem(ACTIVE_ORG_KEY);
       localStorage.removeItem(USER_CACHE_KEY);
     }
@@ -93,6 +95,27 @@ export const AuthService = {
   setActiveBusinessId(businessId: string): void {
     if (typeof window !== 'undefined') {
       localStorage.setItem(ACTIVE_BIZ_KEY, businessId);
+    }
+  },
+
+  getActiveBusinessName(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(ACTIVE_BIZ_NAME_KEY);
+  },
+
+  setActiveBusinessName(businessName: string): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ACTIVE_BIZ_NAME_KEY, businessName);
+    }
+  },
+
+  getUserProfile(): UserIdentity | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const cached = localStorage.getItem(USER_CACHE_KEY);
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
     }
   },
 
@@ -125,6 +148,9 @@ export const AuthService = {
       if (res.business?.id) {
         this.setActiveBusinessId(res.business.id);
       }
+      if (res.business?.name) {
+        this.setActiveBusinessName(res.business.name);
+      }
       if (res.organization?.id) {
         this.setActiveOrgId(res.organization.id);
       }
@@ -147,6 +173,9 @@ export const AuthService = {
       if (res.business?.id) {
         this.setActiveBusinessId(res.business.id);
       }
+      if (res.business?.name) {
+        this.setActiveBusinessName(res.business.name);
+      }
       if (res.organization?.id) {
         this.setActiveOrgId(res.organization.id);
       }
@@ -162,12 +191,16 @@ export const AuthService = {
     if (profile.tenants && profile.tenants.length > 0) {
       const activeBiz = this.getActiveBusinessId();
       const allBiz = profile.tenants.flatMap((t) => t.businesses);
-      // If current active business is not found or not set, set to first available
-      if (!activeBiz || !allBiz.some((b) => b.id === activeBiz)) {
-        if (allBiz.length > 0) {
-          this.setActiveBusinessId(allBiz[0].id);
-          this.setActiveOrgId(profile.tenants[0].organization_id);
-        }
+      const match = allBiz.find((b) => b.id === activeBiz);
+      if (match) {
+        this.setActiveBusinessName(match.name);
+      } else if (allBiz.length > 0) {
+        this.setActiveBusinessId(allBiz[0].id);
+        this.setActiveBusinessName(allBiz[0].name);
+        this.setActiveOrgId(profile.tenants[0].organization_id);
+      }
+      if (profile.user) {
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(profile.user));
       }
     }
     return profile;

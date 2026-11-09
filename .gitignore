@@ -102,7 +102,31 @@ data/tenants/
 backend/data/
 postgres_data/
 
+# Merchant data (CRITICAL - Never commit customer or merchant PII data)
+data/merchant/
+**/merchant/
+*.merchant.csv
+*.merchant.xlsx
+merchant/
+merchant_data/
+
 # Logs
 *.log
 logs/
 backend/logs/
+
+# Ephemeral scratch & developer experimentation
+scratch/
+backups/
+*.dump
+
+# Generated test artifacts & media
+*.pdf
+screenshots/
+**/screenshots/
+test-results/
+playwright-report/
+blob-report/
+
+# Linter & tool caches
+.ruff_cache/

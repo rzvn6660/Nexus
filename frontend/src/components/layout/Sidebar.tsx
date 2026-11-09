@@ -13,6 +13,10 @@ import {
   ChevronRight,
   X,
   Radio,
+  UserCheck,
+  Activity,
+  Settings,
+  BrainCircuit,
 } from 'lucide-react';
 import { DatabaseHealth } from '../../types/api';
 import { NexusLogo } from '../brand/NexusLogo';
@@ -64,10 +68,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badge: 'Console',
         },
         {
-          title: 'Investigate',
-          route: '/investigations',
-          icon: SearchCode,
-          badge: 'Diagnostic',
+          title: 'Analyst Studio',
+          route: '/analyst-studio',
+          icon: BrainCircuit,
+          badge: 'Team',
+        },
+        {
+          title: 'Customer Retention',
+          route: '/retention',
+          icon: UserCheck,
+          badge: 'Churn',
+        },
+        {
+          title: 'NEXUS Pulse',
+          route: '/pulse',
+          icon: Activity,
+          badge: 'Reports',
+        },
+        {
+          title: 'Analytics',
+          route: '/analytics',
+          icon: BarChart3,
         },
         {
           title: 'Forecast',
@@ -76,15 +97,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badge: 'Horizon',
         },
         {
-          title: 'Analytics',
-          route: '/analytics',
-          icon: BarChart3,
+          title: 'Investigate',
+          route: '/investigations',
+          icon: SearchCode,
+          badge: 'Diagnostic',
         },
       ],
     },
     {
       label: 'DATA & ONTOLOGY',
       items: [
+        {
+          title: 'Connectors & Ingestion',
+          route: '/connectors',
+          icon: Radio,
+          badge: 'Evidence',
+        },
         {
           title: 'Data Health & Schema',
           route: '/data',
@@ -109,8 +137,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      label: 'WORKSPACE SETTINGS',
+      label: 'SETTINGS & MANAGEMENT',
       items: [
+        {
+          title: 'Global Settings',
+          route: '/settings',
+          icon: Settings,
+          badge: 'Hub',
+        },
         {
           title: 'Business Profile',
           route: '/business',
@@ -132,112 +166,113 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`h-screen sticky top-0 bg-void border-r border-surface-elevated/80 flex flex-col justify-between transition-all duration-200 z-30 select-none ${
+      className={`h-full bg-void border-r border-surface-elevated/80 flex flex-col justify-between transition-all duration-200 z-30 select-none ${
         collapsed ? 'w-20' : 'w-64'
       }`}
       aria-label="Main Navigation"
     >
-      {/* Top Branding Section */}
-      <div className="overflow-y-auto overflow-x-hidden flex-1 flex flex-col min-h-0">
-        <div className="h-16 px-4 flex items-center justify-between border-b border-surface-elevated/80 shrink-0">
-          <div
-            onClick={() => handleItemClick('/')}
-            className="cursor-pointer group flex items-center min-w-0"
-            title="NEXUS Workspace Home"
-          >
-            <NexusLogo collapsed={collapsed} size={32} />
-          </div>
-
-          {/* Desktop collapse toggle */}
-          <button
-            onClick={onToggleCollapse}
-            className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-elevated transition-colors"
-            title={collapsed ? 'Expand Workspace Sidebar' : 'Collapse Workspace Sidebar'}
-            aria-label={collapsed ? 'Expand Workspace Sidebar' : 'Collapse Workspace Sidebar'}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-
-          {/* Mobile close button */}
-          {onCloseMobile && (
-            <button
-              onClick={onCloseMobile}
-              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-elevated transition-colors"
-              aria-label="Close navigation"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+      {/* Top Branding Section (Stationary) */}
+      <div className="h-16 px-4 flex items-center justify-between border-b border-surface-elevated/80 shrink-0 bg-void">
+        <div
+          onClick={() => handleItemClick('/')}
+          className="cursor-pointer group flex items-center min-w-0"
+          title="NEXUS Workspace Home"
+        >
+          <NexusLogo collapsed={collapsed} size={32} />
         </div>
 
-        {/* Grouped Navigation */}
-        <nav className="p-3 space-y-5 mt-2 flex-1 overflow-y-auto" aria-label="Workspace Pages">
-          {navGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1">
-              {!collapsed && group.label && (
-                <div className="px-3 text-[10px] font-semibold tracking-wider text-slate-400 uppercase mb-1.5 font-sans">
-                  {group.label}
-                </div>
-              )}
+        {/* Desktop collapse toggle */}
+        <button
+          onClick={onToggleCollapse}
+          className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-elevated transition-colors"
+          title={collapsed ? 'Expand Workspace Sidebar' : 'Collapse Workspace Sidebar'}
+          aria-label={collapsed ? 'Expand Workspace Sidebar' : 'Collapse Workspace Sidebar'}
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
 
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const isActive =
-                  item.route === '/'
-                    ? currentRoute === '/'
-                    : currentRoute === item.route || currentRoute.startsWith(`${item.route}/`);
-
-                return (
-                  <button
-                    key={item.route}
-                    onClick={() => handleItemClick(item.route)}
-                    title={collapsed ? item.title : undefined}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-all group ${
-                      isActive
-                        ? 'bg-cyan-950/50 text-cyan-300 font-semibold border border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.12)]'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-surface-elevated/70 border border-transparent font-medium'
-                    } ${collapsed ? 'justify-center px-0' : 'justify-between'}`}
-                  >
-                    {/* Active Accent Pill on left edge */}
-                    {isActive && (
-                      <span
-                        className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-cyan-400 rounded-r shadow-[0_0_8px_rgba(6,182,212,0.8)]"
-                        aria-hidden="true"
-                      />
-                    )}
-
-                    <div className="flex items-center gap-2.5 truncate min-w-0">
-                      <Icon
-                        className={`w-4 h-4 shrink-0 transition-colors ${
-                          isActive
-                            ? 'text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.6)]'
-                            : 'text-slate-400 group-hover:text-slate-200'
-                        }`}
-                      />
-                      {!collapsed && <span className="truncate">{item.title}</span>}
-                    </div>
-
-                    {!collapsed && item.badge && (
-                      <span
-                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold shrink-0 transition-colors ${
-                          isActive
-                            ? 'bg-cyan-900/60 text-cyan-200 border border-cyan-500/30'
-                            : 'bg-surface-elevated text-slate-400 border border-white/5'
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
+        {/* Mobile close button */}
+        {onCloseMobile && (
+          <button
+            onClick={onCloseMobile}
+            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-elevated transition-colors"
+            aria-label="Close navigation"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
-      {/* Bottom Infrastructure & System Status */}
+      {/* Independently Scrollable Grouped Navigation */}
+      <nav
+        className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-5"
+        aria-label="Workspace Pages"
+      >
+        {navGroups.map((group, gIdx) => (
+          <div key={gIdx} className="space-y-1">
+            {!collapsed && group.label && (
+              <div className="px-3 text-[10px] font-semibold tracking-wider text-slate-400 uppercase mb-1.5 font-sans">
+                {group.label}
+              </div>
+            )}
+
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                item.route === '/'
+                  ? currentRoute === '/'
+                  : currentRoute === item.route || currentRoute.startsWith(`${item.route}/`);
+
+              return (
+                <button
+                  key={item.route}
+                  onClick={() => handleItemClick(item.route)}
+                  title={collapsed ? item.title : undefined}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs transition-all group ${
+                    isActive
+                      ? 'bg-cyan-950/50 text-cyan-400 font-semibold border border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.12)]'
+                      : 'text-slate-400 hover:text-white hover:bg-surface-elevated/70 border border-transparent font-medium'
+                  } ${collapsed ? 'justify-center px-0' : 'justify-between'}`}
+                >
+                  {/* Active Accent Pill on left edge */}
+                  {isActive && (
+                    <span
+                      className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-cyan-400 rounded-r shadow-[0_0_8px_rgba(6,182,212,0.8)]"
+                      aria-hidden="true"
+                    />
+                  )}
+
+                  <div className="flex items-center gap-2.5 truncate min-w-0">
+                    <Icon
+                      className={`w-4 h-4 shrink-0 transition-colors ${
+                        isActive
+                          ? 'text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.6)]'
+                          : 'text-slate-400 group-hover:text-slate-200'
+                      }`}
+                    />
+                    {!collapsed && <span className="truncate">{item.title}</span>}
+                  </div>
+
+                  {!collapsed && item.badge && (
+                    <span
+                      className={`text-[9px] font-mono px-1.5 py-0.5 rounded uppercase font-semibold shrink-0 transition-colors ${
+                        isActive
+                          ? 'bg-cyan-900/60 text-cyan-200 border border-cyan-500/30'
+                          : 'bg-surface-elevated text-slate-400 border border-white/5'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      {/* Anchored Infrastructure & System Status Footer (Stationary) */}
       <div className="p-3 border-t border-surface-elevated/80 space-y-2 shrink-0 bg-void-sub/40">
         <div
           className={`flex items-center gap-2 p-2.5 rounded-xl bg-surface/70 border border-surface-elevated/80 text-xs ${
@@ -268,10 +303,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {!collapsed && (
           <div className="px-2 py-0.5 text-[10px] text-slate-400 flex items-center justify-between font-sans">
-            <span className="font-semibold text-slate-400">NEXUS Platform</span>
+            <span className="font-semibold text-slate-400">NEXUS Sovereign</span>
             <span className="inline-flex items-center gap-1 text-slate-400 font-mono text-[10px]">
               <Radio className="w-2.5 h-2.5 text-cyan-400" />
-              v1.0.0
+              v1.0.0 (Rev 022)
             </span>
           </div>
         )}

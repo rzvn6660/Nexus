@@ -17,10 +17,19 @@ from app.analytics.core.models import (
 )
 from app.analytics.customer.rfm import RFMAnalysisSummary
 from app.analytics.customer.cohorts import CohortAnalysisResult
+from app.analytics.customer.cadence import CustomerCadenceSummary
+from app.analytics.customer.safety import CadenceSafetyVerdict
 from app.analytics.inventory.stock import InventoryOverviewResult
 from app.analytics.inventory.turnover import InventoryTurnoverResult
 from app.analytics.metrics.expenses import ExpenseAnalysisResult
 from app.analytics.evidence.models import EvidenceRecord
+
+from app.schemas.retention import (
+    CustomerRiskDetail,
+    RetentionCustomerListResponse,
+    RetentionOutcomeEvaluation,
+    RetentionOverview,
+)
 
 T = TypeVar("T")
 
@@ -30,6 +39,12 @@ class AnalyticsEnvelope(BaseModel, Generic[T]):
     success: bool = Field(default=True)
     data: T
     evidence: EvidenceRecord
+
+
+class CadenceResponseData(BaseModel):
+    """Customer purchase cadence summary paired with safety gates verdict."""
+    summary: CustomerCadenceSummary
+    safety_verdict: CadenceSafetyVerdict
 
 
 # Typed response envelopes for clean OpenAPI schema generation
@@ -48,3 +63,8 @@ DecompositionResponse = AnalyticsEnvelope[PriceVolumeMixDecomposition]
 CorrelationResponse = AnalyticsEnvelope[CorrelationResult]
 StatisticalTestResponse = AnalyticsEnvelope[StatisticalTestResult]
 GrossToNetResponse = AnalyticsEnvelope[GrossToNetWaterfallResult]
+CadenceResponse = AnalyticsEnvelope[CadenceResponseData]
+RetentionOverviewResponse = AnalyticsEnvelope[RetentionOverview]
+RetentionCustomerListApiResponse = AnalyticsEnvelope[RetentionCustomerListResponse]
+RetentionCustomerDetailResponse = AnalyticsEnvelope[CustomerRiskDetail]
+RetentionOutcomeEvaluationResponse = AnalyticsEnvelope[RetentionOutcomeEvaluation]

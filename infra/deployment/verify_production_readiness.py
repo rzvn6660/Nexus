@@ -129,8 +129,8 @@ def run_all_checks(strict: bool = False) -> list[CheckResult]:
         from app.core.database import engine, check_database_connection
 
         db_stat = check_database_connection(engine)
-        if db_stat.get("connected"):
-            dialect = db_stat.get("dialect", "")
+        if db_stat.get("status") == "connected" or db_stat.get("connected") is True:
+            dialect = getattr(engine.dialect, "name", "")
             if dialect == "postgresql":
                 with engine.connect() as conn:
                     vec_check = conn.execute(

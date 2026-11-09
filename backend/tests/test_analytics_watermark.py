@@ -815,4 +815,302 @@ def test_alembic_migration_017_upgrade_downgrade_sqlite():
         assert insp.has_table("tenant_ingestion_watermarks")
 
 
+def test_watermark_lifecycle_validation_and_invalid_transitions(
+    db_session: Session, test_tenant: tuple[Organization, Business]
+):
+    """Verify input validation, timestamp boundaries, and regression prevention."""
+    from datetime import timedelta
+    _, biz = test_tenant
 
+    # 1. Future timestamp rejection
+    future_dt = datetime.now(UTC) + timedelta(days=10)
+    with pytest.raises(ValueError, match="future"):
+        WatermarkContract(
+            business_id=biz.id,
+            source_id="shopify",
+            complete_through_dt=future_dt,
+            provenance_type="batch_file",
+        )
+
+    # 2. Pre-2000 timestamp rejection
+    ancient_dt = datetime(1998, 1, 1, tzinfo=UTC)
+    with pytest.raises(ValueError, match="before year 2000"):
+        WatermarkContract(
+            business_id=biz.id,
+            source_id="shopify",
+            complete_through_dt=ancient_dt,
+            provenance_type="batch_file",
+        )
+
+    # 3. Invalid provenance type rejection
+    with pytest.raises(ValueError, match="Invalid provenance_type"):
+        WatermarkContract(
+            business_id=biz.id,
+            source_id="shopify",
+            complete_through_dt=datetime(2023, 6, 1, tzinfo=UTC),
+            provenance_type="untrusted_guess",
+        )
+
+    # 4. Invalid verification status rejection
+    with pytest.raises(ValueError, match="Invalid verification_status"):
+        WatermarkContract(
+            business_id=biz.id,
+            source_id="shopify",
+            complete_through_dt=datetime(2023, 6, 1, tzinfo=UTC),
+            verification_status="fake_status",
+        )
+
+    # 5. Empty source_id rejection
+    with pytest.raises(ValueError, match="source_id cannot be empty"):
+        WatermarkContract(
+            business_id=biz.id,
+            source_id="   ",
+            complete_through_dt=datetime(2023, 6, 1, tzinfo=UTC),
+        )
+
+    # 6. Backward regression prevention for verified boundaries
+    wm_june = WatermarkService.record_watermark(
+        session=db_session,
+        contract=WatermarkContract(
+            business_id=biz.id,
+            source_id="shopify",
+            complete_through_dt=datetime(2023, 6, 30, tzinfo=UTC),
+            verification_status="verified",
+        ),
+    )
+    db_session.commit()
+    assert wm_june.is_active is True
+
+    # Attempting to advance backward without allow_regression must fail
+    with pytest.raises(ValueError, match="Cannot advance verified watermark backward in time"):
+        WatermarkService.record_watermark(
+            session=db_session,
+            contract=WatermarkContract(
+                business_id=biz.id,
+                source_id="shopify",
+                complete_through_dt=datetime(2023, 5, 31, tzinfo=UTC),
+                verification_status="verified",
+            ),
+            allow_regression=False,
+        )
+
+
+def test_watermark_provisional_lifecycle_and_promotion(
+    db_session: Session, test_tenant: tuple[Organization, Business]
+):
+    """Verify provisional watermark creation, gap handling, and promotion to verified."""
+    _, biz = test_tenant
+
+    # 1. Record provisional watermark
+    prov_wm = WatermarkService.record_watermark(
+        session=db_session,
+        contract=WatermarkContract(
+            business_id=biz.id,
+            source_id="pos_daily",
+            complete_through_dt=datetime(2023, 7, 15, tzinfo=UTC),
+            provenance_type="pos_daily_sync",
+            verification_status="provisional",
+            metadata_json={"sync_batch": "BATCH-PROV-1"},
+        ),
+    )
+    db_session.commit()
+
+    assert prov_wm.is_active is True
+    assert prov_wm.verification_status == "provisional"
+
+    # 2. Effective tenant watermark must NOT certify completeness while provisional
+    eff = WatermarkService.get_effective_tenant_watermark(db_session, biz.id)
+    assert eff.is_verified is False
+    assert eff.status == "incomplete_watermark_gap"
+
+    # 3. Promote provisional to verified
+    promoted = WatermarkService.promote_provisional_watermark(
+        session=db_session,
+        business_id=biz.id,
+        watermark_id=prov_wm.id,
+        audit_metadata={"reconciled_by": "nightly_audit"},
+    )
+    db_session.commit()
+
+    assert promoted.verification_status == "verified"
+    assert promoted.metadata_json.get("reconciled_by") == "nightly_audit"
+
+    # Effective watermark is now verified complete
+    eff_after = WatermarkService.get_effective_tenant_watermark(db_session, biz.id)
+    assert eff_after.is_verified is True
+    assert eff_after.status == "verified_complete"
+    assert eff_after.effective_complete_through_dt == datetime(2023, 7, 15, tzinfo=UTC)
+
+    # 4. Attempting to promote already-verified watermark must raise ValueError
+    with pytest.raises(ValueError, match="only 'provisional'"):
+        WatermarkService.promote_provisional_watermark(
+            session=db_session,
+            business_id=biz.id,
+            watermark_id=promoted.id,
+        )
+
+
+def test_watermark_cross_tenant_access_denial(
+    db_session: Session, test_tenant: tuple[Organization, Business]
+):
+    """Verify strict tenant isolation and cross-tenant access rejection."""
+    _, biz_a = test_tenant
+
+    # Create tenant B
+    org_b = Organization(
+        id=f"org-b-{uuid4().hex[:8]}",
+        name="Tenant B Org",
+        slug=f"org-b-{uuid4().hex[:8]}",
+    )
+    biz_b = Business(
+        id=f"biz-b-{uuid4().hex[:8]}",
+        organization_id=org_b.id,
+        name="Tenant B Business",
+    )
+    ds_b = UploadedDataset(
+        id=f"ds-b-{uuid4().hex[:8]}",
+        organization_id=org_b.id,
+        business_id=biz_b.id,
+        filename="b.csv",
+        file_type="csv",
+        storage_key="s3://b/b.csv",
+        file_size_bytes=100,
+        readiness_status="READY",
+    )
+    job_b = IngestionJob(
+        id=f"job-b-{uuid4().hex[:8]}",
+        organization_id=org_b.id,
+        business_id=biz_b.id,
+        dataset_id=ds_b.id,
+        status="COMPLETED",
+    )
+    db_session.add_all([org_b, biz_b, ds_b, job_b])
+    db_session.commit()
+
+    # 1. Attempting to record watermark for Tenant A using Tenant B's job must fail
+    with pytest.raises(PermissionError, match="Cross-tenant access violation"):
+        WatermarkService.record_watermark(
+            session=db_session,
+            contract=WatermarkContract(
+                business_id=biz_a.id,
+                source_id="shopify",
+                complete_through_dt=datetime(2023, 8, 1, tzinfo=UTC),
+                ingestion_job_id=job_b.id,
+            ),
+        )
+
+    # 2. Record watermark for Tenant A
+    wm_a = WatermarkService.record_watermark(
+        session=db_session,
+        contract=WatermarkContract(
+            business_id=biz_a.id,
+            source_id="shopify",
+            complete_through_dt=datetime(2023, 8, 1, tzinfo=UTC),
+            verification_status="provisional",
+        ),
+    )
+    db_session.commit()
+
+    # Attempting to promote Tenant A's watermark as Tenant B must fail
+    with pytest.raises(PermissionError, match="Cross-tenant access violation"):
+        WatermarkService.promote_provisional_watermark(
+            session=db_session,
+            business_id=biz_b.id,
+            watermark_id=wm_a.id,
+        )
+
+    # 3. History query for Tenant B returns 0 records
+    history_b = WatermarkService.get_watermark_history(db_session, business_id=biz_b.id)
+    assert len(history_b) == 0
+
+
+def test_watermark_idempotency_and_history_ledger(
+    db_session: Session, test_tenant: tuple[Organization, Business]
+):
+    """Verify idempotent retries do not churn records, and audit history ledger is complete."""
+    _, biz = test_tenant
+
+    contract = WatermarkContract(
+        business_id=biz.id,
+        source_id="pos",
+        complete_through_dt=datetime(2023, 9, 1, tzinfo=UTC),
+        provenance_type="batch_file",
+        verification_status="verified",
+    )
+
+    # First call
+    wm1 = WatermarkService.record_watermark(db_session, contract)
+    db_session.commit()
+
+    # Second idempotent call
+    wm2 = WatermarkService.record_watermark(db_session, contract)
+    db_session.commit()
+
+    assert wm1.id == wm2.id
+
+    # Count records: exactly 1 active watermark exists
+    active = WatermarkService.get_active_watermarks(db_session, biz.id)
+    assert len(active) == 1
+    assert active[0].id == wm1.id
+
+    # Advance to new boundary
+    wm3 = WatermarkService.record_watermark(
+        db_session,
+        WatermarkContract(
+            business_id=biz.id,
+            source_id="pos",
+            complete_through_dt=datetime(2023, 9, 15, tzinfo=UTC),
+            provenance_type="batch_file",
+            verification_status="verified",
+        ),
+    )
+    db_session.commit()
+
+    # History contains both records in reverse order
+    history = WatermarkService.get_watermark_history(db_session, biz.id, source_id="pos")
+    assert len(history) == 2
+    assert history[0].id == wm3.id
+    assert history[0].is_active is True
+    assert history[1].id == wm1.id
+    assert history[1].is_active is False
+
+
+def test_watermark_staleness_handling_in_readiness_and_validation(
+    db_session: Session, test_tenant: tuple[Organization, Business]
+):
+    """Verify staleness detection in EffectiveWatermarkResult and downstream diagnostics."""
+    _, biz = test_tenant
+
+    old_dt = datetime(2023, 1, 1, tzinfo=UTC)
+    WatermarkService.record_watermark(
+        session=db_session,
+        contract=WatermarkContract(
+            business_id=biz.id,
+            source_id="shopify",
+            complete_through_dt=old_dt,
+            verification_status="verified",
+        ),
+    )
+    db_session.commit()
+
+    # Evaluate with max_staleness_days=30
+    eff = WatermarkService.get_effective_tenant_watermark(
+        db_session, business_id=biz.id, max_staleness_days=30
+    )
+    assert eff.is_verified is True
+    assert eff.is_stale is True
+    assert "exceeding max staleness threshold" in (eff.stale_warning or "")
+
+    # In readiness assessment
+    ctx = AnalysisContext(business_id=biz.id)
+    report = CustomerDataReadinessAssessor.assess_tenant(session=db_session, context=ctx)
+    assert any("exceeding max staleness threshold" in c for c in report.cautions)
+
+    # In cadence validation
+    val_res = HistoricalCadenceValidator.evaluate_cutoff(
+        session=db_session,
+        context=ctx,
+        cutoff_date=date(2022, 10, 1),
+        horizon_days=60,
+    )
+    assert any("exceeding max staleness threshold" in lim for lim in val_res.limitations)

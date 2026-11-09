@@ -395,6 +395,9 @@ class HistoricalCadenceValidator:
         insufficient_customers = cadence_summary.insufficient_history_count
 
         if total_customers == 0:
+            early_limitations = ["No eligible customers found at cutoff date."]
+            if effective_wm and effective_wm.is_stale and effective_wm.stale_warning:
+                early_limitations.append(effective_wm.stale_warning)
             return CutoffEvaluationResult(
                 cutoff_date=ref_dt.isoformat(),
                 buffer_days=buffer_days,
@@ -411,7 +414,7 @@ class HistoricalCadenceValidator:
                 baseline_no_purchase_rate=None,
                 tier_performances={},
                 confusion_matrices={},
-                limitations=["No eligible customers found at cutoff date."],
+                limitations=early_limitations,
             )
 
         # 5. Query future eligible orders strictly inside the outcome horizon
@@ -615,6 +618,8 @@ class HistoricalCadenceValidator:
                 "UNVERIFIED OUTCOMES NOTICE: Observed non-purchases in unverified follow-up windows must NOT "
                 "be silently treated as definitive customer churn or used for uncalibrated commercial action."
             )
+        if effective_wm and effective_wm.is_stale and effective_wm.stale_warning:
+            limitations.append(effective_wm.stale_warning)
 
         return CutoffEvaluationResult(
             cutoff_date=ref_dt.isoformat(),

@@ -8,8 +8,10 @@ Provides:
 """
 
 from typing import Any
+import base64
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
+from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -18,12 +20,14 @@ from app.core.auth import (
     get_current_user,
     verify_user_business_access,
 )
-from app.models.tenant import Business, UploadedDataset, UserIdentity
+from app.models.tenant import Business, OrganizationMembership, UploadedDataset, UserIdentity
 from app.schemas.data_gateway import (
     DataPreviewResponse,
     DatasetIngestRequest,
 )
+from app.schemas.manifest import PeriodCloseManifest
 from app.services.data_gateway_service import DataGatewayService
+from app.services.manifest_service import ManifestService
 
 router = APIRouter()
 
@@ -262,3 +266,94 @@ def ingest_dataset_to_core(
         target_entity=payload.target_entity,
         column_overrides=payload.column_overrides,
     )
+
+
+class ManifestSubmitRequest(BaseModel):
+    """Request payload for submitting and validating a period-close manifest."""
+
+    manifest: PeriodCloseManifest
+    file_content_base64: str | None = Field(default=None, description="Base64-encoded raw export file bytes")
+    file_content_text: str | None = Field(default=None, description="Raw CSV text content")
+    source_close_evidence: dict[str, Any] | None = Field(default=None, description="Corroborating source-close evidence")
+    promote_immediately: bool = Field(default=False, description="Promote provisional watermark if verification passes")
+
+
+@router.post(
+    "/manifest/submit",
+    summary="Submit and verify signed period-close manifest",
+    status_code=status.HTTP_200_OK,
+)
+def submit_period_close_manifest(
+    payload: ManifestSubmitRequest,
+    current_user: UserIdentity = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> dict[str, Any]:
+    """
+    Submit and verify signed period-close manifest with export data (Finding M1, M2).
+    - Requires authenticated caller identity via dependency injection (Finding M1).
+    - Prevents caller override: server-side current_user.id is strictly enforced.
+    - Fails closed if caller is unauthenticated (401), not a member of the business org (403),
+      not an owner/admin (403), or does not match the claimed attesting user (403).
+    - Durably records submission audit record in manifest_submissions (Finding M2).
+    - Prevents duplicate manifest submission replay (Finding M2).
+    """
+    # 1. Enforce tenant-scoped access
+    biz = verify_user_business_access(db, current_user, payload.manifest.business_id, action="submit manifest for")
+
+    # 2. Enforce owner or admin role
+    membership = db.execute(
+        select(OrganizationMembership).where(
+            OrganizationMembership.organization_id == biz.organization_id,
+            OrganizationMembership.user_id == current_user.id,
+        )
+    ).scalar_one_or_none()
+
+    if not membership or membership.role not in {"owner", "admin"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Only organization 'owner' or 'admin' can submit authoritative period-close manifests.",
+        )
+
+    # 3. Caller identity binding: attesting user MUST match authenticated user
+    if payload.manifest.attestation.attested_by_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Forbidden: Authenticated user '{current_user.id}' cannot attest on behalf of user '{payload.manifest.attestation.attested_by_user_id}'.",
+        )
+
+    # 4. Resolve file content bytes
+    if payload.file_content_base64:
+        try:
+            file_bytes = base64.b64decode(payload.file_content_base64)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid base64 encoding for file content: {e}",
+            )
+    elif payload.file_content_text is not None:
+        file_bytes = payload.file_content_text.encode("utf-8")
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing file content: either file_content_base64 or file_content_text is required.",
+        )
+
+    # 5. Execute verification, ledger persistence, and provisional watermarking
+    result = ManifestService.verify_and_ingest_manifest(
+        session=db,
+        manifest=payload.manifest,
+        file_bytes=file_bytes,
+        calling_user_id=current_user.id,
+        source_close_evidence=payload.source_close_evidence,
+        promote_immediately_if_verified=payload.promote_immediately,
+    )
+    db.commit()
+
+    # Replay prevention check
+    if any("replay rejected" in err.lower() for err in result.errors):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Manifest replay rejected: manifest_id '{payload.manifest.manifest_id}' was already submitted.",
+        )
+
+    return result.model_dump(mode="json")

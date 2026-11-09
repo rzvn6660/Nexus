@@ -7,6 +7,7 @@ watermark verification, and zero PII exposure.
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from uuid import uuid4
 
 from app.analytics.core.context import AnalysisContext
 from app.analytics.customer.readiness import CustomerDataReadinessAssessor
@@ -541,3 +542,67 @@ def test_readiness_synthetic_dataset_integration(db_session: Session):
     assert len(report.candidate_cutoffs) == 1
     assert report.candidate_cutoffs[0].followup_status == "verified_complete"
     assert report.candidate_cutoffs[0].is_pilot_ready is True
+
+
+def test_readiness_cohort_reconciliation_status_filtering(db_session: Session):
+    """
+    Phase 1H.6 Regression Test: Reconcile raw transaction counts vs eligible purchase dynamics.
+    Verifies that non-eligible transaction statuses (cancelled, refunded, pending):
+    - Shift raw repeat buyers to one-time buyers (if 1 eligible order remains).
+    - Shift raw repeat buyers to zero-purchase customers (if 0 eligible orders remain).
+    - Shift raw one-time buyers to zero-purchase customers (if single order is non-eligible).
+    - Maintain exact customer population accounting with zero discrepancies.
+    """
+    biz_id = f"biz-reconcile-test-{uuid4().hex[:6]}"
+
+    # 6 Customers
+    cA = Customer(customer_code="C-A", business_id=biz_id, name="Cust A", email="a@test.com", city="Seattle", customer_segment="Retail", acquisition_date=date(2023, 1, 1))
+    cB = Customer(customer_code="C-B", business_id=biz_id, name="Cust B", email="b@test.com", city="Seattle", customer_segment="Retail", acquisition_date=date(2023, 1, 1))
+    cC = Customer(customer_code="C-C", business_id=biz_id, name="Cust C", email="c@test.com", city="Seattle", customer_segment="Retail", acquisition_date=date(2023, 1, 1))
+    cD = Customer(customer_code="C-D", business_id=biz_id, name="Cust D", email="d@test.com", city="Seattle", customer_segment="Retail", acquisition_date=date(2023, 1, 1))
+    cE = Customer(customer_code="C-E", business_id=biz_id, name="Cust E", email="e@test.com", city="Seattle", customer_segment="Retail", acquisition_date=date(2023, 1, 1))
+    cF = Customer(customer_code="C-F", business_id=biz_id, name="Cust F", email="f@test.com", city="Seattle", customer_segment="Retail", acquisition_date=date(2023, 1, 1))
+    db_session.add_all([cA, cB, cC, cD, cE, cF])
+    db_session.flush()
+
+    sales = [
+        # Cust A: 2 completed purchases (distinct dates) -> Repeat
+        Sale(transaction_number="TX-A1", business_id=biz_id, customer_id=cA.id, transaction_date=datetime(2023, 1, 1, 10, 0, tzinfo=UTC), status="completed", subtotal=Decimal("50"), total_amount=Decimal("50")),
+        Sale(transaction_number="TX-A2", business_id=biz_id, customer_id=cA.id, transaction_date=datetime(2023, 1, 15, 10, 0, tzinfo=UTC), status="completed", subtotal=Decimal("50"), total_amount=Decimal("50")),
+
+        # Cust B: 1 completed, 1 cancelled -> Raw Repeat (2 orders) -> Eligible One-Time (1 order)
+        Sale(transaction_number="TX-B1", business_id=biz_id, customer_id=cB.id, transaction_date=datetime(2023, 1, 2, 10, 0, tzinfo=UTC), status="completed", subtotal=Decimal("60"), total_amount=Decimal("60")),
+        Sale(transaction_number="TX-B2", business_id=biz_id, customer_id=cB.id, transaction_date=datetime(2023, 1, 16, 10, 0, tzinfo=UTC), status="cancelled", subtotal=Decimal("60"), total_amount=Decimal("60")),
+
+        # Cust C: 1 cancelled, 1 refunded -> Raw Repeat (2 orders) -> Eligible Zero-Purchase (0 orders)
+        Sale(transaction_number="TX-C1", business_id=biz_id, customer_id=cC.id, transaction_date=datetime(2023, 1, 3, 10, 0, tzinfo=UTC), status="cancelled", subtotal=Decimal("70"), total_amount=Decimal("70")),
+        Sale(transaction_number="TX-C2", business_id=biz_id, customer_id=cC.id, transaction_date=datetime(2023, 1, 17, 10, 0, tzinfo=UTC), status="refunded", subtotal=Decimal("70"), total_amount=Decimal("70")),
+
+        # Cust D: 1 completed -> Raw One-Time -> Eligible One-Time
+        Sale(transaction_number="TX-D1", business_id=biz_id, customer_id=cD.id, transaction_date=datetime(2023, 1, 4, 10, 0, tzinfo=UTC), status="completed", subtotal=Decimal("80"), total_amount=Decimal("80")),
+
+        # Cust E: 1 refunded -> Raw One-Time -> Eligible Zero-Purchase
+        Sale(transaction_number="TX-E1", business_id=biz_id, customer_id=cE.id, transaction_date=datetime(2023, 1, 5, 10, 0, tzinfo=UTC), status="refunded", subtotal=Decimal("90"), total_amount=Decimal("90")),
+
+        # Cust F: 0 sales
+    ]
+    db_session.add_all(sales)
+    db_session.commit()
+
+    context = AnalysisContext(business_id=biz_id)
+    report = CustomerDataReadinessAssessor.assess_tenant(session=db_session, context=context)
+
+    pop = report.customer_population
+    assert pop.registered_customers_count == 6
+    assert pop.customers_with_any_transactions == 5  # A, B, C, D, E
+    assert pop.customers_with_eligible_purchases == 3  # A, B, D
+
+    # Reconciled Cohorts
+    assert pop.eligible_repeat_buyers_count == 1   # Cust A
+    assert pop.one_time_buyers_count == 2          # Cust B (shifted) and Cust D
+    assert pop.zero_purchase_customers_count == 3  # Cust C (shifted), Cust E (shifted), Cust F
+    assert pop.simultaneous_orders_only_count == 0
+
+    # Shares
+    assert pop.inferred_repeat_buyer_share_pct == round((1 / 3) * 100, 2)
+    assert pop.inferred_one_time_buyer_share_pct == round((2 / 3) * 100, 2)

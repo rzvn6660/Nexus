@@ -831,3 +831,532 @@ export interface ReportExportResponse {
 export type float = number;
 export type str = string;
 
+// ==========================================
+// Phase 1H.2: Customer Cadence & Pilot Safety Gates
+// ==========================================
+
+export type CadenceRiskTier = 'low' | 'medium' | 'high' | 'critical' | 'insufficient_history';
+export type CadenceEligibilityStatus = 'actionable' | 'diagnostic_only' | 'blocked';
+export type SeasonalContextType = 'confirmed_seasonal' | 'confirmed_non_seasonal' | 'unknown_seasonal_context';
+
+export interface SeasonalCautionDisclosure {
+  has_seasonal_caution: boolean;
+  context_type: SeasonalContextType;
+  caution_title?: string | null;
+  caution_message?: string | null;
+  customer_level_claim_permitted: boolean;
+  advisory_notes: string[];
+}
+
+export interface CadenceSafetyVerdict {
+  eligibility_status: CadenceEligibilityStatus;
+  is_actionable: boolean;
+  reason_code: string;
+  explanation: string;
+  non_actionable_notice?: string | null;
+  effective_watermark_status?: string | null;
+  effective_complete_through_dt?: string | null;
+  as_of_date_requested: string;
+  eligible_repeat_buyers_count: number;
+  min_required_repeat_buyers: number;
+  seasonal_disclosure: SeasonalCautionDisclosure;
+  human_review_policy: string;
+  diagnostic_details: Record<string, any>;
+}
+
+export interface CustomerCadenceRecord {
+  customer_id: number;
+  customer_code: string;
+  name: string;
+  customer_segment?: string | null;
+  eligible_order_count: number;
+  distinct_purchase_dates_count: number;
+  is_repeat_buyer: boolean;
+  mean_ipi_days?: number | null;
+  std_ipi_days?: number | null;
+  median_ipi_days?: number | null;
+  last_purchase_date?: string | null;
+  days_since_last_purchase?: number | null;
+  baseline_cadence_days?: number | null;
+  cadence_source: string;
+  cadence_ratio?: number | null;
+  risk_tier: CadenceRiskTier;
+  explanation: {
+    summary: string;
+    provisional_notice: string;
+    cadence_source: string;
+    risk_drivers: string[];
+  };
+}
+
+export interface CustomerCadenceSummary {
+  as_of_date: string;
+  business_id?: string | null;
+  total_customers_evaluated: number;
+  customers_scored: number;
+  insufficient_history_count: number;
+  repeat_buyers_count: number;
+  one_time_buyers_count: number;
+  risk_tier_counts: Record<string, number>;
+  segment_fallbacks_used: number;
+  segment_baselines: Record<string, number | null>;
+  records: CustomerCadenceRecord[];
+  methodology: string;
+  limitations: string[];
+}
+
+export interface CadenceResponseData {
+  summary: CustomerCadenceSummary;
+  safety_verdict: CadenceSafetyVerdict;
+}
+
+export interface CadenceResponse {
+  success: boolean;
+  data: CadenceResponseData;
+  evidence?: EvidenceRecord;
+}
+
+// ==========================================
+// Customer Retention & Churn Intelligence
+// ==========================================
+
+export type RetentionActionType =
+  | 'personal_follow_up'
+  | 'product_recommendation'
+  | 'reengagement_checkin'
+  | 'service_experience_review'
+  | 'loyalty_retention_offer'
+  | 'onboarding_nurture'
+  | 'monitor_only';
+
+export type InterventionUrgency = 'immediate' | 'proactive' | 'watchlist' | 'healthy' | 'insufficient_history';
+export type RetentionConfidenceLevel = 'high' | 'medium' | 'low' | 'insufficient_history';
+
+export interface CustomerRetentionRecommendation {
+  recommendation_id: string;
+  customer_id: number;
+  customer_code: string;
+  customer_name: string;
+  action_type: RetentionActionType;
+  title: string;
+  summary: string;
+  urgency: InterventionUrgency;
+  recommended_window: string;
+  suggested_channel: string;
+  action_steps: string[];
+  rationale: string;
+  trade_offs: string[];
+  estimated_cost_usd: number;
+  expected_margin_impact_usd: number;
+  requires_human_approval: boolean;
+  decision_record_id?: number | null;
+  decision_status?: string | null;
+}
+
+export interface CustomerRiskDetail {
+  customer_id: number;
+  customer_code: string;
+  customer_name: string;
+  customer_segment?: string | null;
+  email?: string | null;
+  city?: string | null;
+  acquisition_date?: string | null;
+  total_lifetime_orders: number;
+  distinct_purchase_dates: number;
+  total_lifetime_spend: number;
+  average_order_value: number;
+  last_purchase_date?: string | null;
+  days_since_last_purchase?: number | null;
+  top_categories_purchased: string[];
+  recent_refund_or_cancelled_count: number;
+  is_repeat_buyer: boolean;
+  baseline_cadence_days?: number | null;
+  cadence_source: string;
+  cadence_ratio?: number | null;
+  risk_tier: CadenceRiskTier;
+  urgency: InterventionUrgency;
+  evidence_sufficiency_score: number;
+  confidence_level: RetentionConfidenceLevel;
+  uncertainty_notice: string;
+  cadence_trend: string;
+  recent_intervals_days: number[];
+  last_order_amount?: number | null;
+  spend_trend: string;
+  why_at_risk_summary: string;
+  risk_factors: string[];
+  recommended_action?: CustomerRetentionRecommendation | null;
+  existing_decision_id?: number | null;
+  decision_status?: string | null;
+  action_execution_status?: string | null;
+  action_executed_at?: string | null;
+  action_channel?: string | null;
+  latest_customer_response?: string | null;
+  customer_responded_at?: string | null;
+  subsequent_outcome?: string | null;
+}
+
+export interface RetentionOverview {
+  as_of_date: string;
+  business_id?: string | null;
+  total_customers_evaluated: number;
+  repeat_buyers_count: number;
+  one_time_buyers_count: number;
+  zero_purchase_count: number;
+  risk_distribution: Record<string, number>;
+  urgency_distribution: Record<string, number>;
+  total_revenue_at_risk_usd: number;
+  customers_requiring_attention_count: number;
+  safety_verdict: CadenceSafetyVerdict;
+  data_freshness_days?: number | null;
+  limitations: string[];
+}
+
+export interface RetentionCustomerListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  items: CustomerRiskDetail[];
+}
+
+export interface RetentionOutcomeEvaluation {
+  business_id?: string | null;
+  as_of_date: string;
+  evaluation_window_days: number;
+  total_actions_recorded: number;
+  total_actions_approved: number;
+  total_actions_executed: number;
+  intervened_customers_count: number;
+  intervened_reordered_count: number;
+  intervened_reorder_rate_pct: number;
+  intervened_subsequent_revenue_usd: number;
+  comparison_customers_count: number;
+  comparison_reordered_count: number;
+  comparison_reorder_rate_pct: number;
+  retention_lift_pct_points: number;
+  relative_lift_ratio?: number | null;
+  precision?: number | null;
+  recall?: number | null;
+  false_positive_rate?: number | null;
+  false_negative_rate?: number | null;
+  average_lead_time_days?: number | null;
+  segment_performance: Record<string, any>;
+  methodology_disclaimer: string;
+  limitations: string[];
+}
+
+export interface RetentionOverviewResponse {
+  success: boolean;
+  data: RetentionOverview;
+  evidence?: EvidenceRecord;
+}
+
+export interface RetentionCustomerListApiResponse {
+  success: boolean;
+  data: RetentionCustomerListResponse;
+  evidence?: EvidenceRecord;
+}
+
+export interface RetentionCustomerDetailResponse {
+  success: boolean;
+  data: CustomerRiskDetail;
+  evidence?: EvidenceRecord;
+}
+
+export interface RetentionOutcomeEvaluationResponse {
+  success: boolean;
+  data: RetentionOutcomeEvaluation;
+  evidence?: EvidenceRecord;
+}
+
+// ==========================================
+// 18. NEXUS Pulse (Management Intelligence & Automated Reporting)
+// ==========================================
+
+export type PulseKPICategory =
+  | 'FINANCIAL'
+  | 'CUSTOMER'
+  | 'CHURN'
+  | 'RETENTION'
+  | 'PRODUCT'
+  | 'OPERATIONAL';
+
+export type PulseReportFrequency = 'MONTHLY' | 'WEEKLY' | 'DAILY' | 'EVENT_DRIVEN';
+export type PulseReportType = 'MONTHLY_EXECUTIVE' | 'WEEKLY_MANAGEMENT' | 'CUSTOM';
+export type PulseDeliveryChannel = 'WHATSAPP' | 'TELEGRAM' | 'EMAIL';
+export type PulseDeliveryStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | 'MOCKED';
+export type PulseRecipientOptStatus = 'OPTED_IN' | 'OPTED_OUT' | 'PENDING_CONFIRMATION';
+export type PulseInsightType =
+  | 'OBSERVED_FACT'
+  | 'CALCULATED_KPI'
+  | 'STATISTICAL_OBSERVATION'
+  | 'MODEL_INTERPRETATION'
+  | 'RECOMMENDED_ACTION';
+export type PulseInsightSeverity = 'INFO' | 'POSITIVE' | 'WARNING' | 'CRITICAL';
+
+export interface PulseKPIDefinition {
+  key: string;
+  name: string;
+  category: PulseKPICategory;
+  value: number | string | null;
+  unit: string;
+  formatted_value: string;
+  comparison_value?: number | null;
+  change_pct?: number | null;
+  change_direction?: 'positive' | 'negative' | 'neutral' | null;
+  definition: string;
+  calculation: string;
+  source: string;
+  time_window: string;
+  limitations?: string | null;
+}
+
+export interface PulseTopProductItem {
+  product_id: number;
+  name: string;
+  sku: string;
+  category: string;
+  units_sold: number;
+  revenue: number;
+  revenue_share_pct?: number | null;
+}
+
+export interface PulseCategoryItem {
+  category: string;
+  revenue: number;
+  units_sold: number;
+  share_pct: number;
+}
+
+export interface PulseRevenuePoint {
+  date: string;
+  revenue: number;
+  orders: number;
+}
+
+export interface PulseKPIPayload {
+  financial: Record<string, PulseKPIDefinition>;
+  customer: Record<string, PulseKPIDefinition>;
+  churn: Record<string, PulseKPIDefinition>;
+  retention: Record<string, PulseKPIDefinition>;
+  product: Record<string, PulseKPIDefinition>;
+  operational: Record<string, PulseKPIDefinition>;
+  top_products: PulseTopProductItem[];
+  category_performance: PulseCategoryItem[];
+  risk_distribution: Record<string, number>;
+  urgency_distribution: Record<string, number>;
+  revenue_trend: PulseRevenuePoint[];
+}
+
+export interface PulseInsightItem {
+  insight_id: string;
+  type: PulseInsightType;
+  category: PulseKPICategory;
+  severity: PulseInsightSeverity;
+  title: string;
+  description: string;
+  evidence_kpis: string[];
+  action_suggestion?: string | null;
+}
+
+export interface PulseDashboardOverview {
+  as_of_date: string;
+  period_start: string;
+  period_end: string;
+  comparison_period_start?: string | null;
+  comparison_period_end?: string | null;
+  kpi_payload: PulseKPIPayload;
+  insights: PulseInsightItem[];
+  active_alerts_count: number;
+  critical_risk_count: number;
+  revenue_at_risk_usd: number;
+  retention_pending_count: number;
+  watermark_status: string;
+  is_actionable: boolean;
+  data_freshness_hours?: number | null;
+}
+
+export interface PulseReportListItem {
+  id: string;
+  report_title: string;
+  report_type: PulseReportType;
+  period_start: string;
+  period_end: string;
+  created_at: string;
+  watermark_status: string;
+  pdf_available: boolean;
+  access_token: string;
+  token_expires_at: string;
+  deliveries_count: number;
+}
+
+export interface PulseReportDetail {
+  id: string;
+  business_id: string;
+  report_title: string;
+  report_type: PulseReportType;
+  period_start: string;
+  period_end: string;
+  comparison_period_start?: string | null;
+  comparison_period_end?: string | null;
+  kpi_payload: PulseKPIPayload;
+  insights: PulseInsightItem[];
+  executive_summary: string;
+  messaging_summary: string;
+  pdf_available: boolean;
+  pdf_sha256?: string | null;
+  watermark_status: string;
+  access_token: string;
+  token_expires_at: string;
+  created_at: string;
+  deliveries_count: number;
+}
+
+export interface PulseRecipientConfig {
+  name: string;
+  channel: PulseDeliveryChannel;
+  destination: string;
+  role: string;
+}
+
+export interface PulseScheduleCreateRequest {
+  schedule_name: string;
+  report_type?: PulseReportType;
+  frequency?: PulseReportFrequency;
+  day_of_month?: number | null;
+  day_of_week?: number | null;
+  time_of_day?: string;
+  timezone?: string;
+  is_enabled?: boolean;
+  channel_types?: PulseDeliveryChannel[];
+  recipients?: PulseRecipientConfig[];
+  kpi_categories?: PulseKPICategory[];
+  alert_triggers?: Record<string, boolean>;
+}
+
+export interface PulseScheduleUpdateRequest {
+  schedule_name?: string;
+  report_type?: PulseReportType;
+  frequency?: PulseReportFrequency;
+  day_of_month?: number | null;
+  day_of_week?: number | null;
+  time_of_day?: string;
+  timezone?: string;
+  is_enabled?: boolean;
+  channel_types?: PulseDeliveryChannel[];
+  recipients?: PulseRecipientConfig[];
+  kpi_categories?: PulseKPICategory[];
+  alert_triggers?: Record<string, boolean>;
+}
+
+export interface PulseScheduleResponse {
+  id: number;
+  business_id: string;
+  schedule_name: string;
+  report_type: PulseReportType;
+  frequency: PulseReportFrequency;
+  day_of_month?: number | null;
+  day_of_week?: number | null;
+  time_of_day: string;
+  timezone: string;
+  is_enabled: boolean;
+  channel_types: PulseDeliveryChannel[];
+  recipients: PulseRecipientConfig[];
+  kpi_categories: PulseKPICategory[];
+  alert_triggers: Record<string, any>;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  created_at: string;
+}
+
+export interface PulseGenerateReportRequest {
+  report_type: PulseReportType;
+  date_from: string;
+  date_to: string;
+  comparison_date_from?: string;
+  comparison_date_to?: string;
+  report_title?: string;
+  force_regenerate?: boolean;
+  idempotency_key?: string;
+}
+
+export interface PulseTestDispatchRequest {
+  report_id: string;
+  channel: PulseDeliveryChannel;
+  destination: string;
+  recipient_name?: string;
+}
+
+export interface PulseDeliveryLogItem {
+  id: number;
+  report_id: string;
+  channel: PulseDeliveryChannel;
+  recipient_destination: string;
+  recipient_name?: string | null;
+  status: PulseDeliveryStatus;
+  external_message_id?: string | null;
+  error_message?: string | null;
+  attempts: number;
+  dispatched_at?: string | null;
+  delivered_at?: string | null;
+  created_at: string;
+}
+
+export interface PulseRecipientItem {
+  id: number;
+  recipient_name: string;
+  channel: PulseDeliveryChannel;
+  destination: string;
+  role: string;
+  opt_status: PulseRecipientOptStatus;
+  opted_at: string;
+  opt_out_reason?: string | null;
+}
+
+export interface PulseRecipientOptRequest {
+  recipient_name: string;
+  channel: PulseDeliveryChannel;
+  destination: string;
+  role?: string;
+  opt_status: PulseRecipientOptStatus;
+  opt_out_reason?: string | null;
+}
+
+export type PulseChannelStatusType = 'LIVE_CONFIGURED' | 'LOCAL_MAILPIT' | 'SANDBOX_MOCK' | 'DISCONNECTED';
+
+export interface PulseChannelStatusItem {
+  channel: PulseDeliveryChannel;
+  status: PulseChannelStatusType;
+  is_live: boolean;
+  destination_hint?: string | null;
+  provider_details?: Record<string, any>;
+  setup_guide: string;
+}
+
+export interface PulseChannelConfigureRequest {
+  channel: PulseDeliveryChannel;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_user?: string;
+  smtp_password?: string;
+  from_email?: string;
+  use_mailpit?: boolean;
+  bot_token?: string;
+  whatsapp_api_token?: string;
+  whatsapp_phone_number_id?: string;
+  whatsapp_business_account_id?: string;
+}
+
+export interface PulseDestinationVerifyRequest {
+  channel: PulseDeliveryChannel;
+  destination: string;
+}
+
+export interface PulseDestinationVerifyResponse {
+  valid: boolean;
+  channel: PulseDeliveryChannel;
+  destination: string;
+  normalized_destination?: string | null;
+  error?: string | null;
+  metadata?: Record<string, any>;
+}
+

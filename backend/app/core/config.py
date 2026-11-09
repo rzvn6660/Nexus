@@ -297,11 +297,45 @@ class Settings(BaseSettings):
             return "require"
         return None
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: Any,
+        env_settings: Any,
+        dotenv_settings: Any,
+        file_secret_settings: Any,
+    ) -> tuple[Any, ...]:
+        """In production, prevent local development .env files from injecting DEBUG=True."""
+        app_env = None
+        if hasattr(init_settings, "init_kwargs") and isinstance(init_settings.init_kwargs, dict):
+            app_env = init_settings.init_kwargs.get("APP_ENV")
+        if not app_env:
+            app_env = os.getenv("APP_ENV", "development")
+
+        if str(app_env).strip().lower() == "production":
+            has_explicit_debug = False
+            if hasattr(init_settings, "init_kwargs") and isinstance(init_settings.init_kwargs, dict):
+                has_explicit_debug = "DEBUG" in init_settings.init_kwargs or "debug" in init_settings.init_kwargs
+            if not has_explicit_debug:
+                has_explicit_debug = "DEBUG" in os.environ or "debug" in os.environ
+            if not has_explicit_debug and hasattr(init_settings, "init_kwargs") and isinstance(init_settings.init_kwargs, dict):
+                init_settings.init_kwargs["DEBUG"] = False
+
+        return (init_settings, env_settings, dotenv_settings, file_secret_settings)
+
     @model_validator(mode="before")
     @classmethod
     def default_production_flags(cls, data: Any) -> Any:
         """In production, ensure DEBUG defaults safely to False if not explicitly provided."""
         if isinstance(data, dict):
+            # Normalize DEBUG if set by external system to non-standard strings (e.g. 'release')
+            dbg = data.get("DEBUG", data.get("debug"))
+            if isinstance(dbg, str):
+                if dbg.lower() in ("release", "false", "0", "no", "off"):
+                    data["DEBUG"] = False
+                elif dbg.lower() in ("true", "1", "yes", "on", "debug"):
+                    data["DEBUG"] = True
             app_env = data.get("APP_ENV", os.getenv("APP_ENV", "development"))
             if str(app_env).strip().lower() == "production" and "DEBUG" not in data and "debug" not in data:
                 data["DEBUG"] = False

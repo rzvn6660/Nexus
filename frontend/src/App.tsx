@@ -13,6 +13,11 @@ import { SignupPage } from './pages/SignupPage';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
+import { ConnectorsPage } from './pages/ConnectorsPage';
+import { RetentionPage } from './pages/RetentionPage';
+import { PulsePage } from './pages/PulsePage';
+import { SettingsPage } from './pages/SettingsPage';
+import { AnalystStudioPage } from './pages/AnalystStudioPage';
 import { getHealthStatus } from './services/api';
 import { AuthService, UserProfileResponse } from './services/auth';
 import { HealthResponse } from './types/api';
@@ -241,6 +246,26 @@ export const App: React.FC = () => {
         return <KnowledgePage />;
       case '/history':
         return <HistoryPage onNavigate={handleNavigate} />;
+      case '/connectors':
+        return <ConnectorsPage onNavigate={handleNavigate} />;
+      case '/retention':
+        return (
+          <RetentionPage
+            onNavigate={handleNavigate}
+            onAskQuery={handleTriggerAsk}
+          />
+        );
+      case '/pulse':
+        return (
+          <PulsePage
+            onNavigate={handleNavigate}
+            onAskQuery={handleTriggerAsk}
+          />
+        );
+      case '/settings':
+        return <SettingsPage onNavigate={handleNavigate} />;
+      case '/analyst-studio':
+        return <AnalystStudioPage onNavigate={handleNavigate} />;
       case '/business':
         return <BusinessSettingsPage onNavigate={handleNavigate} />;
       default:

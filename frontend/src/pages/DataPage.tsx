@@ -34,6 +34,15 @@ import { formatNumber } from '../utils/formatters';
 import { LoadingState } from '../components/common/LoadingState';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import {
+  testPostgresConnection,
+  inspectPostgresTables,
+  previewPostgresTable,
+  ingestPostgresTable,
+  PostgresTableSummary,
+  PostgresPreviewResponse,
+  PostgresIngestResponse,
+} from '../services/analyst';
 
 const CANONICAL_MODELS = [
   { name: 'sales', entity: 'Sale', description: 'Commercial transactions, revenue ledger & gross margins' },
@@ -64,6 +73,31 @@ export const DataPage: React.FC = () => {
   const [ingestSuccess, setIngestSuccess] = useState<string | null>(null);
   const [tableSearch, setTableSearch] = useState('');
   const [showTechnicalDiagnostics, setShowTechnicalDiagnostics] = useState(false);
+
+  // PostgreSQL Database Ingestion States
+  const [showPgModal, setShowPgModal] = useState(false);
+  const [pgHost, setPgHost] = useState('127.0.0.1');
+  const [pgPort, setPgPort] = useState(5433);
+  const [pgDatabase, setPgDatabase] = useState('nexus_staging');
+  const [pgUser, setPgUser] = useState('nexus_user');
+  const [pgPassword, setPgPassword] = useState('nexus_staging_password');
+  const [pgSslMode, setPgSslMode] = useState('prefer');
+  const [pgTesting, setPgTesting] = useState(false);
+  const [pgTestStatus, setPgTestStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [pgTables, setPgTables] = useState<PostgresTableSummary[]>([]);
+  const [pgSelectedTable, setPgSelectedTable] = useState('');
+  const [pgPreview, setPgPreview] = useState<PostgresPreviewResponse | null>(null);
+  const [pgPreviewLoading, setPgPreviewLoading] = useState(false);
+  const [pgTargetEntity, setPgTargetEntity] = useState('Sale');
+  const [pgColumnMapping] = useState<Record<string, string>>({
+    date: 'transaction_date',
+    amount: 'total_amount',
+    order_number: 'transaction_number',
+    customer_code: 'customer_code',
+    status: 'status',
+  });
+  const [pgIngesting, setPgIngesting] = useState(false);
+  const [pgIngestResult, setPgIngestResult] = useState<PostgresIngestResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -250,6 +284,90 @@ export const DataPage: React.FC = () => {
     const file = e.dataTransfer.files?.[0];
     if (file) {
       processFile(file);
+    }
+  };
+
+  const handleTestPgConnection = async () => {
+    setPgTesting(true);
+    setPgTestStatus(null);
+    try {
+      const res = await testPostgresConnection({
+        host: pgHost,
+        port: pgPort,
+        database: pgDatabase,
+        user: pgUser,
+        password: pgPassword,
+        sslmode: pgSslMode,
+      });
+      if (res.success) {
+        setPgTestStatus({ success: true, message: `Connected! ${res.server_version}` });
+        const tables = await inspectPostgresTables({
+          host: pgHost,
+          port: pgPort,
+          database: pgDatabase,
+          user: pgUser,
+          password: pgPassword,
+          sslmode: pgSslMode,
+        });
+        setPgTables(tables);
+        if (tables.length > 0) {
+          setPgSelectedTable(tables[0].table);
+        }
+      } else {
+        setPgTestStatus({ success: false, message: res.error || 'Connection failed' });
+      }
+    } catch (err: any) {
+      setPgTestStatus({ success: false, message: err?.message || 'Connection failed' });
+    } finally {
+      setPgTesting(false);
+    }
+  };
+
+  const handlePreviewPgTable = async (tableName: string) => {
+    if (!tableName) return;
+    setPgPreviewLoading(true);
+    try {
+      const prev = await previewPostgresTable(
+        {
+          host: pgHost,
+          port: pgPort,
+          database: pgDatabase,
+          user: pgUser,
+          password: pgPassword,
+          sslmode: pgSslMode,
+        },
+        tableName
+      );
+      setPgPreview(prev);
+    } catch (err: any) {
+      alert(`Preview failed: ${err?.message}`);
+    } finally {
+      setPgPreviewLoading(false);
+    }
+  };
+
+  const handleIngestPgTable = async () => {
+    if (!pgSelectedTable) return;
+    setPgIngesting(true);
+    setPgIngestResult(null);
+    try {
+      const res = await ingestPostgresTable({
+        host: pgHost,
+        port: pgPort,
+        database: pgDatabase,
+        user: pgUser,
+        password: pgPassword,
+        sslmode: pgSslMode,
+        table_name: pgSelectedTable,
+        target_entity: pgTargetEntity,
+        column_mapping: pgColumnMapping,
+      });
+      setPgIngestResult(res);
+      fetchInitialData();
+    } catch (err: any) {
+      alert(`Ingestion failed: ${err?.message}`);
+    } finally {
+      setPgIngesting(false);
     }
   };
 
@@ -645,6 +763,15 @@ export const DataPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPgModal(true)}
+                className="px-3.5 py-1.5 rounded-xl border border-brand-500/30 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 text-xs font-semibold flex items-center gap-2 transition-colors"
+                title="Connect external PostgreSQL database"
+              >
+                <Database className="w-4 h-4" />
+                <span>Connect PostgreSQL DB</span>
+              </button>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -1306,6 +1433,263 @@ export const DataPage: React.FC = () => {
             )}
           </div>
         </div>
+        {/* PostgreSQL Database Onboarding Modal */}
+        {showPgModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-surface border border-surface-border shadow-2xl p-6 space-y-5">
+              <div className="flex items-start justify-between border-b border-surface-border pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-brand-500/10 text-brand-500 border border-brand-500/20">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      PostgreSQL Relational Onboarding &amp; Ingestion
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Connect to an external PostgreSQL database, preview schemas, map to canonical models, and ingest.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPgModal(false)}
+                  className="p-1 rounded-lg hover:bg-surface-elevated text-slate-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Step 1: Database Connection Settings */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  1. Connection Configuration
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <label className="text-slate-400 block mb-1">Host</label>
+                    <input
+                      type="text"
+                      value={pgHost}
+                      onChange={(e) => setPgHost(e.target.value)}
+                      className="w-full p-2 rounded-lg border border-surface-border bg-void text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Port</label>
+                    <input
+                      type="number"
+                      value={pgPort}
+                      onChange={(e) => setPgPort(Number(e.target.value))}
+                      className="w-full p-2 rounded-lg border border-surface-border bg-void text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Database</label>
+                    <input
+                      type="text"
+                      value={pgDatabase}
+                      onChange={(e) => setPgDatabase(e.target.value)}
+                      className="w-full p-2 rounded-lg border border-surface-border bg-void text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">User</label>
+                    <input
+                      type="text"
+                      value={pgUser}
+                      onChange={(e) => setPgUser(e.target.value)}
+                      className="w-full p-2 rounded-lg border border-surface-border bg-void text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Password</label>
+                    <input
+                      type="password"
+                      value={pgPassword}
+                      onChange={(e) => setPgPassword(e.target.value)}
+                      className="w-full p-2 rounded-lg border border-surface-border bg-void text-slate-900 dark:text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">SSL Mode</label>
+                    <select
+                      value={pgSslMode}
+                      onChange={(e) => setPgSslMode(e.target.value)}
+                      className="w-full p-2 rounded-lg border border-surface-border bg-void text-slate-900 dark:text-white font-mono"
+                    >
+                      <option value="prefer">prefer</option>
+                      <option value="require">require</option>
+                      <option value="disable">disable</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    onClick={handleTestPgConnection}
+                    disabled={pgTesting}
+                    className="px-4 py-2 rounded-xl bg-brand-500 text-white font-semibold text-xs flex items-center gap-2 hover:bg-brand-600 transition-colors disabled:opacity-50"
+                  >
+                    {pgTesting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Testing Connection...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>Test &amp; Inspect Database</span>
+                      </>
+                    )}
+                  </button>
+
+                  {pgTestStatus && (
+                    <span
+                      className={`text-xs font-medium flex items-center gap-1.5 ${
+                        pgTestStatus.success ? 'text-emerald-500' : 'text-red-500'
+                      }`}
+                    >
+                      {pgTestStatus.success ? (
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                      )}
+                      <span className="truncate max-w-xs">{pgTestStatus.message}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Step 2: Table Selection & Preview */}
+              {pgTables.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-surface-border">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    2. Table Selection &amp; Sample Inspection
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={pgSelectedTable}
+                      onChange={(e) => {
+                        setPgSelectedTable(e.target.value);
+                        setPgPreview(null);
+                      }}
+                      className="flex-1 p-2 rounded-lg border border-surface-border bg-void text-xs font-mono text-slate-900 dark:text-white"
+                    >
+                      {pgTables.map((t) => (
+                        <option key={t.full_name} value={t.table}>
+                          {t.full_name} ({t.column_count} columns)
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handlePreviewPgTable(pgSelectedTable)}
+                      disabled={pgPreviewLoading || !pgSelectedTable}
+                      className="px-3 py-2 rounded-lg border border-surface-border bg-surface hover:bg-surface-elevated text-xs font-medium flex items-center gap-1.5"
+                    >
+                      {pgPreviewLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>Preview Rows</span>
+                    </button>
+                  </div>
+
+                  {pgPreview && (
+                    <div className="p-3 rounded-xl bg-void border border-surface-border space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                        <span>Total Cardinality: {pgPreview.total_rows.toLocaleString()} rows</span>
+                        <span>Showing {pgPreview.sample_rows.length} sample rows</span>
+                      </div>
+                      <div className="overflow-x-auto max-h-36">
+                        <table className="w-full text-left font-mono text-[10px]">
+                          <thead className="text-slate-400 border-b border-surface-border">
+                            <tr>
+                              {pgPreview.columns.slice(0, 5).map((col) => (
+                                <th key={col} className="p-1">{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pgPreview.sample_rows.slice(0, 3).map((r, i) => (
+                              <tr key={i} className="border-b border-surface-border/40">
+                                {pgPreview.columns.slice(0, 5).map((col) => (
+                                  <td key={col} className="p-1 text-slate-300 truncate max-w-[120px]">
+                                    {String(r[col] ?? '')}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 3: Canonical Mapping & Ingestion */}
+              {pgTables.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-surface-border">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    3. Canonical Entity Mapping &amp; Safety
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Target Canonical Entity</label>
+                      <select
+                        value={pgTargetEntity}
+                        onChange={(e) => setPgTargetEntity(e.target.value)}
+                        className="w-full p-2 rounded-lg border border-surface-border bg-void text-xs font-mono text-slate-900 dark:text-white"
+                      >
+                        <option value="Sale">Sale (Transactions &amp; Invoices)</option>
+                        <option value="Customer">Customer (Client Accounts)</option>
+                        <option value="Product">Product (SKU Catalog)</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col justify-end">
+                      <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400">
+                        <span className="font-semibold block">Customer Safety Rule:</span>
+                        Tenant-scoped customer resolution enforced. Unmapped sales are protected under tenant namespace.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowPgModal(false)}
+                      className="px-4 py-2 rounded-xl bg-void border border-surface-border text-xs font-semibold text-slate-400"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleIngestPgTable}
+                      disabled={pgIngesting || !pgSelectedTable}
+                      className="px-5 py-2 rounded-xl bg-brand-500 text-white font-semibold text-xs flex items-center gap-2 hover:bg-brand-600 transition-colors disabled:opacity-50"
+                    >
+                      {pgIngesting ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Ingesting Table...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Confirm &amp; Ingest Table</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {pgIngestResult && (
+                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 space-y-1">
+                      <div className="font-bold">Ingestion Completed Successfully!</div>
+                      <div>
+                        Read {pgIngestResult.total_rows_read} rows • Inserted {pgIngestResult.inserted_count} records • {pgIngestResult.skipped_duplicates} duplicates skipped • Readiness: {pgIngestResult.readiness_status}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );

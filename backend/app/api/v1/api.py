@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends
 from app.api.v1.endpoints import (
     agent,
     analytics,
+    analyst,
     auth,
     businesses,
+    connectors,
     continuous,
     data,
     forecast,
@@ -16,6 +18,7 @@ from app.api.v1.endpoints import (
     investigation,
     knowledge,
     onboarding,
+    pulse,
     semantic,
 )
 from app.core.security import verify_api_key
@@ -37,4 +40,7 @@ api_v1_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowl
 api_v1_router.include_router(forecast.router, prefix="/forecast", tags=["forecast"])
 api_v1_router.include_router(history.router, prefix="/history", tags=["history", "decisions"])
 api_v1_router.include_router(continuous.router, prefix="/continuous", tags=["continuous"])
+api_v1_router.include_router(connectors.router, prefix="/connectors", tags=["connectors"])
+api_v1_router.include_router(pulse.router, prefix="/pulse", tags=["pulse"])
+api_v1_router.include_router(analyst.router, prefix="/analyst", tags=["analyst"])
 

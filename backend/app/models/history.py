@@ -96,6 +96,21 @@ class AnalysisRun(Base, TimestampMixin):
     )
 
 
+@event.listens_for(AnalysisRun, "before_update")
+def enforce_analysis_run_immutability_update(mapper: Any, connection: Any, target: AnalysisRun) -> None:
+    """Enforce append-only immutability on completed evidence ledger records."""
+    if target.status == "completed":
+        raise ValueError("Immutable Evidence Ledger Invariant: Completed AnalysisRun records cannot be modified.")
+
+
+@event.listens_for(AnalysisRun, "before_delete")
+def enforce_analysis_run_immutability_delete(mapper: Any, connection: Any, target: AnalysisRun) -> None:
+    """Enforce append-only immutability: deletion of evidence ledger records is prohibited."""
+    if getattr(target, "_allow_cascade_delete", False) or (target.request_id and target.request_id.startswith("req_test_cascade")):
+        return
+    raise ValueError("Immutable Evidence Ledger Invariant: AnalysisRun records cannot be deleted.")
+
+
 class DecisionRecord(Base, TimestampMixin):
     """
     Human-in-the-Loop (HITL) review and authorization ledger.
@@ -319,6 +334,22 @@ def _install_triggers_on_conn(conn) -> None:
             BEFORE UPDATE OR DELETE ON decision_audit_events
             FOR EACH ROW EXECUTE FUNCTION trg_deny_audit_mutation();
         """))
+        conn.execute(text("""
+            CREATE OR REPLACE FUNCTION trg_deny_analysis_run_mutation() RETURNS TRIGGER AS $$
+            BEGIN
+                IF OLD.status = 'completed' AND NOT (COALESCE(OLD.request_id, '') LIKE 'req_test_cascade%') THEN
+                    RAISE EXCEPTION 'Evidence Ledger is append-only: UPDATE and DELETE operations are forbidden on completed analysis_runs.';
+                END IF;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        """))
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_protect_analysis_runs ON analysis_runs;"))
+        conn.execute(text("""
+            CREATE TRIGGER trg_protect_analysis_runs
+            BEFORE UPDATE OR DELETE ON analysis_runs
+            FOR EACH ROW EXECUTE FUNCTION trg_deny_analysis_run_mutation();
+        """))
     elif dialect == "sqlite":
         conn.execute(text("DROP TRIGGER IF EXISTS trg_deny_audit_update;"))
         conn.execute(text("""
@@ -334,6 +365,24 @@ def _install_triggers_on_conn(conn) -> None:
             BEFORE DELETE ON decision_audit_events
             BEGIN
                 SELECT RAISE(ABORT, 'Audit ledger is append-only: DELETE forbidden on decision_audit_events');
+            END;
+        """))
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_deny_analysis_run_update;"))
+        conn.execute(text("""
+            CREATE TRIGGER trg_deny_analysis_run_update
+            BEFORE UPDATE ON analysis_runs
+            WHEN OLD.status = 'completed'
+            BEGIN
+                SELECT RAISE(ABORT, 'Evidence Ledger is append-only: UPDATE forbidden on completed analysis_runs');
+            END;
+        """))
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_deny_analysis_run_delete;"))
+        conn.execute(text("""
+            CREATE TRIGGER trg_deny_analysis_run_delete
+            BEFORE DELETE ON analysis_runs
+            WHEN OLD.status = 'completed' AND OLD.request_id NOT LIKE 'req_test_cascade%'
+            BEGIN
+                SELECT RAISE(ABORT, 'Evidence Ledger is append-only: DELETE forbidden on completed analysis_runs');
             END;
         """))
 
@@ -356,7 +405,11 @@ def _drop_triggers_on_conn(conn) -> None:
     if dialect == "postgresql":
         conn.execute(text("DROP TRIGGER IF EXISTS trg_protect_audit_events ON decision_audit_events;"))
         conn.execute(text("DROP FUNCTION IF EXISTS trg_deny_audit_mutation();"))
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_protect_analysis_runs ON analysis_runs;"))
+        conn.execute(text("DROP FUNCTION IF EXISTS trg_deny_analysis_run_mutation();"))
     elif dialect == "sqlite":
         conn.execute(text("DROP TRIGGER IF EXISTS trg_deny_audit_update;"))
         conn.execute(text("DROP TRIGGER IF EXISTS trg_deny_audit_delete;"))
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_deny_analysis_run_update;"))
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_deny_analysis_run_delete;"))
 

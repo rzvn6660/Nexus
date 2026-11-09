@@ -687,7 +687,13 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
               <Users className="w-4 h-4 text-emerald-400" />
               <span>Customer Segmentation Analysis</span>
             </h3>
-            <span className="text-[11px] font-sans text-slate-400">Behavioral cohorts</span>
+            <button
+              onClick={() => onNavigate('/retention')}
+              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 transition flex items-center gap-1"
+            >
+              <span>Retention & Churn</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           <div className="space-y-3 flex-1">

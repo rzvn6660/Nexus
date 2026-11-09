@@ -269,6 +269,7 @@ def test_production_metrics_enabled_without_token_rejected_at_startup(monkeypatc
     with pytest.raises(ValidationError) as exc_info:
         Settings(
             APP_ENV="production",
+            DEBUG=False,
             METRICS_ENABLED=True,
             METRICS_AUTH_TOKEN=None,
             SECRET_KEY=VALID_PROD_SECRET,
@@ -284,6 +285,7 @@ def test_production_metrics_enabled_with_blank_token_rejected_at_startup():
         with pytest.raises(ValidationError) as exc_info:
             Settings(
                 APP_ENV="production",
+                DEBUG=False,
                 METRICS_ENABLED=True,
                 METRICS_AUTH_TOKEN=blank,
                 SECRET_KEY=VALID_PROD_SECRET,
@@ -306,6 +308,7 @@ def test_production_metrics_insecure_placeholder_rejected_at_startup():
         with pytest.raises(ValidationError) as exc_info:
             Settings(
                 APP_ENV="production",
+                DEBUG=False,
                 METRICS_ENABLED=True,
                 METRICS_AUTH_TOKEN=placeholder,
                 SECRET_KEY=VALID_PROD_SECRET,
@@ -320,6 +323,7 @@ def test_production_metrics_short_token_rejected_at_startup():
     with pytest.raises(ValidationError) as exc_info:
         Settings(
             APP_ENV="production",
+            DEBUG=False,
             METRICS_ENABLED=True,
             METRICS_AUTH_TOKEN="short-abc-123",
             SECRET_KEY=VALID_PROD_SECRET,
@@ -333,6 +337,7 @@ def test_production_metrics_valid_token_permits_startup():
     """Cryptographically strong token >= 16 chars succeeds in production."""
     cfg = Settings(
         APP_ENV="production",
+        DEBUG=False,
         METRICS_ENABLED=True,
         METRICS_AUTH_TOKEN=VALID_METRICS_TOKEN,
         SECRET_KEY=VALID_PROD_SECRET,
@@ -346,6 +351,7 @@ def test_production_metrics_disabled_allows_startup_without_token():
     """When METRICS_ENABLED=False in production, METRICS_AUTH_TOKEN is not required."""
     cfg = Settings(
         APP_ENV="production",
+        DEBUG=False,
         METRICS_ENABLED=False,
         METRICS_AUTH_TOKEN=None,
         SECRET_KEY=VALID_PROD_SECRET,

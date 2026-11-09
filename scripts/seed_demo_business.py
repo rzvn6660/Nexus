@@ -200,10 +200,11 @@ def seed_demo_business(
         df_exp = pd.read_csv(sample_dir / "expenses.csv")
         exp_bytes = df_exp.to_csv(index=False).encode("utf-8")
 
-        # 5. sales.csv: prefix transaction_number
+        # 5. sales.csv: prefix transaction_number and customer_id
         df_sales = pd.read_csv(sample_dir / "sales.csv")
         sale_id_to_txn = dict(zip(df_sales["id"], df_sales["transaction_number"]))
         df_sales["transaction_number"] = DEMO_PREFIX + df_sales["transaction_number"].astype(str)
+        df_sales["customer_id"] = DEMO_PREFIX + df_sales["customer_id"].astype(str)
         sales_bytes = df_sales.to_csv(index=False).encode("utf-8")
 
         # 6. sale_items.csv: resolve natural keys using transaction_number and product SKU
