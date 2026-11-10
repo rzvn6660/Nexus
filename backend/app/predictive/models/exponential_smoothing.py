@@ -1,5 +1,7 @@
 """Exponential Smoothing forecaster supporting level and trend tracking."""
 
+from typing import Any
+
 import numpy as np
 from scipy.optimize import minimize
 
@@ -100,7 +102,7 @@ class ExponentialSmoothingForecaster(BaseForecaster):
     def beta(self) -> float | None:
         return self._beta
 
-    def predict(self, horizon: int, confidence_level: float | None = None):
+    def predict(self, horizon: int, confidence_level: float | None = None) -> Any:
         if not self._fitted:
             raise ValueError("Model must be fitted prior to prediction.")
         steps = np.arange(1, horizon + 1)

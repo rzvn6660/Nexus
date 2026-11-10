@@ -4,6 +4,7 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from pydantic import ValidationError
+from sqlalchemy.orm import Session
 
 from app.agents.providers.factory import get_llm_provider
 from app.agents.state.models import AgentState, IntentCategory
@@ -125,7 +126,7 @@ def create_plan_node(state: AgentState, config: RunnableConfig | None = None) ->
             session = state.get("db_session") or state.get("session")
 
         biz_id = state.get("business_id")
-        if session and biz_id:
+        if isinstance(session, Session) and biz_id:
             try:
                 from app.analytics.outcome.schemas import DecisionRetrievalFilter
                 from app.analytics.outcome.service import DecisionMemoryService

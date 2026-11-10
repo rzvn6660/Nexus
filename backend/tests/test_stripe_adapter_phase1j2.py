@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import os
 import time
+from typing import Any
 from uuid import uuid4
 import pytest
 from sqlalchemy.orm import Session
@@ -33,8 +34,8 @@ class MockStripeClient:
 
     def __init__(
         self,
-        transactions: list = None,
-        payouts: dict = None,
+        transactions: list[Any] | None = None,
+        payouts: dict[str, Any] | None = None,
         fail_times: int = 0,
         rate_limit_times: int = 0,
     ):
@@ -69,7 +70,7 @@ class MockStripeClient:
         self,
         period_start: datetime,
         period_end: datetime,
-        cursor: str = None,
+        cursor: str | None = None,
         page_size: int = 100,
     ) -> dict:
         self.calls += 1

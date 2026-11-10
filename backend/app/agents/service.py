@@ -12,7 +12,7 @@ Phase 19: Tenant-Aware Intelligence Runs
 
 import time
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -326,9 +326,12 @@ class NexusAgentService:
         }
 
         # Invoke the compiled LangGraph workflow with session bound to config
-        final_state: AgentState = agent_graph.invoke(
-            initial_state,
-            config={"configurable": {"session": self.session}}
+        final_state: AgentState = cast(
+            AgentState,
+            agent_graph.invoke(
+                initial_state,
+                config={"configurable": {"session": self.session}}
+            ),
         )
 
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -421,7 +424,7 @@ class NexusAgentService:
             evidence_records=[e.model_dump(mode="json") for e in evidence_records],
             rag_citations=[r.model_dump(mode="json") for r in rag_records],
             snapshot=snapshot,
-            recommendations=final_state.get("recommendations", []),
+            recommendations=cast(list[Any], final_state.get("recommendations") or []),
         )
 
         return AgentResponse(

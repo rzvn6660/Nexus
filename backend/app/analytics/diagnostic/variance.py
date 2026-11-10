@@ -39,7 +39,7 @@ class VarianceDiagnosticAnalyzer:
 
         # Helper to query revenue by dimension
         def _get_dim_revenue(d_from, d_to) -> Dict[str, Dict[str, Any]]:
-            clauses = [
+            clauses: list[Any] = [
                 Sale.status.in_(context.statuses if context.statuses else ["completed", "shipped"])
             ]
             if context.business_id:

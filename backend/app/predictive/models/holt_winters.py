@@ -1,5 +1,7 @@
 """Triple Exponential Smoothing (Holt-Winters) supporting additive and multiplicative seasonality."""
 
+from typing import Any
+
 import numpy as np
 from scipy.optimize import minimize
 
@@ -65,7 +67,7 @@ class HoltWintersForecaster(BaseForecaster):
             if is_mult:
                 init_season = np.zeros(m)
                 for c in range(cycles):
-                    init_season += arr[c * m : (c + 1) * m] / max(1e-4, cycle_means[c])
+                    init_season += arr[c * m : (c + 1) * m] / max(1e-4, float(cycle_means[c]))
                 init_season /= cycles
                 init_season /= np.mean(init_season)  # normalize so mean = 1
             else:
@@ -166,7 +168,7 @@ class HoltWintersForecaster(BaseForecaster):
         self._fitted = True
         return self
 
-    def predict(self, horizon: int) -> np.ndarray:
+    def predict(self, horizon: int, confidence_level: float | None = None) -> Any:
         if not self._fitted:
             raise ValueError("Model must be fitted prior to prediction.")
         if horizon < 1:

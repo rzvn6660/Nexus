@@ -1,6 +1,6 @@
 """Family D: Predictive and Statistical Analytics Analyst Skills."""
 
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 import numpy as np
@@ -526,7 +526,7 @@ class SeasonalityAnalysisSkill(BaseAnalystSkill):
                 confidence_score=0.0,
             )
 
-        day_sums = Counter()
+        day_sums: defaultdict[int, float] = defaultdict(float)
         day_counts = Counter()
         day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 

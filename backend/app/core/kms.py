@@ -18,7 +18,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, cast
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -237,7 +237,7 @@ class AWSKMSProvider(KMSProvider):
             kwargs["EncryptionContext"] = encryption_context
         try:
             response = self.client.encrypt(**kwargs)
-            return response["CiphertextBlob"]
+            return cast(bytes, response["CiphertextBlob"])
         except Exception as e:  # noqa: BLE001
             raise KMSUnavailableError(f"AWS KMS encrypt_dek failed for '{key_id}': {e}")
 
@@ -255,12 +255,12 @@ class AWSKMSProvider(KMSProvider):
             kwargs["EncryptionContext"] = encryption_context
         try:
             response = self.client.decrypt(**kwargs)
-            return response["Plaintext"]
+            return cast(bytes, response["Plaintext"])
         except Exception as e:  # noqa: BLE001
             raise CredentialDecryptionError(f"AWS KMS decrypt_dek failed for '{key_id}': {e}")
 
     def get_active_key_version(self, key_id: str) -> str:
-        return key_id or self.key_arn
+        return key_id or self.key_arn or ""
 
     def revoke_key(self, key_id: str) -> None:
         self._revoked_keys.add(key_id)
@@ -327,7 +327,7 @@ class GCPKMSProvider(KMSProvider):
             if aad:
                 req["additional_authenticated_data"] = aad
             response = self.client.encrypt(request=req)
-            return response.ciphertext
+            return cast(bytes, response.ciphertext)
         except Exception as e:  # noqa: BLE001
             raise KMSUnavailableError(f"GCP KMS encrypt_dek failed for '{key_id}': {e}")
 
@@ -346,12 +346,12 @@ class GCPKMSProvider(KMSProvider):
             if aad:
                 req["additional_authenticated_data"] = aad
             response = self.client.decrypt(request=req)
-            return response.plaintext
+            return cast(bytes, response.plaintext)
         except Exception as e:  # noqa: BLE001
             raise CredentialDecryptionError(f"GCP KMS decrypt_dek failed for '{key_id}': {e}")
 
     def get_active_key_version(self, key_id: str) -> str:
-        return key_id or self.key_name
+        return key_id or self.key_name or ""
 
     def revoke_key(self, key_id: str) -> None:
         self._revoked_keys.add(key_id)
@@ -417,7 +417,7 @@ class VaultKMSProvider(KMSProvider):
             if context_b64:
                 kwargs["context"] = context_b64
             res = self.client.secrets.transit.encrypt_data(**kwargs)
-            return res["data"]["ciphertext"].encode("utf-8")
+            return cast(bytes, res["data"]["ciphertext"].encode("utf-8"))
         except Exception as e:  # noqa: BLE001
             raise KMSUnavailableError(f"Vault encrypt_dek failed for '{key_id}': {e}")
 
@@ -548,7 +548,7 @@ class EnvelopeEncryptionEngine:
         Returns a JSON envelope string safe for database storage.
         """
         # 1. Generate ephemeral 256-bit Data Encryption Key (DEK)
-        dek = AESGCM.generate_key(bit_length=256)
+        dek = AESGCM.generate_key(256)
 
         # 2. Encrypt DEK using KMS provider with encryption context
         key_version = kms_provider.get_active_key_version(kms_key_id)
@@ -655,7 +655,7 @@ class EnvelopeEncryptionEngine:
             )
 
         try:
-            return json.loads(plaintext_bytes.decode("utf-8"))
+            return cast(dict[str, Any], json.loads(plaintext_bytes.decode("utf-8")))
         except Exception as e:  # noqa: BLE001
             raise CredentialDecryptionError(f"Corrupted plaintext credential JSON: {e}")
 

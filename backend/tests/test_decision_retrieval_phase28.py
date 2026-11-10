@@ -13,7 +13,7 @@ Verifies:
 """
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from app.agents.nodes.planning import create_plan_node, validate_plan_node
@@ -675,7 +675,7 @@ def test_decision_retrieval_planning_integration_and_empty_history_fallback(
         idemp_prefix="plan_hist",
     )
 
-    state_with_db: AgentState = {
+    state_with_db: dict[str, Any] = {
         "request_id": "req_hist_test",
         "user_query": "What is our net sales?",
         "business_id": biz_a.id,
@@ -686,7 +686,7 @@ def test_decision_retrieval_planning_integration_and_empty_history_fallback(
         "resolved_dates": {"date_from": "2026-10-01", "date_to": "2026-10-31"},
         "db_session": db_session,
     }
-    plan_res = create_plan_node(state_with_db)
+    plan_res = create_plan_node(cast(AgentState, state_with_db))
 
     assert len(plan_res["historical_decisions"]) >= 1
     retrieved_ids = [it["decision_id"] for it in plan_res["historical_decisions"]]
@@ -856,7 +856,7 @@ def test_audit_tenant_identity_and_membership_idor(
     assert d_a.id is not None
 
     # 1. Planning node with missing user_id -> empty history, no user impersonation
-    state_no_user: AgentState = {
+    state_no_user: dict[str, Any] = {
         "user_query": "Check pricing",
         "business_id": biz_a.id,
         "user_id": None,
@@ -865,12 +865,12 @@ def test_audit_tenant_identity_and_membership_idor(
         "resolved_dates": {},
         "db_session": db_session,
     }
-    plan_no_user = create_plan_node(state_no_user)
+    plan_no_user = create_plan_node(cast(AgentState, state_no_user))
     assert plan_no_user["historical_decisions"] == []
     assert "No previous decision memory records found" in plan_no_user["historical_decision_context"]
 
     # 2. Planning node with User B attempting to access Business A -> empty history, 0 leaks
-    state_idor: AgentState = {
+    state_idor: dict[str, Any] = {
         "user_query": "Check pricing",
         "business_id": biz_a.id,
         "user_id": user_b.id,
@@ -879,7 +879,7 @@ def test_audit_tenant_identity_and_membership_idor(
         "resolved_dates": {},
         "db_session": db_session,
     }
-    plan_idor = create_plan_node(state_idor)
+    plan_idor = create_plan_node(cast(AgentState, state_idor))
     assert plan_idor["historical_decisions"] == []
     assert "No previous decision memory records found" in plan_idor["historical_decision_context"]
 

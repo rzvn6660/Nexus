@@ -59,6 +59,21 @@ class ProductVelocityCalculator:
             diff = (context.date_to - context.date_from).total_seconds() / 86400.0
             days = max(diff, 1.0)
 
+        # Construct query filters
+        sub_clauses: list[Any] = []
+        if context.business_id:
+            sub_clauses.append(Sale.business_id == context.business_id)
+        if context.date_from:
+            sub_clauses.append(Sale.transaction_date >= context.date_from)
+        if context.date_to:
+            sub_clauses.append(Sale.transaction_date <= context.date_to)
+        if context.statuses:
+            sub_clauses.append(Sale.status.in_(context.statuses))
+
+        prod_clauses: list[Any] = [Product.active.is_(True)]
+        if context.business_id:
+            prod_clauses.append(Product.business_id == context.business_id)
+
         # Left join Product to SaleItem to capture products with zero sales in period
         stmt = (
             select(
@@ -73,29 +88,11 @@ class ProductVelocityCalculator:
                 and_(
                     Product.id == SaleItem.product_id,
                     SaleItem.sale_id.in_(
-                        select(Sale.id).where(
-                            and_(
-                                Sale.business_id == context.business_id
-                                if context.business_id
-                                else True,
-                                Sale.transaction_date >= context.date_from
-                                if context.date_from
-                                else True,
-                                Sale.transaction_date <= context.date_to
-                                if context.date_to
-                                else True,
-                                Sale.status.in_(context.statuses) if context.statuses else True,
-                            )
-                        )
+                        select(Sale.id).where(and_(*sub_clauses))
                     ),
                 ),
             )
-            .where(
-                and_(
-                    Product.active.is_(True),
-                    Product.business_id == context.business_id if context.business_id else True,
-                )
-            )
+            .where(and_(*prod_clauses))
             .group_by(Product.id)
             .order_by(func.coalesce(func.sum(SaleItem.quantity), 0).desc())
         )

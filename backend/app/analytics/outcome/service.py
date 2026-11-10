@@ -314,13 +314,14 @@ class DecisionMemoryService:
 
         # Update active decision record state
         record = db.get(DecisionRecord, decision_id)
-        if record:
-            record.status = review_payload.status
-            record.reviewer_notes = review_payload.reviewer_notes or record.reviewer_notes
-            record.reviewed_by = review_payload.reviewed_by or actor_id
-            record.reviewed_at = datetime.now(UTC)
-            db.commit()
-            db.refresh(record)
+        if not record:
+            raise ValueError(f"DecisionRecord #{decision_id} not found.")
+        record.status = review_payload.status
+        record.reviewer_notes = review_payload.reviewer_notes or record.reviewer_notes
+        record.reviewed_by = review_payload.reviewed_by or actor_id
+        record.reviewed_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(record)
 
         return record
 

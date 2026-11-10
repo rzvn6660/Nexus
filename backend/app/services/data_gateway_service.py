@@ -892,14 +892,15 @@ class DataGatewayService:
         df_clean = df.replace({np.nan: None})
         sample_records: list[dict[str, Any]] = []
         for row in df_clean.to_dict(orient="records"):
-            clean_row = {}
+            clean_row: dict[str, Any] = {}
             for k, v in row.items():
+                str_k = str(k)
                 if isinstance(v, (datetime, date, pd.Timestamp)):
-                    clean_row[k] = v.isoformat()
+                    clean_row[str_k] = v.isoformat()
                 elif isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
-                    clean_row[k] = None
+                    clean_row[str_k] = None
                 else:
-                    clean_row[k] = v
+                    clean_row[str_k] = v
             sample_records.append(clean_row)
 
         schema_json = dataset.schema_json or {}
@@ -1096,6 +1097,8 @@ class DataGatewayService:
             row_errors: list[dict[str, Any]] = []
             staged_objects: list[Any] = []
             records_inserted = 0
+            allow_anonymous: bool = False
+            anonymous_policy_approver: str | None = None
 
             # 2. Check Entity-Specific Required Columns & Ingest Logic
             if entity == "Sale":
@@ -1161,7 +1164,7 @@ class DataGatewayService:
                     or field_map.get("default_customer_code")
                 )
 
-                allow_anonymous = (
+                allow_anonymous = bool(
                     (column_overrides and column_overrides.get("allow_anonymous_customer") in (True, "true", "True", 1))
                     or (column_overrides and column_overrides.get("allow_anonymous") in (True, "true", "True", 1))
                 )
@@ -1284,7 +1287,7 @@ class DataGatewayService:
                 order_meta: dict[str, dict[str, Any]] = {}
 
                 for idx, row in df.iterrows():
-                    row_num = idx + 1
+                    row_num = int(str(idx)) + 1
                     val = row[amount_col]
                     if val is None or str(val).strip() == "":
                         row_errors.append({
@@ -1531,7 +1534,7 @@ class DataGatewayService:
                             row_errors.append({
                                 "row": row_num,
                                 "column": tax_col,
-                                "value": str(row[tax_col]),
+                                "value": str(row[tax_col]) if tax_col else None,
                                 "error_type": "CONFLICTING_ORDER_METADATA",
                                 "message": f"Conflicting order-level tax amount '{tax_val}' on multi-line order '{sale_order}' (row {meta['first_row_num']} had '{meta['first_tax']}').",
                             })
@@ -1544,10 +1547,10 @@ class DataGatewayService:
                                 row_errors.append({
                                     "row": row_num,
                                     "column": total_col,
-                                    "value": str(row[total_col]),
+                                    "value": str(row[total_col]) if total_col else None,
                                     "error_type": "CONFLICTING_ORDER_METADATA",
                                     "message": f"Conflicting order-level total amount '{tot_val}' on multi-line order '{sale_order}' (row {meta['first_row_num']} had '{meta['first_total']}').",
-                                })
+                                    })
                                 continue
                             # Repeated identical order-level total: do NOT add again
                         else:
@@ -1689,7 +1692,7 @@ class DataGatewayService:
                 seen_skus_in_file: set[str] = set()
 
                 for idx, row in df.iterrows():
-                    row_num = idx + 1
+                    row_num = int(str(idx)) + 1
                     raw_sku = row[sku_col]
                     if raw_sku is None or str(raw_sku).strip() == "":
                         row_errors.append({
@@ -1819,7 +1822,7 @@ class DataGatewayService:
                 seen_emails_in_file: set[str] = set()
 
                 for idx, row in df.iterrows():
-                    row_num = idx + 1
+                    row_num = int(str(idx)) + 1
                     raw_name = row[name_col]
                     if raw_name is None or str(raw_name).strip() == "":
                         row_errors.append({
@@ -1908,7 +1911,7 @@ class DataGatewayService:
                 seen_inv_prods: set[int] = set()
 
                 for idx, row in df.iterrows():
-                    row_num = idx + 1
+                    row_num = int(str(idx)) + 1
                     raw_prod = row[prod_col]
                     if raw_prod is None or str(raw_prod).strip() == "":
                         row_errors.append({
@@ -2026,10 +2029,10 @@ class DataGatewayService:
                         detail="Cannot ingest Expenses: missing required 'category' or 'amount' column mapping.",
                     )
 
-                seen_expenses_in_file: set[tuple] = set()
+                seen_expenses_in_file: set[tuple[Any, ...]] = set()
 
                 for idx, row in df.iterrows():
-                    row_num = idx + 1
+                    row_num = int(str(idx)) + 1
                     raw_cat = row[cat_col]
                     if raw_cat is None or str(raw_cat).strip() == "":
                         row_errors.append({
@@ -2192,7 +2195,7 @@ class DataGatewayService:
                 seen_items_in_batch: set[tuple[int, int]] = set()
 
                 for idx, row in df.iterrows():
-                    row_num = idx + 1
+                    row_num = int(str(idx)) + 1
 
                     # 1. Resolve Parent Sale by natural key
                     raw_sale_ref = str(row[sale_ref_col]).strip() if row[sale_ref_col] is not None else ""
@@ -2476,7 +2479,7 @@ class DataGatewayService:
                 prop_copy = dict(schema_copy["mapping_proposal"])
                 prop_copy["status"] = "MAPPED"
                 prop_copy["field_mappings"] = field_map
-                prop_copy["missing_required_fields"] = []
+                prop_copy["missing_required_fields"] = list[str]()
                 prop_copy["target_entity"] = entity
                 schema_copy["mapping_proposal"] = prop_copy
             dataset.schema_json = schema_copy

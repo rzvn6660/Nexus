@@ -11,7 +11,7 @@ class ExpenseBase(BaseModel):
     expense_date: date = Field(..., description="Date expense was incurred")
     category: str = Field(..., max_length=128, description="Expense category (Rent, Payroll, Logistics, etc.)")
     description: str = Field(..., max_length=255, description="Description of expenditure")
-    amount: Decimal = Field(..., ge=0, description="Amount spent in currency units")
+    amount: Decimal = Field(..., ge=Decimal("0.00"), description="Amount spent in currency units")
     recurring: bool = Field(False, description="Whether expense is predictable recurring operational overhead")
 
 

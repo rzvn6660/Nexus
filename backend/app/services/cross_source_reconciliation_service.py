@@ -289,7 +289,8 @@ class CrossSourceReconciliationService:
 
                 for txn in matched_txns:
                     t_id = txn.get("id")
-                    claimed_stripe_tx_ids.add(t_id)
+                    if t_id:
+                        claimed_stripe_tx_ids.add(str(t_id))
 
                     t_cur = str(txn.get("currency", "USD")).upper()
                     p_cur = t_cur
@@ -319,7 +320,9 @@ class CrossSourceReconciliationService:
                     ch_source = txn.get("source") or t_id
                     if ch_source in stripe_refunds_by_charge:
                         for ref_txn in stripe_refunds_by_charge[ch_source]:
-                            claimed_stripe_tx_ids.add(ref_txn.get("id"))
+                            ref_id = ref_txn.get("id")
+                            if ref_id:
+                                claimed_stripe_tx_ids.add(str(ref_id))
                             r_amt = Decimal(abs(ref_txn.get("amount", 0))) / Decimal(100)
                             p_refund += r_amt
 

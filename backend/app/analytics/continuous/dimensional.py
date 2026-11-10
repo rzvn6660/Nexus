@@ -298,13 +298,13 @@ class DimensionalDecomposer:
                 })
 
             pos_contributors = sorted(
-                [c for c in seg_contributors if c["absolute_change"] > 0],
-                key=lambda x: x["absolute_change"],
+                [c for c in seg_contributors if float(c["absolute_change"]) > 0],
+                key=lambda x: float(x["absolute_change"]),
                 reverse=True,
             )
             neg_contributors = sorted(
-                [c for c in seg_contributors if c["absolute_change"] < 0],
-                key=lambda x: x["absolute_change"],
+                [c for c in seg_contributors if float(c["absolute_change"]) < 0],
+                key=lambda x: float(x["absolute_change"]),
                 reverse=False,
             )
 
@@ -470,13 +470,13 @@ class DimensionalDecomposer:
                 })
 
             pos_contributors = sorted(
-                [c for c in cat_contributors if c["absolute_change"] > 0],
-                key=lambda x: x["absolute_change"],
+                [c for c in cat_contributors if float(c["absolute_change"]) > 0],
+                key=lambda x: float(x["absolute_change"]),
                 reverse=True,
             )
             neg_contributors = sorted(
-                [c for c in cat_contributors if c["absolute_change"] < 0],
-                key=lambda x: x["absolute_change"],
+                [c for c in cat_contributors if float(c["absolute_change"]) < 0],
+                key=lambda x: float(x["absolute_change"]),
                 reverse=False,
             )
 

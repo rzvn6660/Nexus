@@ -1,7 +1,7 @@
 """Statistical ARIMA forecasting model utilizing statsmodels."""
 
 import warnings
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import numpy as np
 from statsmodels.tsa.arima.model import ARIMA
@@ -85,7 +85,7 @@ class ARIMAForecaster(BaseForecaster):
     def fitted_order(self) -> tuple[int, int, int]:
         return self._best_order
 
-    def predict(self, horizon: int, confidence_level: float | None = None):
+    def predict(self, horizon: int, confidence_level: float | None = None) -> Any:
         if not self._fitted:
             raise ValueError("Model must be fitted prior to prediction.")
         if self._fitted_model is not None:

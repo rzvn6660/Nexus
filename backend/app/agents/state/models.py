@@ -2,9 +2,10 @@
 
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, TypedDict
+from typing import Any
 
 from pydantic import BaseModel, Field
+from typing_extensions import TypedDict
 
 
 class IntentCategory(str, Enum):

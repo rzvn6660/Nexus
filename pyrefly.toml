@@ -1,0 +1,38 @@
+# Pyrefly Configuration for NEXUS Platform
+python-version = "3.12"
+search-path = ["backend"]
+project-includes = ["backend/**/*.py"]
+project-excludes = [
+    "**/.venv/**",
+    "**/node_modules/**",
+    "**/scratch/**",
+    "**/backups/**",
+]
+ignore-missing-imports = ["*"]
+
+[errors]
+method-assign = false
+missing-source-for-stubs = false
+
+[[sub-config]]
+matches = "backend/tests/**"
+
+[sub-config.errors]
+implicit-any-parameter = false
+unannotated-return = false
+implicit-any = false
+missing-attribute = false
+bad-argument-type = false
+not-iterable = false
+bad-unpacking = false
+unsupported-operation = false
+bad-override = false
+bad-override-param-name = false
+bad-function-definition = false
+bad-assignment = false
+bad-return = false
+bad-typed-dict-key = false
+no-matching-overload = false
+bad-specialization = false
+bad-index = false
+missing-argument = false

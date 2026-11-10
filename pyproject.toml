@@ -53,6 +53,10 @@ line-length = 100
 [tool.ruff.lint]
 ignore = ["B008"]
 
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"backend/app/api/deps.py" = ["F401"]
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["backend/tests"]

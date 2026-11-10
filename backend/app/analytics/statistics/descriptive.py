@@ -118,7 +118,7 @@ class DescriptiveStatistics:
 
         # Distribution shape classification via unified normality evaluation
         from app.analytics.statistics.normality import evaluate_normality
-        norm_res = evaluate_normality(arr, alpha=alpha)
+        norm_res = evaluate_normality(arr.tolist(), alpha=alpha)
         skew_val = norm_res.skewness
         kurt_val = norm_res.kurtosis
         is_normal = norm_res.is_normal
@@ -239,7 +239,7 @@ class DescriptiveStatistics:
         values: List[float],
         weights: List[float],
         variable_name: str = "metric",
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
         """Compute weighted mean and weighted standard deviation."""
         if len(values) != len(weights):
             raise ValueError(f"Lengths must match: values has {len(values)}, weights has {len(weights)}.")

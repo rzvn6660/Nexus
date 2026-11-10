@@ -17,6 +17,7 @@ Covers the 8 mandatory validation scenarios:
 import os
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any, cast
 from uuid import uuid4
 import pytest
 from fastapi import HTTPException
@@ -773,7 +774,7 @@ def test_12_multi_line_order_conflicting_metadata_rejected_and_rolled_back(pg_db
     with pytest.raises(HTTPException) as exc1:
         DataGatewayService.ingest_into_core_models(db=pg_db, dataset_id=ds_c1.id, business_id=biz_id, target_entity="Sale")
     assert exc1.value.status_code == 400
-    detail1 = exc1.value.detail
+    detail1 = cast(dict[str, Any], exc1.value.detail)
     assert "CONFLICTING_ORDER_METADATA" in [e["error_type"] for e in detail1["errors"]]
     # Verify complete transaction rollback: 0 rows inserted
     persisted1 = pg_db.scalar(select(func.count(Sale.id)).where(Sale.transaction_number == f"ORD-CONF-ST-{h}"))
@@ -793,7 +794,7 @@ def test_12_multi_line_order_conflicting_metadata_rejected_and_rolled_back(pg_db
     with pytest.raises(HTTPException) as exc2:
         DataGatewayService.ingest_into_core_models(db=pg_db, dataset_id=ds_c2.id, business_id=biz_id, target_entity="Sale")
     assert exc2.value.status_code == 400
-    detail2 = exc2.value.detail
+    detail2 = cast(dict[str, Any], exc2.value.detail)
     assert "CONFLICTING_ORDER_METADATA" in [e["error_type"] for e in detail2["errors"]]
     # Verify complete transaction rollback
     persisted2 = pg_db.scalar(select(func.count(Sale.id)).where(Sale.transaction_number == f"ORD-CONF-DT-{h}"))

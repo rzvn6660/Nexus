@@ -808,6 +808,7 @@ class HybridRetriever:
         # Determine aggregate retrieval method and mode
         dialect_name = self.session.bind.dialect.name if self.session.bind else "sqlite"
         retrieval_mode = "pgvector_native" if dialect_name == "postgresql" else "sqlite_fallback"
+        method = "none"
 
         if resolution.resolved_kpi and not fused_chunks:
             kpi = resolution.resolved_kpi
@@ -880,7 +881,7 @@ class HybridRetriever:
                 else:
                     # Sub-threshold candidate: discard noise near floor with 0 lexical overlap
                     irrelevant_filtered = len(fused_chunks)
-                    fused_chunks = []
+                    fused_chunks: list[RetrievedChunk] = []
                     has_sufficient_context = False
                     confidence_level = "none"
                     confidence_score = round(dense_score, 4)

@@ -32,7 +32,7 @@ class BaseForecaster(ABC):
         """Fit model weights/parameters to historical observations."""
 
     @abstractmethod
-    def predict(self, horizon: int) -> np.ndarray:
+    def predict(self, horizon: int, confidence_level: float | None = None) -> Any:
         """Generate out-of-sample point forecasts for the given horizon."""
 
     def get_prediction_intervals(

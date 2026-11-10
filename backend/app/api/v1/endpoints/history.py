@@ -570,7 +570,7 @@ def update_decision(
         record = DecisionMemoryService.record_human_review(
             db=db,
             current_user=current_user,
-            business_id=record.business_id,
+            business_id=record.business_id or "",
             decision_id=record.id,
             review_payload=review_payload,
             idempotency_key=idemp_key,
@@ -627,7 +627,7 @@ def verify_audit_chain(
     return DecisionMemoryService.verify_decision_audit_chain(
         db=db,
         current_user=current_user,
-        business_id=record.business_id,
+        business_id=record.business_id or "",
         decision_id=decision_id,
     )
 
@@ -657,7 +657,7 @@ def record_outcome(
     obs = DecisionMemoryService.record_outcome_observation(
         db=db,
         current_user=current_user,
-        business_id=record.business_id,
+        business_id=record.business_id or "",
         decision_id=decision_id,
         payload=payload,
     )
@@ -683,7 +683,7 @@ def list_outcomes(
     observations = DecisionMemoryService.list_outcome_observations(
         db=db,
         current_user=current_user,
-        business_id=record.business_id,
+        business_id=record.business_id or "",
         decision_id=decision_id,
     )
     return [OutcomeObservationResponse.model_validate(o) for o in observations]
@@ -709,7 +709,7 @@ def record_action_execution(
     updated_rec = DecisionMemoryService.record_action_execution(
         db=db,
         current_user=current_user,
-        business_id=record.business_id,
+        business_id=record.business_id or "",
         decision_id=decision_id,
         payload=payload,
     )
@@ -737,7 +737,7 @@ def evaluate_outcome(
     return DecisionMemoryService.evaluate_decision_outcome(
         db=db,
         current_user=current_user,
-        business_id=record.business_id,
+        business_id=record.business_id or "",
         decision_id=decision_id,
         metric_name=metric_name,
         as_of=as_of,

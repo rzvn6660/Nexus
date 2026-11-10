@@ -104,7 +104,7 @@ class TimeSeriesPreparer:
         lineage = cls.resolve_lineage(target_metric, entity_type, entity_id)
         is_item_level = lineage["is_item_level"]
 
-        clauses = [Sale.status.in_(["completed", "shipped"])]
+        clauses: list[Any] = [Sale.status.in_(["completed", "shipped"])]
         if business_id:
             clauses.append(Sale.business_id == business_id)
         if date_from:

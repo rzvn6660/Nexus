@@ -16,6 +16,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
+    Flowable,
     HRFlowable,
     Paragraph,
     SimpleDocTemplate,
@@ -148,7 +149,7 @@ class PulsePDFGenerator:
             textColor=cls.TEXT_MUTED,
         )
 
-        story = []
+        story: list[Flowable] = []
 
         # ----------------------------------------------------------------------
         # 1. HEADER & BRANDING

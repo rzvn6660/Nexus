@@ -729,6 +729,7 @@ class PrescriptiveEngine:
 
         # If product already has high velocity, markdown is counterproductive
         if velocity_class == "high":
+            units_day = f"{sku_velocity_item.units_per_day:.1f}" if sku_velocity_item else "elevated"
             return self._build_abstained(
                 rec_id=rec_id,
                 category="pricing_markdown",
@@ -736,7 +737,7 @@ class PrescriptiveEngine:
                 objective=ObjectiveType.MAXIMIZE_MARGIN,
                 status=RecommendationStatus.ABSTAINED,
                 reason=(
-                    f"SKU '{sku}' already exhibits 'high' sales velocity ({sku_velocity_item.units_per_day:.1f} units/day). "
+                    f"SKU '{sku}' already exhibits 'high' sales velocity ({units_day} units/day). "
                     "Promotional discounting would dilute gross margin without operational necessity."
                 ),
                 created_at=now_str,

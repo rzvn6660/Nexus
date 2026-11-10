@@ -225,8 +225,8 @@ def list_sync_checkpoints(
             current_cursor=cp.current_cursor,
             status=cp.status,
             records_extracted=cp.records_extracted,
-            worker_id=cp.worker_id,
-            last_attempt_at=cp.last_attempt_at,
+            worker_id=getattr(cp, "worker_id", None) or (cp.metadata_json.get("worker_id") if cp.metadata_json else None),
+            last_attempt_at=getattr(cp, "last_attempt_at", None) or getattr(cp, "updated_at", None),
             completed_at=cp.completed_at,
         )
         for cp in checkpoints
@@ -255,14 +255,14 @@ def get_webhook_inbox_summary(
     for prov in providers:
         counts = db.execute(
             select(
-                ConnectorWebhookInbox.processing_status,
+                ConnectorWebhookInbox.status,
                 func.count(ConnectorWebhookInbox.id),
             )
             .where(
                 ConnectorWebhookInbox.business_id == business_id,
                 ConnectorWebhookInbox.provider == prov,
             )
-            .group_by(ConnectorWebhookInbox.processing_status)
+            .group_by(ConnectorWebhookInbox.status)
         ).all()
 
         count_map = {status: count for status, count in counts}
@@ -299,14 +299,14 @@ def get_period_close_history(
 
     results = []
     for sub in submissions:
-        meta = sub.metadata_json or {}
+        meta = sub.source_close_evidence_json or getattr(sub, "metadata_json", {}) or {}
         results.append({
             "manifest_id": sub.manifest_id,
             "period_start": sub.period_start.isoformat() if sub.period_start else None,
             "period_end": sub.period_end.isoformat() if sub.period_end else None,
             "verification_status": sub.verification_status,
-            "signature_valid": sub.signature_valid,
-            "dataset_identity_digest": sub.canonical_content_digest,
+            "signature_valid": getattr(sub, "signature_valid", sub.verification_status == "verified"),
+            "dataset_identity_digest": getattr(sub, "canonical_content_digest", sub.file_sha256),
             "db_reconciled": sub.db_reconciled,
             "db_reconciled_at": sub.db_reconciled_at.isoformat() if sub.db_reconciled_at else None,
             "persisted_row_count": sub.db_persisted_row_count,
@@ -335,8 +335,7 @@ def verify_historical_package(
 
     res = HistoricalEvidencePackageService.verify_historical_package(
         session=db,
-        package_id=manifest_id,
-        business_id=business_id,
+        package_or_id=manifest_id,
     )
 
     return {
@@ -349,5 +348,5 @@ def verify_historical_package(
         "current_key_status": res.current_key_status,
         "canonical_digest_matches": res.canonical_digest_matches,
         "current_dataset_diverged": res.current_dataset_diverged,
-        "divergence_details": res.divergence_details,
+        "divergence_details": getattr(res, "divergence_details", res.diagnostics),
     }

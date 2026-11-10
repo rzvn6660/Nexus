@@ -355,7 +355,7 @@ class CustomerRetentionService:
         dec_rows = session.execute(dec_stmt).scalars().all()
         dec_map: dict[str, DecisionRecord] = {}
         for d in dec_rows:
-            if d.action_target_id not in dec_map:
+            if d.action_target_id and d.action_target_id not in dec_map:
                 dec_map[d.action_target_id] = d
 
         # Query latest audit events for decisions to check execution and responses
@@ -896,7 +896,6 @@ class CustomerRetentionService:
                 DecisionRecord.business_id == business_id,
             )
         ).scalar_one_or_none()
-
         if not record:
             raise ValueError(f"DecisionRecord {decision_id} not found in business '{business_id}'.")
 
@@ -998,6 +997,8 @@ class CustomerRetentionService:
                 DecisionRecord.business_id == business_id,
             )
         ).scalar_one_or_none()
+        if not record:
+            raise ValueError(f"DecisionRecord #{decision_id} not found for business {business_id}.")
 
         exec_dt = execution_date or datetime.now(UTC)
         if exec_dt.tzinfo is None:
@@ -1072,7 +1073,6 @@ class CustomerRetentionService:
                 DecisionRecord.business_id == business_id,
             )
         ).scalar_one_or_none()
-
         if not record:
             raise ValueError(f"DecisionRecord {decision_id} not found in business '{business_id}'.")
 

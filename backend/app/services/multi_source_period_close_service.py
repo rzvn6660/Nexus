@@ -459,6 +459,8 @@ class MultiSourcePeriodCloseService:
             sig_bytes = private_key.sign(canonical_bytes)
             sig_hex = sig_bytes.hex()
         elif clean_algo == "hmac-sha256":
+            if isinstance(private_key, ed25519.Ed25519PrivateKey):
+                raise TypeError("Private key must be bytes or str for HMAC signing.")
             secret_bytes = private_key.encode("utf-8") if isinstance(private_key, str) else private_key
             sig_hex = hmac.new(secret_bytes, canonical_bytes, hashlib.sha256).hexdigest()
         else:
@@ -600,8 +602,8 @@ class MultiSourcePeriodCloseService:
                     errors.append(f"Signing key '{key_id}' is {trusted_key.status}.")
 
                 # Key expiration check
-                if getattr(trusted_key, "expires_at", None) is not None:
-                    exp = trusted_key.expires_at
+                exp = getattr(trusted_key, "expires_at", None)
+                if isinstance(exp, datetime):
                     exp_utc = exp if exp.tzinfo is not None else exp.replace(tzinfo=UTC)
                     if now_utc > exp_utc:
                         errors.append(f"Signing key '{key_id}' has expired at {exp_utc.isoformat()}.")

@@ -32,7 +32,7 @@ class PriceVolumeMixAnalyzer:
 
         # Helper to query product level quantity and revenue
         def _get_product_metrics(d_from, d_to) -> Dict[int, Dict[str, Any]]:
-            clauses = [
+            clauses: list[Any] = [
                 Sale.status.in_(context.statuses if context.statuses else ["completed", "shipped"])
             ]
             if context.business_id:

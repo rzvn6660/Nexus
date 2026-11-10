@@ -604,7 +604,8 @@ class TenantSemanticService:
                 warnings.append(f"{spec['display_name']} calculation requires cost data (unit cost or purchase price) which is not present in your catalog.")
                 continue
 
-            min_days = spec.get("min_days_history", 0)
+            raw_min = spec.get("min_days_history", 0)
+            min_days: int = int(raw_min) if isinstance(raw_min, int | str) and str(raw_min).isdigit() else 0
             if min_days > 0 and history_days < min_days:
                 metrics[canonical_name] = {
                     "canonical_name": canonical_name,
@@ -636,7 +637,7 @@ class TenantSemanticService:
                 "analytics_tool": spec.get("analytics_tool", "get_financial_summary"),
                 "missing_prerequisites": [],
             }
-            supported_analytics.append(spec["display_name"])
+            supported_analytics.append(str(spec["display_name"]))
 
         # 6. Catalog Analytical Dimensions
         dimensions: Dict[str, Any] = {
@@ -1603,7 +1604,7 @@ class TenantSemanticService:
                         query=query,
                         availability_status="UNAVAILABLE",
                         is_ambiguous=True,
-                        clarification_prompt=info["prompt"],
+                        clarification_prompt=str(info["prompt"]),
                         ambiguity_candidates=info["candidates"],
                         is_supported=True,
                         confidence=0.0,
@@ -1616,7 +1617,7 @@ class TenantSemanticService:
         matched_canonical: str | None = None
         matched_synonym: str | None = None
         is_exact_match: bool = False
-        sorted_synonyms = sorted(synonyms_dict.keys(), key=len, reverse=True)
+        sorted_synonyms: list[str] = sorted(synonyms_dict.keys(), key=len, reverse=True)
         for syn in sorted_synonyms:
             syn_clean = syn.replace("_", " ")
             if (
@@ -1775,7 +1776,7 @@ class TenantSemanticService:
                         provenance["policy_reference"] = rule.policy_reference
                         provenance["rule_name"] = rule.name
             else:
-                provenance = {}
+                provenance: dict[str, Any] = {}
 
             if status != "AVAILABLE":
                 conf = 0.0

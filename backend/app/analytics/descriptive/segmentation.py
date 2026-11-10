@@ -69,8 +69,8 @@ class SegmentationAnalyzer:
             )
             items.append(
                 BreakdownItem(
-                    key=item["segment"],
-                    label=item["segment"],
+                    key=str(item["segment"]),
+                    label=str(item["segment"]),
                     value=item["revenue"],
                     formatted_value=f"${item['revenue']:,.2f}",
                     percentage_of_total=pct,
@@ -139,8 +139,8 @@ class SegmentationAnalyzer:
             )
             items.append(
                 BreakdownItem(
-                    key=item["city"],
-                    label=item["city"],
+                    key=str(item["city"]),
+                    label=str(item["city"]),
                     value=item["revenue"],
                     formatted_value=f"${item['revenue']:,.2f}",
                     percentage_of_total=pct,

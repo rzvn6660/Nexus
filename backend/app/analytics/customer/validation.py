@@ -318,7 +318,7 @@ class HistoricalCadenceValidator:
             followup_status = "incomplete_watermark_gap"
             censoring_reason = "; ".join(effective_wm.blocking_reasons)
         elif ingestion_watermark is not None or (effective_wm and effective_wm.is_verified):
-            wm_obj = ingestion_watermark if ingestion_watermark is not None else effective_wm.effective_complete_through_dt
+            wm_obj = ingestion_watermark if ingestion_watermark is not None else (effective_wm.effective_complete_through_dt if effective_wm is not None else None)
             if hasattr(wm_obj, "complete_through_dt"):
                 watermark_dt = wm_obj.complete_through_dt
             elif hasattr(wm_obj, "effective_complete_through_dt"):

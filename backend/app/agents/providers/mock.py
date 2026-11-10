@@ -586,8 +586,8 @@ class MockLLMProvider(BaseLLMProvider):
             pct_chg = var_res.get("percentage_change")
             direction = var_res.get("direction", "unchanged")
             dim = var_res.get("dimension", "dimension")
-            pos_contribs = var_res.get("top_positive_contributors", [])
-            neg_contribs = var_res.get("top_negative_contributors", [])
+            pos_contribs = var_res.get("top_positive_contributors", []) if isinstance(var_res, dict) else []
+            neg_contribs = var_res.get("top_negative_contributors", []) if isinstance(var_res, dict) else []
 
             pct_str = f"{pct_chg:+.2f}%" if pct_chg is not None else "N/A"
             v_line = f"Revenue variance analysis indicates a total {direction} of {curr_sym}{abs(float(tot_var)):,.2f} ({pct_str}) across the analyzed period."
@@ -602,12 +602,14 @@ class MockLLMProvider(BaseLLMProvider):
                     MetricCitation(metric_name="percentage_change", value=float(pct_chg), tool_source="run_variance_analysis", unit_or_currency="%")
                 )
 
-            if neg_contribs:
+            if isinstance(neg_contribs, list) and neg_contribs:
                 top_neg = neg_contribs[0]
-                lines.append(f"The largest negative contribution came from {dim} '{top_neg.get('entity_name')}', with an absolute change of -{curr_sym}{abs(float(top_neg.get('absolute_change', 0))):,.2f}.")
-            if pos_contribs:
+                if isinstance(top_neg, dict):
+                    lines.append(f"The largest negative contribution came from {dim} '{top_neg.get('entity_name')}', with an absolute change of -{curr_sym}{abs(float(top_neg.get('absolute_change', 0))):,.2f}.")
+            if isinstance(pos_contribs, list) and pos_contribs:
                 top_pos = pos_contribs[0]
-                lines.append(f"The largest positive offsetting contribution came from {dim} '{top_pos.get('entity_name')}', which grew by +{curr_sym}{float(top_pos.get('absolute_change', 0)):,.2f}.")
+                if isinstance(top_pos, dict):
+                    lines.append(f"The largest positive offsetting contribution came from {dim} '{top_pos.get('entity_name')}', which grew by +{curr_sym}{float(top_pos.get('absolute_change', 0)):,.2f}.")
 
             lim_str = "Contribution analysis measures arithmetic association across dimensions and does not establish causality."
             lines.append(f"\nNote: {lim_str}")
@@ -898,7 +900,7 @@ class MockLLMProvider(BaseLLMProvider):
             else:
                 parsed = {
                     "status": "success",
-                    "task": cat.value,
+                    "task": cat.value if hasattr(cat, "value") else str(cat),
                     "query": q,
                     "extracted_parameters": ctx.get("parameters", {}),
                 }

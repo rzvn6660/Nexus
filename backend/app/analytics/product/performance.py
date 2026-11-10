@@ -241,15 +241,15 @@ class ProductAnalyticsService:
                 fmt = f"${val:,.2f}"
 
             share = (
-                round(float((item["revenue"] / total_rev) * Decimal("100.0")), 2)
+                round((float(item["revenue"]) / float(total_rev)) * 100.0, 2)
                 if total_rev > 0
                 else 0.0
             )
 
             items.append(
                 BreakdownItem(
-                    key=item["category"],
-                    label=item["category"],
+                    key=str(item["category"]),
+                    label=str(item["category"]),
                     value=val_dec,
                     formatted_value=fmt,
                     percentage_of_total=share,

@@ -86,6 +86,7 @@ class CohereRerankProvider(BaseRerankProvider):
                     "Cohere Rerank API returned HTTP %d, falling back to local cross-scorer.",
                     resp.status_code,
                 )
+                return self._fallback_provider.rerank(query, candidates, top_k=top_k)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "Cohere Rerank failed (%s), falling back to local cross-scorer.", str(exc)

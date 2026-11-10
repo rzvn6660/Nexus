@@ -70,7 +70,9 @@ def _resolve_forecast_intent_from_query(query: str) -> tuple[str, str, int, str 
 
     # 2. Date and horizon interpretation
     parsed_date = DateInterpreter.interpret(query)
-    horizon = parsed_date.forecast_horizon if (parsed_date.is_forecast and parsed_date.forecast_horizon) else 3
+    is_fc = parsed_date.get("is_forecast") if isinstance(parsed_date, dict) else getattr(parsed_date, "is_forecast", False)
+    fc_h = parsed_date.get("forecast_horizon") if isinstance(parsed_date, dict) else getattr(parsed_date, "forecast_horizon", None)
+    horizon = int(fc_h) if (is_fc and fc_h) else 3
     
     if "day" in q or "daily" in q:
         frequency = "daily"
@@ -89,7 +91,7 @@ def _resolve_forecast_intent_from_query(query: str) -> tuple[str, str, int, str 
         if target == "revenue":
             target = "product_demand"
 
-    return target, frequency, horizon, entity_type, entity_id
+    return str(target), str(frequency), int(horizon), entity_type, entity_id
 
 
 @router.post(

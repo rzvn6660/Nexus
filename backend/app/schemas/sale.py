@@ -11,9 +11,9 @@ class SaleItemBase(BaseModel):
 
     product_id: int = Field(..., description="Foreign key to product entity")
     quantity: int = Field(..., gt=0, description="Quantity purchased (strictly positive)")
-    unit_price: Decimal = Field(..., ge=0, description="Unit price at transaction time")
-    discount_amount: Decimal = Field(Decimal("0.00"), ge=0, description="Line discount amount")
-    line_total: Decimal = Field(..., ge=0, description="Net line total: qty * price - discount")
+    unit_price: Decimal = Field(..., ge=Decimal("0.00"), description="Unit price at transaction time")
+    discount_amount: Decimal = Field(Decimal("0.00"), ge=Decimal("0.00"), description="Line discount amount")
+    line_total: Decimal = Field(..., ge=Decimal("0.00"), description="Net line total: qty * price - discount")
 
 
 class SaleItemCreate(SaleItemBase):
@@ -40,10 +40,10 @@ class SaleBase(BaseModel):
     customer_id: int = Field(..., description="Foreign key to purchasing customer")
     transaction_date: datetime = Field(..., description="Timestamp when transaction occurred")
     status: str = Field("completed", max_length=32, description="Status: completed, pending, cancelled, refunded")
-    subtotal: Decimal = Field(..., ge=0, description="Sum of line items before order discounts")
-    discount_amount: Decimal = Field(Decimal("0.00"), ge=0, description="Order level discount")
-    tax_amount: Decimal = Field(Decimal("0.00"), ge=0, description="Order level tax amount")
-    total_amount: Decimal = Field(..., ge=0, description="Final billed net total")
+    subtotal: Decimal = Field(..., ge=Decimal("0.00"), description="Sum of line items before order discounts")
+    discount_amount: Decimal = Field(Decimal("0.00"), ge=Decimal("0.00"), description="Order level discount")
+    tax_amount: Decimal = Field(Decimal("0.00"), ge=Decimal("0.00"), description="Order level tax amount")
+    total_amount: Decimal = Field(..., ge=Decimal("0.00"), description="Final billed net total")
 
 
 class SaleCreate(SaleBase):

@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import json
 import time
+from typing import Any
 from uuid import uuid4
 import pytest
 from sqlalchemy.orm import Session
@@ -32,7 +33,7 @@ class MockShopifyClient:
 
     def __init__(
         self,
-        orders: list = None,
+        orders: list[Any] | None = None,
         fail_times: int = 0,
         rate_limit_times: int = 0,
     ):
@@ -65,7 +66,7 @@ class MockShopifyClient:
         self,
         period_start: datetime,
         period_end: datetime,
-        cursor: str = None,
+        cursor: str | None = None,
         page_size: int = 50,
     ) -> dict:
         self.calls += 1

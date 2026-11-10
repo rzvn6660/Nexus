@@ -12,6 +12,7 @@ ingestion sources. Guarantees that:
 8. Idempotent retries are supported without duplicate active rows.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from enum import Enum
 from typing import Any
@@ -560,7 +561,7 @@ class WatermarkService:
             len(active_wms),
             reason,
         )
-        return active_wms
+        return list(active_wms)
 
     @classmethod
     def get_watermark_history(
@@ -592,14 +593,14 @@ class WatermarkService:
     ) -> list[TenantIngestionWatermark]:
         """Query active watermarks for a tenant."""
         try:
-            return session.execute(
+            return list(session.execute(
                 select(TenantIngestionWatermark)
                 .where(
                     TenantIngestionWatermark.business_id == business_id,
                     TenantIngestionWatermark.is_active.is_(True),
                 )
                 .order_by(TenantIngestionWatermark.source_id)
-            ).scalars().all()
+            ).scalars().all())
         except Exception as e:  # noqa: BLE001
             # Table might not exist in unmigrated databases; handle gracefully
             logger.debug("Failed querying tenant_ingestion_watermarks (table may be unmigrated): %s", e)
@@ -857,7 +858,7 @@ class WatermarkService:
         session: Session,
         business_id: str,
         source_id: str,
-        transaction_dates: list[datetime | date | str] | None = None,
+        transaction_dates: Sequence[datetime | date | str] | None = None,
         certified_complete_through: datetime | date | str | None = None,
         job_id: str | None = None,
         metadata_json: dict[str, Any] | None = None,

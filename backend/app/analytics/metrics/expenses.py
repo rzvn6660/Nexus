@@ -63,7 +63,7 @@ class ExpenseAnalyticsCalculator:
 
         for r in rows:
             amt = Decimal(str(r.amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            cnt = int(r.count)
+            cnt = int(r._mapping["count"])
             is_rec = bool(r.recurring)
 
             total += amt

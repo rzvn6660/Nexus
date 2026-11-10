@@ -1,5 +1,7 @@
 """Croston's intermittent demand forecasting method with Syntetos-Boylan Approximation (SBA)."""
 
+from typing import Any
+
 import numpy as np
 
 from app.predictive.models.base import BaseForecaster
@@ -94,7 +96,7 @@ class CrostonForecaster(BaseForecaster):
         self._fitted = True
         return self
 
-    def predict(self, horizon: int) -> np.ndarray:
+    def predict(self, horizon: int, confidence_level: float | None = None) -> Any:
         if not self._fitted:
             raise ValueError("Model must be fitted prior to prediction.")
         if horizon < 1:

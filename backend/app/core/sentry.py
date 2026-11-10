@@ -5,7 +5,7 @@ Enforces strict sanitization to prevent sensitive user, business, credential,
 and payload data from leaking to external monitoring services.
 """
 
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qsl, urlencode
 
 from app.core.config import settings
@@ -182,10 +182,9 @@ def init_sentry(process_name: str = "api") -> bool:
             release=release,
             server_name=f"nexus-{process_name}",
             send_default_pii=False,
-            request_bodies="never",
             traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-            before_send=before_send_handler,
-            before_breadcrumb=before_breadcrumb_handler,
+            before_send=cast(Any, before_send_handler),
+            before_breadcrumb=cast(Any, before_breadcrumb_handler),
             integrations=[sentry_logging],
         )
 

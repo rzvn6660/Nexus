@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List, Dict, Any, Tuple, Literal
+from typing import Optional, List, Dict, Any, Tuple, Literal, overload
 from sqlalchemy import select, and_, func
 from sqlalchemy.orm import Session
 from app.models.sale import Sale
@@ -111,11 +111,17 @@ class AnalyticsService:
         self.session = session
         self.business_id = business_id
 
+    @overload
+    def _ensure_context(self, context: AnalysisContext) -> AnalysisContext: ...
+    @overload
+    def _ensure_context(self, context: None) -> Optional[AnalysisContext]: ...
+    @overload
+    def _ensure_context(self, context: Optional[AnalysisContext]) -> Optional[AnalysisContext]: ...
     def _ensure_context(self, context: Optional[AnalysisContext]) -> Optional[AnalysisContext]:
+        from app.analytics.core.context import resolve_currency_symbol
         biz_currency = None
         if self.business_id:
             from app.models.tenant import Business
-            from app.analytics.core.context import resolve_currency_symbol
             biz_currency = self.session.execute(
                 select(Business.currency).where(Business.id == self.business_id)
             ).scalar_one_or_none()
@@ -926,7 +932,7 @@ class AnalyticsService:
         x_vals: List[float] = []
         y_vals: List[float] = []
 
-        def _extract(col_name: str, r) -> float:
+        def _extract(col_name: str, r: Any) -> float:
             c = col_name.lower()
             if c in ("quantity", "units"):
                 return float(r.quantity)

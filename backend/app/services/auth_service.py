@@ -282,7 +282,7 @@ class AuthService:
         business_name: str | None = None,
         session: Session | None = None,
         db: Session | None = None,
-    ) -> tuple[UserIdentity, Organization, Business, str]:
+    ) -> tuple[UserIdentity, Organization, Business]:
         """
         Register a new user, create their root Organization, grant Owner role,
         and provision an initial Business workspace.

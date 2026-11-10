@@ -99,7 +99,7 @@ class RegressionAnalyzer:
                     ss_tot = np.sum((target_col - np.mean(target_col)) ** 2)
                     ss_res = np.sum((target_col - pred_aux) ** 2)
                     r2_aux = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
-                    r2_aux = max(0.0, min(0.9999, r2_aux))
+                    r2_aux = max(0.0, min(0.9999, float(r2_aux)))
                     vif_val = 1.0 / (1.0 - r2_aux)
                     vif_dict[var_names[j]] = round(float(vif_val), 2)
                     if vif_val > 10.0:
@@ -176,7 +176,7 @@ class RegressionAnalyzer:
             beta_bp, _, _, _ = np.linalg.lstsq(X_design, e2, rcond=None)
             pred_e2 = X_design @ beta_bp
             ssr_e2 = np.sum((e2 - pred_e2) ** 2)
-            r2_bp = max(0.0, min(1.0, 1.0 - (ssr_e2 / sst_e2)))
+            r2_bp = max(0.0, min(1.0, float(1.0 - (ssr_e2 / sst_e2))))
             bp_stat = float(n * r2_bp)
             bp_pval = float(1.0 - stats.chi2.cdf(bp_stat, df=k))
         else:
@@ -186,7 +186,7 @@ class RegressionAnalyzer:
 
         # Diagnostics: Residual normality evaluation
         from app.analytics.statistics.normality import evaluate_normality
-        resid_norm = evaluate_normality(e, alpha=alpha)
+        resid_norm = evaluate_normality(e.tolist(), alpha=alpha)
         residuals_normal = resid_norm.is_normal
         residuals_norm_pval = resid_norm.p_value
 

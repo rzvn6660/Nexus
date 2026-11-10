@@ -15,7 +15,7 @@ def execute_forecast_node(
 ) -> dict[str, Any]:
     """Execute deterministic forecasting for queries classified as predictive."""
     configurable = config.get("configurable", {}) if config else {}
-    session: Session = configurable.get("session") or configurable.get("db_session")
+    session: Session | None = configurable.get("session") or configurable.get("db_session")
     if not session:
         return {
             "errors": ["Database session unavailable for predictive execution."],

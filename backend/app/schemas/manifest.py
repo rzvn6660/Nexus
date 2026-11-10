@@ -69,8 +69,8 @@ class ReconciliationTotals(BaseModel):
     """Independent source reconciliation expectations for row counts and gross volume."""
 
     expected_sales_row_count: int = Field(ge=1, description="Expected total number of sales records in the export file.")
-    expected_gross_total_amount: Decimal = Field(ge=0, description="Expected sum of gross total_amount for eligible completed orders.")
-    expected_net_total_amount: Decimal | None = Field(default=None, ge=0, description="Optional expected net total amount after refunds/discounts.")
+    expected_gross_total_amount: Decimal = Field(ge=Decimal("0.00"), description="Expected sum of gross total_amount for eligible completed orders.")
+    expected_net_total_amount: Decimal | None = Field(default=None, ge=Decimal("0.00"), description="Optional expected net total amount after refunds/discounts.")
     currency: str = Field(default="USD", min_length=3, max_length=3, description="ISO-4217 3-letter currency code.")
     eligible_status_allowlist: list[str] = Field(
         default=["completed", "shipped"],

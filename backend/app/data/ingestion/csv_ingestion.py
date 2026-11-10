@@ -20,7 +20,7 @@ from app.schemas.expense import ExpenseCreate
 from app.schemas.ingestion import IngestionResult, IngestionRowError
 
 # Mapping of dataset names to Pydantic validation schemas and ORM models
-DATASET_REGISTRY = {
+DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
     "customers": {
         "schema": CustomerCreate,
         "model": Customer,
@@ -94,7 +94,7 @@ class CSVIngestionService:
         reg = DATASET_REGISTRY[dataset_key]
         schema_cls = reg["schema"]
         model_cls = reg["model"]
-        required_cols = reg["required_columns"]
+        required_cols: set[str] = set(reg["required_columns"])
 
         connector = CSVConnector(source)
         try:

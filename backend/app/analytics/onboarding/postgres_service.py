@@ -12,6 +12,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import psycopg
+from psycopg import sql
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -158,14 +159,20 @@ class PostgreSQLOnboardingService:
             with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
                 # Count total rows
                 cur.execute(
-                    f'SELECT COUNT(*) FROM "{schema_name}"."{table_name}";'
+                    sql.SQL('SELECT COUNT(*) FROM {}.{};').format(
+                        sql.Identifier(schema_name),
+                        sql.Identifier(table_name),
+                    )
                 )
                 count_row = cur.fetchone()
                 total_rows = count_row[0] if count_row else 0
 
                 # Fetch sample
                 cur.execute(
-                    f'SELECT * FROM "{schema_name}"."{table_name}" LIMIT %s;',
+                    sql.SQL('SELECT * FROM {}.{} LIMIT %s;').format(
+                        sql.Identifier(schema_name),
+                        sql.Identifier(table_name),
+                    ),
                     (min(limit, 100),),
                 )
                 col_names = [desc[0] for desc in cur.description] if cur.description else []
@@ -238,7 +245,10 @@ class PostgreSQLOnboardingService:
         try:
             with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
                 cur.execute(
-                    f'SELECT * FROM "{schema_name}"."{table_name}" LIMIT %s;',
+                    sql.SQL('SELECT * FROM {}.{} LIMIT %s;').format(
+                        sql.Identifier(schema_name),
+                        sql.Identifier(table_name),
+                    ),
                     (max_rows,),
                 )
                 col_names = [desc[0] for desc in cur.description] if cur.description else []

@@ -460,7 +460,7 @@ class HypothesisTestRunner:
         if len(groups) < 3:
             raise ValueError(f"One-Way ANOVA requires at least 3 groups, got {len(groups)}.")
 
-        clean_groups: Dict[str, np.ndarray] = {}
+        clean_groups: dict[str, Any] = {}
         group_summaries: List[AnovaGroupSummary] = []
         all_vals: List[float] = []
 
@@ -493,9 +493,9 @@ class HypothesisTestRunner:
         p_val = float(res.pvalue)
 
         # Eta-squared calculation: SS_between / SS_total
-        grand_mean = np.mean(all_vals)
-        ss_between = float(sum(len(arr) * ((np.mean(arr) - grand_mean) ** 2) for arr in arrays))
-        ss_total = float(sum((x - grand_mean) ** 2 for x in all_vals))
+        grand_mean = float(np.mean(all_vals))
+        ss_between = float(np.sum([len(arr) * ((float(np.mean(arr)) - grand_mean) ** 2) for arr in arrays]))
+        ss_total = float(np.sum([(float(x) - grand_mean) ** 2 for x in all_vals]))
         eta_squared = (ss_between / ss_total) if ss_total > 0 else 0.0
         mag = _classify_eta_squared(eta_squared)
 
@@ -509,7 +509,7 @@ class HypothesisTestRunner:
             post_hoc_list = []
             post_hoc_method = "holm"
             group_names = list(clean_groups.keys())
-            pair_records = []
+            pair_records: list[dict[str, Any]] = []
 
             for i in range(len(group_names)):
                 for j in range(i + 1, len(group_names)):
@@ -556,17 +556,17 @@ class HypothesisTestRunner:
                     })
 
             from app.analytics.statistics.multiple_testing import MultipleTestingCorrector
-            raw_ps = [p["p_raw"] for p in pair_records]
+            raw_ps: list[float] = [float(p["p_raw"]) for p in pair_records]
             adj_res = MultipleTestingCorrector.adjust_p_values(raw_ps, method="holm", alpha=alpha)
 
             for p_rec, p_adj, rej in zip(pair_records, adj_res.adjusted_p_values, adj_res.rejected):
                 post_hoc_list.append(
                     AnovaPostHocComparison(
-                        group_1=p_rec["g1"],
-                        group_2=p_rec["g2"],
-                        mean_difference=round(p_rec["diff"], 4),
-                        statistic=round(p_rec["t_stat"], 4),
-                        p_value_raw=round(p_rec["p_raw"], 6),
+                        group_1=str(p_rec["g1"]),
+                        group_2=str(p_rec["g2"]),
+                        mean_difference=round(float(p_rec["diff"]), 4),
+                        statistic=round(float(p_rec["t_stat"]), 4),
+                        p_value_raw=round(float(p_rec["p_raw"]), 6),
                         p_value_adjusted=round(p_adj, 6),
                         correction_method="holm",
                         is_statistically_significant=rej,

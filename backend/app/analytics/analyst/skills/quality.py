@@ -527,7 +527,7 @@ class SourceCompletenessSkill(BaseAnalystSkill):
         is_reconciled = (
             bool(wm_meta.get("db_reconciled"))
             or bool(wm_meta.get("records_persisted") is not None)
-            or bool(verified_manifest and verified_manifest.reconciliation_status == "reconciled")
+            or bool(verified_manifest and (verified_manifest.db_reconciled or verified_manifest.reconciliation_matched or getattr(verified_manifest, "reconciliation_status", None) == "reconciled"))
         )
 
         is_period_close_certified = (

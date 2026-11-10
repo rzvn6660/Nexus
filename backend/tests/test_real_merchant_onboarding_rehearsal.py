@@ -242,6 +242,7 @@ def test_stage1_excel_schema_inspection_and_profiling(db_session: Session, rehea
         },
     ])
 
+    pytest.importorskip("openpyxl")
     bio = io.BytesIO()
     with pd.ExcelWriter(bio, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Transactions")
@@ -609,10 +610,10 @@ def test_stage5_source_to_database_mathematical_reconciliation(db_session: Sessi
     ]
 
     expected_count = len(source_records)
-    expected_subtotal = sum(r["amount"] for r in source_records)
-    expected_discount = sum(r["discount"] for r in source_records)
-    expected_tax = sum(r["tax"] for r in source_records)
-    expected_total = sum(r["total"] for r in source_records)
+    expected_subtotal = sum(Decimal(str(r["amount"])) for r in source_records)
+    expected_discount = sum(Decimal(str(r["discount"])) for r in source_records)
+    expected_tax = sum(Decimal(str(r["tax"])) for r in source_records)
+    expected_total = sum(Decimal(str(r["total"])) for r in source_records)
 
     csv_lines = ["order_number,date,amount,customer_code,discount_amount,tax_amount,total_amount"]
     for r in source_records:

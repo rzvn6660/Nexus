@@ -155,7 +155,7 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
             return False, f"MISSING_API_KEY_{self.api_key_env_var or 'NOT_SET'}"
         return True, "CONFIGURED"
 
-    def _get_client(self, allow_external: bool = False):
+    def _get_client(self, allow_external: bool = False) -> Any:
         configured, reason = self.is_configured(allow_external=allow_external)
         if not configured:
             if "EXTERNAL_CALLS_DISABLED" in reason:
@@ -525,7 +525,7 @@ class OpenAICompatibleLiveProvider(BaseLLMProvider):
         is_plan_fallback = getattr(plan, "is_fallback", False) if plan else False
         plan_fallback_reason = getattr(plan, "fallback_reason", None) if plan else None
 
-        if not self._allow_external and not self._is_local:
+        if not self.allow_external and not self.is_local:
             fallback_exp = self._fallback_mock.explain_results_structured(
                 query=query,
                 plan=plan,

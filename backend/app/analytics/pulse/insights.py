@@ -88,6 +88,7 @@ class PulseInsightEngine:
         if growth_pct is not None:
             direction = "expanded" if growth_pct >= 0 else "contracted"
             sev = InsightSeverity.POSITIVE if growth_pct >= 0 else InsightSeverity.WARNING
+            base_val = getattr(tot_rev_kpi, "baseline_value", None) or 0.0
             insights.append(
                 PulseInsightItem(
                     insight_id=f"ins-kpi-growth-{uuid4().hex[:6]}",
@@ -97,7 +98,7 @@ class PulseInsightEngine:
                     title="Revenue Trajectory",
                     description=(
                         f"Commercial revenue {direction} by {growth_pct:+.1f}% compared to the prior baseline window "
-                        f"(baseline: ${tot_rev_kpi.baseline_value:,.2f} vs current: ${curr_rev:,.2f})."
+                        f"(baseline: ${float(base_val):,.2f} vs current: ${curr_rev:,.2f})."
                     ),
                     evidence_kpis=["revenue_growth", "total_revenue"],
                 )

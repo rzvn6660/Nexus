@@ -48,8 +48,8 @@ class ParetoAnalyzer:
             )
 
         # Sort descending by value
-        clean_entities.sort(key=lambda x: x["value"], reverse=True)
-        values_desc = [x["value"] for x in clean_entities]
+        clean_entities.sort(key=lambda x: float(x["value"]), reverse=True)
+        values_desc: list[float] = [float(x["value"]) for x in clean_entities]
         total_metric = float(sum(values_desc))
 
         if total_metric <= 0:
@@ -95,13 +95,13 @@ class ParetoAnalyzer:
         top_contributors = []
         running_cum = 0.0
         for i, item in enumerate(clean_entities[:min(10, total_entities)]):
-            item_share = (item["value"] / total_metric) * 100.0
+            item_share = (float(item["value"]) / total_metric) * 100.0
             running_cum += item_share
             top_contributors.append({
                 "rank": i + 1,
                 "id": item["id"],
                 "name": item["name"],
-                "value": round(item["value"], 2),
+                "value": round(float(item["value"]), 2),
                 "share_pct": round(item_share, 2),
                 "cumulative_share_pct": round(running_cum, 2),
             })

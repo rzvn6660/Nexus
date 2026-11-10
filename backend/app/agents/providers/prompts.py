@@ -119,7 +119,7 @@ class TaskPromptBuilder:
         System prompt strictly constrains tool selection to registered tools and bars arithmetic.
         """
         sem_ctx = semantic_context or {}
-        tool_names = [t.get("name") for t in available_tools if isinstance(t, dict)]
+        tool_names = [str(t["name"]) for t in available_tools if isinstance(t, dict) and t.get("name")]
 
         # Extract semantic guidance
         canonical_kpi = sem_ctx.get("canonical_name")

@@ -1,5 +1,7 @@
 """Seasonal Naive baseline forecaster mapping future steps to corresponding historical seasons."""
 
+from typing import Any
+
 import numpy as np
 
 from app.predictive.models.base import BaseForecaster
@@ -38,7 +40,7 @@ class SeasonalNaiveForecaster(BaseForecaster):
         self._fitted = True
         return self
 
-    def predict(self, horizon: int, confidence_level: float | None = None):
+    def predict(self, horizon: int, confidence_level: float | None = None) -> Any:
         if not self._fitted:
             raise ValueError("Model must be fitted prior to prediction.")
         m = self._effective_m

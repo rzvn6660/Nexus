@@ -77,10 +77,10 @@ class ExtractedLineItem(BaseModel):
     sku: Optional[str] = None
     title: str
     quantity: int = Field(ge=1)
-    unit_price: Decimal = Field(ge=0)
-    total_amount: Decimal = Field(ge=0)
-    discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
-    tax_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
+    unit_price: Decimal = Field(ge=Decimal("0.00"))
+    total_amount: Decimal = Field(ge=Decimal("0.00"))
+    discount_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
+    tax_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
 
 
 class ExtractedRecord(BaseModel):
@@ -94,11 +94,11 @@ class ExtractedRecord(BaseModel):
     transaction_date: datetime
     status: str = Field(description="Order/transaction status: completed, pending, refunded, partially_refunded, cancelled")
     currency: str = Field(default="USD", min_length=3, max_length=3)
-    gross_amount: Decimal = Field(ge=0)
-    discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
-    tax_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
+    gross_amount: Decimal = Field(ge=Decimal("0.00"))
+    discount_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
+    tax_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
     net_amount: Decimal
-    fee_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
+    fee_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
     line_items: List[ExtractedLineItem] = Field(default_factory=list)
     raw_payload_hash: str = Field(description="SHA-256 hash of raw upstream payload")
     provenance_type: str = Field(default="synthetic_sandbox", description="Data provenance: synthetic_sandbox, shopify, stripe, etc.")
@@ -144,10 +144,10 @@ class PeriodCloseEvidence(BaseModel):
     period_start: datetime
     period_end: datetime
     currency: str = Field(default="USD", min_length=3, max_length=3)
-    gross_amount: Decimal = Field(ge=0)
-    net_amount: Decimal = Field(ge=0)
-    tax_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
-    fee_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
+    gross_amount: Decimal = Field(ge=Decimal("0.00"))
+    net_amount: Decimal = Field(ge=Decimal("0.00"))
+    tax_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
+    fee_amount: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
     transaction_count: int = Field(ge=0)
     transaction_id_list_hash: str = Field(description="SHA-256 digest of lexicographically sorted transaction IDs")
     provider_signature: Optional[str] = Field(default=None, description="Cryptographic HMAC or digital signature from upstream platform")

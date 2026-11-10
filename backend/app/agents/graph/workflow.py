@@ -1,6 +1,6 @@
 """Stateful LangGraph workflow definition for the NEXUS analytical agent with Semantic Layer & RAG."""
 
-from typing import Literal
+from typing import Any, Literal, cast
 
 from langgraph.graph import END, START, StateGraph
 
@@ -93,7 +93,7 @@ def route_after_evidence_check(
     return "generate_explanation"
 
 
-def build_agent_graph() -> StateGraph:
+def build_agent_graph() -> StateGraph[Any, Any, Any, Any]:
     """
     Construct the stateful LangGraph analytical orchestration graph.
     
@@ -128,7 +128,7 @@ def build_agent_graph() -> StateGraph:
                                                                                              ├── [partial] ─→ execute_tool (loop)
                                                                                              └── [yes/err] ─→ generate_explanation ──→ END
     """
-    builder = StateGraph(AgentState)
+    builder: StateGraph[Any, Any, Any, Any] = StateGraph(cast(Any, AgentState))
 
     # 1. Register Nodes
     builder.add_node("understand_request", understand_request_node)

@@ -15,22 +15,21 @@ Verifies:
 """
 
 import base64
-from datetime import UTC, datetime, timedelta
 import json
 import os
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
-import pytest
-from sqlalchemy.orm import Session, sessionmaker
 
+import pytest
 from app.core.kms import (
     CredentialDecryptionError,
     EnvelopeEncryptionEngine,
     KMSUnavailableError,
     LocalDevelopmentKMSProvider,
 )
-from app.models.connector import TenantConnectorCredential
 from app.models.tenant import Business, Organization, OrganizationMembership, UserIdentity
 from app.services.source_sync_service import SourceSyncService
+from sqlalchemy.orm import Session, sessionmaker
 
 
 def _create_isolated_tenant(session: Session, suffix: str) -> Business:
@@ -63,7 +62,7 @@ def _create_isolated_tenant(session: Session, suffix: str) -> Business:
     return biz
 
 
-def test_01_credential_creation_and_envelope_structure(db_session: Session):
+def test_01_credential_creation_and_envelope_structure(db_session: Session) -> None:
     """Scenario 1: Credential registration stores a valid AES-256-GCM envelope."""
     biz = _create_isolated_tenant(db_session, "c01")
     kms = LocalDevelopmentKMSProvider()
@@ -104,7 +103,7 @@ def test_01_credential_creation_and_envelope_structure(db_session: Session):
     assert dummy_secret not in cred.encrypted_credentials
 
 
-def test_02_roundtrip_decryption_fidelity(db_session: Session):
+def test_02_roundtrip_decryption_fidelity(db_session: Session) -> None:
     """Scenario 2: Decryption yields exact original credential payload."""
     biz = _create_isolated_tenant(db_session, "c02")
     kms = LocalDevelopmentKMSProvider()
@@ -138,7 +137,7 @@ def test_02_roundtrip_decryption_fidelity(db_session: Session):
     assert decrypted["nested"]["config_a"] == 100
 
 
-def test_03_persistence_across_session_restart(db_session: Session):
+def test_03_persistence_across_session_restart(db_session: Session) -> None:
     """Scenario 3: Credential decryption survives process and session restart."""
     engine = db_session.get_bind()
     SessionMaker = sessionmaker(bind=engine)
@@ -175,7 +174,7 @@ def test_03_persistence_across_session_restart(db_session: Session):
     sess_2.close()
 
 
-def test_04_multi_worker_concurrent_decryption(db_session: Session):
+def test_04_multi_worker_concurrent_decryption(db_session: Session) -> None:
     """Scenario 4: Multiple independent sessions can decrypt the same credential concurrently."""
     engine = db_session.get_bind()
     SessionMaker = sessionmaker(bind=engine)
@@ -212,7 +211,7 @@ def test_04_multi_worker_concurrent_decryption(db_session: Session):
         worker_sess.close()
 
 
-def test_05_kms_master_key_rotation(db_session: Session):
+def test_05_kms_master_key_rotation(db_session: Session) -> None:
     """Scenario 5: Re-encrypting credentials under a new KMS master key version succeeds."""
     biz = _create_isolated_tenant(db_session, "c05")
 
@@ -269,7 +268,7 @@ def test_05_kms_master_key_rotation(db_session: Session):
         )
 
 
-def test_06_tenant_isolation_via_aad_binding(db_session: Session):
+def test_06_tenant_isolation_via_aad_binding(db_session: Session) -> None:
     """
     Scenario 6: Ciphertext transplant attack defense.
     Attempting to decrypt Tenant A's envelope using Tenant B's identity must fail
@@ -302,7 +301,7 @@ def test_06_tenant_isolation_via_aad_binding(db_session: Session):
         )
 
 
-def test_07_ciphertext_tampering_detection(db_session: Session):
+def test_07_ciphertext_tampering_detection(db_session: Session) -> None:
     """Scenario 7: Modifying even a single character of ciphertext or nonce raises InvalidTag."""
     biz = _create_isolated_tenant(db_session, "tamper01")
     kms = LocalDevelopmentKMSProvider()
@@ -337,14 +336,14 @@ def test_07_ciphertext_tampering_detection(db_session: Session):
         )
 
 
-def test_08_wrong_master_key_rejection(db_session: Session):
+def test_08_wrong_master_key_rejection(db_session: Session) -> None:
     """Scenario 8: Attempting to decrypt with a different master key fails."""
     biz = _create_isolated_tenant(db_session, "wrongkey")
 
     kms_good = LocalDevelopmentKMSProvider(master_keys={"vault": b"A" * 32})
     kms_wrong = LocalDevelopmentKMSProvider(master_keys={"vault": b"B" * 32})
 
-    cred = SourceSyncService.register_tenant_credentials(
+    SourceSyncService.register_tenant_credentials(
         session=db_session,
         business_id=biz.id,
         provider="square",
@@ -365,7 +364,7 @@ def test_08_wrong_master_key_rejection(db_session: Session):
         )
 
 
-def test_09_kms_outage_fail_closed(db_session: Session):
+def test_09_kms_outage_fail_closed(db_session: Session) -> None:
     """Scenario 9: If KMS is unreachable, system fails closed with KMSUnavailableError."""
     biz = _create_isolated_tenant(db_session, "outage")
     kms = LocalDevelopmentKMSProvider()
@@ -393,7 +392,7 @@ def test_09_kms_outage_fail_closed(db_session: Session):
         )
 
 
-def test_10_revocation_and_expiration_fail_closed(db_session: Session):
+def test_10_revocation_and_expiration_fail_closed(db_session: Session) -> None:
     """Scenario 10: Revoked or expired credentials reject retrieval before decryption."""
     biz = _create_isolated_tenant(db_session, "revexp")
     kms = LocalDevelopmentKMSProvider()
@@ -429,7 +428,7 @@ def test_10_revocation_and_expiration_fail_closed(db_session: Session):
         )
 
 
-def test_11_production_guardrail_blocks_local_kms():
+def test_11_production_guardrail_blocks_local_kms() -> None:
     """Scenario 11: LocalDevelopmentKMSProvider raises RuntimeError if APP_ENV is production."""
     old_env = os.getenv("APP_ENV")
     try:

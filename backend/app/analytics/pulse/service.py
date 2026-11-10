@@ -9,6 +9,8 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+from fastapi import HTTPException, status
+
 from app.analytics.pulse.insights import PulseInsightEngine
 from app.analytics.pulse.kpi_catalogue import PulseKPICatalogueEngine
 from app.analytics.pulse.notifications.base import NotificationPayload
@@ -641,6 +643,11 @@ class PulseService:
             ).order_by(desc(PulseDeliveryLog.id))
         ).scalars().first()
 
+        if not log_entry:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve delivery log record after dispatch.",
+            )
         return cls._to_delivery_log_item(log_entry)
 
     @classmethod
@@ -722,6 +729,11 @@ class PulseService:
         log_entry.dispatched_at = res.dispatched_at
         log_entry.delivered_at = res.delivered_at
         session.commit()
+        if not log_entry:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve delivery log record after dispatch.",
+            )
         return cls._to_delivery_log_item(log_entry)
 
     # --------------------------------------------------------------------------
@@ -857,10 +869,10 @@ class PulseService:
 
         if getattr(email_adapter, "is_mailpit", False):
             email_status = "LOCAL_MAILPIT"
-            hint = f"Local Mailpit SMTP ({email_adapter.smtp_host}:{email_adapter.smtp_port}) — Zero Cost"
+            hint = f"Local Mailpit SMTP ({getattr(email_adapter, 'smtp_host', 'localhost')}:{getattr(email_adapter, 'smtp_port', 1025)}) — Zero Cost"
         elif is_email_live:
             email_status = "LIVE_CONFIGURED"
-            hint = f"Live Corporate SMTP ({email_adapter.smtp_host}:{email_adapter.smtp_port})"
+            hint = f"Live Corporate SMTP ({getattr(email_adapter, 'smtp_host', 'localhost')}:{getattr(email_adapter, 'smtp_port', 587)})"
         else:
             email_status = "SANDBOX_MOCK"
             hint = "Safe Simulated Rehearsal Mock"
@@ -952,7 +964,7 @@ class PulseService:
 
         if is_wa_live:
             wa_status = "LIVE_CONFIGURED"
-            wa_hint = f"Meta WhatsApp Cloud API (Phone ID: {wa_adapter.phone_number_id})"
+            wa_hint = f"Meta WhatsApp Cloud API (Phone ID: {getattr(wa_adapter, 'phone_number_id', 'configured')})"
         else:
             wa_status = "SANDBOX_MOCK"
             wa_hint = "Safe Rehearsal Mock (Zero Cost)"
@@ -992,7 +1004,7 @@ class PulseService:
                 mailpit_host = data.smtp_host.strip() if data.smtp_host else os.environ.get("SMTP_HOST", "nexus_mailpit_local")
                 creds = {
                     "smtp_host": mailpit_host,
-                    "smtp_port": data.smtp_port or int(os.environ.get("SMTP_PORT", 1025)),
+                    "smtp_port": data.smtp_port or int(os.environ.get("SMTP_PORT", "1025")),
                     "smtp_user": None,
                     "smtp_password": None,
                     "from_email": data.from_email or "pulse@nexus.local",

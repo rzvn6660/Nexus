@@ -14,7 +14,6 @@ import os
 from datetime import UTC, date, datetime
 from enum import Enum
 from typing import Any
-from uuid import uuid4
 
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -23,12 +22,9 @@ from sqlalchemy.orm import Session
 from app.analytics.core.context import AnalysisContext
 from app.analytics.customer.cadence import (
     CadenceConfig,
-    CadenceRiskTier,
     CustomerCadenceAnalyzer,
-    CustomerCadenceRecord,
     CustomerCadenceSummary,
 )
-from app.models.customer import Customer
 from app.models.history import DecisionRecord
 from app.models.sale import Sale
 from app.models.tenant import Business
@@ -338,6 +334,7 @@ class CadenceSafetyGate:
             )
 
         # 2. Normalize requested evaluation cutoff
+        latest_txn: datetime | None = None
         if as_of_date is not None:
             if isinstance(as_of_date, datetime):
                 ref_dt = as_of_date if as_of_date.tzinfo is not None else as_of_date.replace(tzinfo=UTC)
@@ -427,7 +424,7 @@ class CadenceSafetyGate:
                     "Human review and action proposals are functional for workflow testing only."
                 ),
                 effective_watermark_status="DEMO_SYNTHETIC",
-                effective_complete_through_dt=wm_complete_iso or (latest_txn.isoformat() if 'latest_txn' in locals() and latest_txn else None),
+                effective_complete_through_dt=wm_complete_iso or (latest_txn.isoformat() if latest_txn else None),
                 as_of_date_requested=ref_dt_iso,
                 eligible_repeat_buyers_count=repeat_buyers_count,
                 min_required_repeat_buyers=min_repeat_buyers,
@@ -578,8 +575,7 @@ class CadenceSafetyGate:
 
             is_fixture_tenant = (
                 not is_prod and (
-                    business_id.startswith("biz-rh-")
-                    or business_id.startswith("biz-test-")
+                    business_id.startswith(("biz-rh-", "biz-test-"))
                     or "rehearsal" in (biz.name or "").lower()
                     or "fixture" in (biz.name or "").lower()
                     or "synthetic" in (biz.name or "").lower()
@@ -613,8 +609,7 @@ class CadenceSafetyGate:
                 )
 
         # Gate 2: Check Evaluation Cutoff vs Certified Completeness Boundary
-        if effective_wm.effective_complete_through_dt:
-            if ref_dt > effective_wm.effective_complete_through_dt:
+        if effective_wm.effective_complete_through_dt and ref_dt > effective_wm.effective_complete_through_dt:
                 return CadenceSafetyVerdict(
                     eligibility_status=CadenceEligibilityStatus.DIAGNOSTIC_ONLY,
                     is_actionable=False,
@@ -751,8 +746,7 @@ class CadenceSafetyGate:
             if verdict.non_actionable_notice:
                 summary.limitations.insert(1, verdict.non_actionable_notice)
 
-        if verdict.seasonal_disclosure.has_seasonal_caution:
-            if verdict.seasonal_disclosure.caution_message:
+        if verdict.seasonal_disclosure.has_seasonal_caution and verdict.seasonal_disclosure.caution_message:
                 summary.limitations.append(
                     f"SEASONAL ADVISORY: {verdict.seasonal_disclosure.caution_message}"
                 )

@@ -96,7 +96,10 @@ class PulseNotificationDispatcher:
                 e,
             )
 
-        return self.default_adapters.get(channel)
+        adapter = self.default_adapters.get(channel)
+        if not adapter:
+            raise ValueError(f"No notification adapter configured for channel '{channel.value}'.")
+        return adapter
 
     def dispatch(
         self,

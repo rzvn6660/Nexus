@@ -45,11 +45,11 @@ class RetentionOpportunitySkill(BaseAnalystSkill):
             at_risk_res = CustomerRetentionService.list_customers_at_risk(
                 session=db,
                 business_id=biz_id,
-                filter_params=RetentionCustomerFilter(is_repeat_only=True, page_size=20),
+                filters=RetentionCustomerFilter(is_repeat_only=True, page_size=20),
             )
             if at_risk_res:
                 candidates = at_risk_res.items
-        except Exception:
+        except Exception:  # noqa: BLE001
             candidates = []
 
         high_priority = [c for c in candidates if c.risk_tier in ("CRITICAL", "HIGH")]
@@ -61,7 +61,7 @@ class RetentionOpportunitySkill(BaseAnalystSkill):
         if high_priority:
             top_acc = high_priority[0]
             findings.append(
-                f"Top opportunity: Customer {top_acc.customer_code} (${top_acc.historical_ltv:,.2f} LTV, {top_acc.risk_tier} risk)."
+                f"Top opportunity: Customer {top_acc.customer_code} (${top_acc.total_lifetime_spend:,.2f} LTV, {top_acc.risk_tier} risk)."
             )
 
         return SkillExecutionResult(
@@ -76,8 +76,8 @@ class RetentionOpportunitySkill(BaseAnalystSkill):
                     {
                         "customer_code": c.customer_code,
                         "risk_tier": c.risk_tier,
-                        "ltv": float(c.historical_ltv),
-                        "days_overdue": c.days_overdue,
+                        "ltv": float(c.total_lifetime_spend),
+                        "days_overdue": c.days_since_last_purchase,
                     }
                     for c in candidates[:5]
                 ],
@@ -120,13 +120,13 @@ class InterventionRecommendationSkill(BaseAnalystSkill):
             at_risk_res = CustomerRetentionService.list_customers_at_risk(
                 session=db,
                 business_id=biz_id,
-                filter_params=RetentionCustomerFilter(
+                filters=RetentionCustomerFilter(
                     is_repeat_only=True, requires_attention_only=True, page_size=20
                 ),
             )
             if at_risk_res:
                 candidates = at_risk_res.items
-        except Exception:
+        except Exception:  # noqa: BLE001
             candidates = []
 
         recs = [c.recommended_action for c in candidates if c.recommended_action]

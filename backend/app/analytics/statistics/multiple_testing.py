@@ -1,16 +1,17 @@
 """Deterministic multiple testing corrections for family-wise error rate and false discovery rate."""
 
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import ClassVar
+
 import numpy as np
+from pydantic import BaseModel, Field
 
 
 class MultipleTestingResult(BaseModel):
     """Result of deterministic multiple hypothesis testing correction."""
     method: str = Field(description="Correction method: 'holm', 'benjamini_hochberg', or 'bonferroni'")
-    raw_p_values: List[float] = Field(description="Original unadjusted p-values")
-    adjusted_p_values: List[float] = Field(description="P-values adjusted for multiple comparisons")
-    rejected: List[bool] = Field(description="True if hypothesis is rejected at specified alpha")
+    raw_p_values: list[float] = Field(description="Original unadjusted p-values")
+    adjusted_p_values: list[float] = Field(description="P-values adjusted for multiple comparisons")
+    rejected: list[bool] = Field(description="True if hypothesis is rejected at specified alpha")
     alpha: float = 0.05
     family_wise_error_rate_controlled: bool
     false_discovery_rate_controlled: bool
@@ -25,12 +26,12 @@ class MultipleTestingCorrector:
     Prevents false positives (Type I error inflation) when testing multiple groups or metrics.
     """
 
-    SUPPORTED_METHODS = {"holm", "benjamini_hochberg", "fdr", "bonferroni"}
+    SUPPORTED_METHODS: ClassVar[set[str]] = {"holm", "benjamini_hochberg", "fdr", "bonferroni"}
 
     @classmethod
     def adjust_p_values(
         cls,
-        p_values: List[float],
+        p_values: list[float],
         method: str = "holm",
         alpha: float = 0.05,
     ) -> MultipleTestingResult:
@@ -47,7 +48,7 @@ class MultipleTestingCorrector:
         method_clean = method.lower().strip()
         if method_clean not in cls.SUPPORTED_METHODS:
             raise ValueError(
-                f"Unsupported correction method '{method}'. Supported: {sorted(list(cls.SUPPORTED_METHODS))}"
+                f"Unsupported correction method '{method}'. Supported: {sorted(cls.SUPPORTED_METHODS)}"
             )
 
         m = len(p_values)
@@ -74,6 +75,8 @@ class MultipleTestingCorrector:
 
         p_arr = np.array(cleaned_p, dtype=float)
         adj_p = np.zeros(m, dtype=float)
+        fwer = False
+        fdr = False
 
         if method_clean == "bonferroni":
             adj_p = np.minimum(1.0, p_arr * m)

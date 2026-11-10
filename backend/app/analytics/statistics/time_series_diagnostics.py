@@ -91,12 +91,12 @@ class TimeSeriesDiagnosticAnalyzer:
                 mid = n // 2
                 v1, v2 = np.var(arr[:mid]), np.var(arr[mid:])
                 m1, m2 = np.mean(arr[:mid]), np.mean(arr[mid:])
-                is_stationary = (abs(m1 - m2) / (np.std(arr) + 1e-8) < 0.5) and (0.5 < (v1 + 1e-8)/(v2 + 1e-8) < 2.0)
+                is_stationary = bool((abs(m1 - m2) / (np.std(arr) + 1e-8) < 0.5) and (0.5 < (v1 + 1e-8)/(v2 + 1e-8) < 2.0))
         else:
             # Short series variance stability
             mid = n // 2
             m1, m2 = np.mean(arr[:mid]), np.mean(arr[mid:])
-            is_stationary = abs(m1 - m2) / (np.std(arr) + 1e-8) < 0.5
+            is_stationary = bool(abs(m1 - m2) / (np.std(arr) + 1e-8) < 0.5)
 
         # 3. Autocorrelation Function (ACF) up to lag K
         max_lags = min(10, max(1, n // 3))
@@ -130,7 +130,7 @@ class TimeSeriesDiagnosticAnalyzer:
             # Inspect highest positive autocorrelation at lag > 1
             lags_over_1 = {k: v for k, v in acf_dict.items() if k > 1 and v > 0.3}
             if lags_over_1:
-                best_lag = max(lags_over_1, key=lags_over_1.get)
+                best_lag = max(lags_over_1, key=lambda k: lags_over_1[k])
                 seasonal_period = best_lag
                 seasonal_strength = lags_over_1[best_lag]
 

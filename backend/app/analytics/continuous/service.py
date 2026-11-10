@@ -431,7 +431,7 @@ class ContinuousIntelligenceService:
                 findings_detected_count=detected_count,
                 findings_new_count=new_count,
                 findings_updated_count=updated_count,
-                execution_time_ms=scan_run.execution_time_ms,
+                execution_time_ms=float(scan_run.execution_time_ms or 0.0),
             )
 
         except Exception as scan_err:

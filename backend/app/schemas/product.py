@@ -12,8 +12,8 @@ class ProductBase(BaseModel):
     name: str = Field(..., max_length=255, description="Product catalog name")
     category: str = Field(..., max_length=128, description="Primary product category")
     subcategory: str = Field(..., max_length=128, description="Secondary product subcategory")
-    unit_cost: Decimal = Field(..., ge=0, description="Cost of Goods Sold (COGS) per unit")
-    selling_price: Decimal = Field(..., ge=0, description="Catalog unit selling price")
+    unit_cost: Decimal = Field(..., ge=Decimal("0.00"), description="Cost of Goods Sold (COGS) per unit")
+    selling_price: Decimal = Field(..., ge=Decimal("0.00"), description="Catalog unit selling price")
     active: bool = Field(True, description="Whether product is active for sales")
 
 

@@ -30,7 +30,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import stripe
@@ -469,8 +469,8 @@ class StripeAdapter(SourceConnectorAdapter):
                         params["starting_after"] = cursor
 
                     client = self._get_stripe_client()
-                    resp = client.balance_transactions.list(params=params)
-                    raw_items = [item.to_dict() if hasattr(item, "to_dict") else dict(item) for item in resp.data]
+                    resp = client.balance_transactions.list(params=cast(Any, params))
+                    raw_items = [item.to_dict() if hasattr(item, "to_dict") else dict(cast(Any, item)) for item in resp.data]
                     has_more = resp.has_more
                     break
             except stripe.RateLimitError as e:
@@ -654,10 +654,10 @@ class StripeAdapter(SourceConnectorAdapter):
             try:
                 client = self._get_stripe_client()
                 payout_obj = client.payouts.retrieve(period_identifier)
-                payout = payout_obj.to_dict() if hasattr(payout_obj, "to_dict") else dict(payout_obj)
+                payout = payout_obj.to_dict() if hasattr(payout_obj, "to_dict") else dict(cast(Any, payout_obj))
                 # Fetch balance transactions for this payout
-                resp = client.balance_transactions.list(params={"payout": period_identifier, "limit": 100})
-                txns = [t.to_dict() if hasattr(t, "to_dict") else dict(t) for t in resp.data]
+                resp = client.balance_transactions.list(params=cast(Any, {"payout": period_identifier, "limit": 100}))
+                txns = [t.to_dict() if hasattr(t, "to_dict") else dict(cast(Any, t)) for t in resp.data]
             except Exception as e:
                 logger.warning(f"Could not retrieve Stripe payout '{period_identifier}': {e}")
                 return None
