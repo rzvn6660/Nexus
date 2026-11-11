@@ -508,9 +508,18 @@ def test_governance_02_watermark_service_rejects_synthetic_provenance_on_real_te
 
 def test_governance_03_cadence_safety_quarantines_synthetic_provenance(db_session: Session) -> None:
     """Verify CadenceSafetyGate strictly enforces DIAGNOSTIC_ONLY for real tenants."""
+    apex_id = "ab044b1a-835a-4a38-bf45-62fe38624151"
+    biz = db_session.execute(select(Business).where(Business.id == apex_id)).scalar_one_or_none()
+    if not biz:
+        org = Organization(id=str(uuid4()), name="Apex Retail Group", slug=f"apex-{uuid4().hex[:6]}")
+        db_session.add(org)
+        biz = Business(id=apex_id, organization_id=org.id, name="Apex Specialty Commerce", status="active")
+        db_session.add(biz)
+        db_session.commit()
+
     verdict = CadenceSafetyGate.evaluate_tenant_safety(
         session=db_session,
-        business_id="ab044b1a-835a-4a38-bf45-62fe38624151",
+        business_id=apex_id,
     )
     assert verdict.eligibility_status == CadenceEligibilityStatus.DIAGNOSTIC_ONLY
     assert verdict.is_actionable is False

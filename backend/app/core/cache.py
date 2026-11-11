@@ -270,7 +270,7 @@ return current
         return int(cast(Any, self._client.incr(key)))
 
     def incr_with_ttl(self, key: str, ttl_seconds: int) -> int:
-        return int(cast(Any, self._client.eval(self._INCR_WITH_TTL_SCRIPT, 1, key, str(ttl_seconds))))
+        return int(cast(Any, self._client.eval(self._INCR_WITH_TTL_SCRIPT, 1, key, ttl_seconds)))
 
     def expire(self, key: str, ttl_seconds: int) -> None:
         self._client.expire(key, ttl_seconds)

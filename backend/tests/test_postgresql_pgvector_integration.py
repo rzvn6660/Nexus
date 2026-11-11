@@ -78,11 +78,6 @@ class TestPostgresPgvectorIntegration:
 
         command.upgrade(cfg, "head")
         yield
-        # Downgrade and clean up
-        try:
-            command.downgrade(cfg, "base")
-        except Exception:  # noqa: BLE001, S110
-            pass
 
     @pytest.fixture
     def pg_session(self, pg_engine, pg_migrated):

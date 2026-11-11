@@ -2340,13 +2340,27 @@ class DataGatewayService:
             if row_errors:
                 db.rollback()
                 failed_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
-                if failed_job:
+                first_err = row_errors[0]
+                err_msg = (
+                    f"Validation failed on {len(row_errors)} row(s). Row {first_err['row']} [{first_err['column']}]: {first_err['message']}"
+                )[:500]
+                if not failed_job:
+                    failed_job = IngestionJob(
+                        id=job_id,
+                        organization_id=dataset.organization_id,
+                        business_id=business_id,
+                        dataset_id=dataset_id,
+                        status="FAILED",
+                        target_entity=entity,
+                        started_at=datetime.now(UTC),
+                        completed_at=datetime.now(UTC),
+                        error_message=err_msg,
+                    )
+                    db.add(failed_job)
+                else:
                     failed_job.status = "FAILED"
                     failed_job.completed_at = datetime.now(UTC)
-                    first_err = row_errors[0]
-                    failed_job.error_message = (
-                        f"Validation failed on {len(row_errors)} row(s). Row {first_err['row']} [{first_err['column']}]: {first_err['message']}"
-                    )[:500]
+                    failed_job.error_message = err_msg
 
                 dataset_ref = db.execute(select(UploadedDataset).where(UploadedDataset.id == dataset_id)).scalar_one_or_none()
                 sanitized_errors = []
@@ -2562,7 +2576,21 @@ class DataGatewayService:
         except HTTPException:
             db.rollback()
             failed_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
-            if failed_job and failed_job.status != "FAILED":
+            if not failed_job:
+                failed_job = IngestionJob(
+                    id=job_id,
+                    organization_id=dataset.organization_id,
+                    business_id=business_id,
+                    dataset_id=dataset_id,
+                    status="FAILED",
+                    target_entity=entity,
+                    started_at=datetime.now(UTC),
+                    completed_at=datetime.now(UTC),
+                    error_message="Ingestion rejected due to schema or constraint validation.",
+                )
+                db.add(failed_job)
+                db.commit()
+            elif failed_job.status != "FAILED":
                 failed_job.status = "FAILED"
                 failed_job.completed_at = datetime.now(UTC)
                 failed_job.error_message = "Ingestion rejected due to schema or constraint validation."
@@ -2596,11 +2624,24 @@ class DataGatewayService:
                 }
             safe_msg = f"Ingestion failed: {str(integ_exc).splitlines()[0]}"
             failed_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
-            if failed_job:
+            if not failed_job:
+                failed_job = IngestionJob(
+                    id=job_id,
+                    organization_id=dataset.organization_id,
+                    business_id=business_id,
+                    dataset_id=dataset_id,
+                    status="FAILED",
+                    target_entity=entity,
+                    started_at=datetime.now(UTC),
+                    completed_at=datetime.now(UTC),
+                    error_message=safe_msg[:500],
+                )
+                db.add(failed_job)
+            else:
                 failed_job.status = "FAILED"
                 failed_job.completed_at = datetime.now(UTC)
                 failed_job.error_message = safe_msg[:500]
-                db.commit()
+            db.commit()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=safe_msg,
@@ -2609,14 +2650,28 @@ class DataGatewayService:
             db.rollback()
             safe_msg = f"Ingestion failed: {str(exc).splitlines()[0]}"
             failed_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
-            if failed_job:
+            if not failed_job:
+                failed_job = IngestionJob(
+                    id=job_id,
+                    organization_id=dataset.organization_id,
+                    business_id=business_id,
+                    dataset_id=dataset_id,
+                    status="FAILED",
+                    target_entity=entity,
+                    started_at=datetime.now(UTC),
+                    completed_at=datetime.now(UTC),
+                    error_message=safe_msg[:500],
+                )
+                db.add(failed_job)
+            else:
                 failed_job.status = "FAILED"
                 failed_job.completed_at = datetime.now(UTC)
                 failed_job.error_message = safe_msg[:500]
-                db.commit()
-            logger.exception(
+            db.commit()
+            logger.error(  # noqa: G201
                 "Ingestion job FAILED (exception): business_id=%s dataset_id=%s entity=%s job_id=%s error=%s",
                 business_id, dataset_id, entity, job_id, safe_msg,
+                exc_info=True,
             )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
