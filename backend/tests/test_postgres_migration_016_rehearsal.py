@@ -33,18 +33,20 @@ from sqlalchemy.exc import IntegrityError
 def normalize_pg_url(url: str) -> str:
     """Normalize generic postgresql:// or postgres:// to postgresql+psycopg:// preserving existing drivers."""
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
-    return url
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url.replace("@localhost:", "@127.0.0.1:")
 
 
 def get_pg_database_url() -> str:
-    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL and DATABASE_URL."""
+    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL, DATABASE_URL, and STAGING_DATABASE_URL."""
+    port = os.getenv("POSTGRES_PORT", "5432" if os.getenv("CI") else "5433")
     raw_url = (
         os.getenv("TEST_DATABASE_URL")
         or os.getenv("DATABASE_URL")
-        or "postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db"
+        or os.getenv("STAGING_DATABASE_URL")
+        or f"postgresql+psycopg://nexus_user:nexus_password@localhost:{port}/nexus_test_db"
     )
     return normalize_pg_url(raw_url)
 
@@ -102,13 +104,54 @@ def require_postgres():
         )
 
 
+REHEARSAL_SCHEMA: str = f"rehearsal_016_{uuid4().hex[:8]}"
+
+
 @pytest.fixture(scope="module")
 def pg_engine():
-    """Provide PostgreSQL test engine."""
+    """Provide PostgreSQL test engine isolated in a dedicated rehearsal schema."""
     url = get_pg_database_url()
-    eng = create_engine(url, pool_pre_ping=True)
+    base_engine = create_engine(url, pool_pre_ping=True)
+
+    with base_engine.begin() as conn:
+        conn.execute(text(f"CREATE SCHEMA {REHEARSAL_SCHEMA}"))
+        conn.execute(
+            text(f"CREATE TABLE {REHEARSAL_SCHEMA}.alembic_version (version_num VARCHAR(64) NOT NULL PRIMARY KEY)")
+        )
+        conn.execute(
+            text(
+                f"INSERT INTO {REHEARSAL_SCHEMA}.alembic_version (version_num) "
+                f"VALUES ('016_phase1c2_tenant_scoped_customer_identity')"
+            )
+        )
+        insp = sa.inspect(conn)
+        if insp.has_table("customers"):
+            conn.execute(
+                text(f"CREATE TABLE {REHEARSAL_SCHEMA}.customers (LIKE public.customers INCLUDING ALL)")
+            )
+        if insp.has_table("sales"):
+            conn.execute(
+                text(f"CREATE TABLE {REHEARSAL_SCHEMA}.sales (LIKE public.sales INCLUDING ALL)")
+            )
+            conn.execute(
+                text(
+                    f"ALTER TABLE {REHEARSAL_SCHEMA}.sales "
+                    f"ADD CONSTRAINT fk_sales_customers "
+                    f"FOREIGN KEY (customer_id) REFERENCES {REHEARSAL_SCHEMA}.customers(id) ON DELETE CASCADE"
+                )
+            )
+
+    eng = create_engine(
+        url,
+        connect_args={"options": f"-c search_path={REHEARSAL_SCHEMA},public"},
+        pool_pre_ping=True,
+    )
     yield eng
     eng.dispose()
+
+    with base_engine.begin() as conn:
+        conn.execute(text(f"DROP SCHEMA IF EXISTS {REHEARSAL_SCHEMA} CASCADE"))
+    base_engine.dispose()
 
 
 @pytest.fixture
@@ -134,8 +177,8 @@ def test_postgres_alembic_chain_upgrade_to_016(pg_engine) -> None:
         assert insp.has_table("alembic_version"), "Table 'alembic_version' must exist"
 
         ver = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        assert ver in ("016_phase1c2_tenant_scoped_customer_identity", "017_phase1f2_authoritative_ingestion_watermark"), (
-            f"Expected alembic_version head to be '016_phase1c2_tenant_scoped_customer_identity', got {ver}"
+        assert ver == "016_phase1c2_tenant_scoped_customer_identity", (
+            f"Expected alembic_version in revision 016 rehearsal to be '016_phase1c2_tenant_scoped_customer_identity', got '{ver}'"
         )
 
 

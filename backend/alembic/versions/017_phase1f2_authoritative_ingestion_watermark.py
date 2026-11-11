@@ -41,17 +41,28 @@ def upgrade() -> None:
         else False
     )
 
+    curr_schema = None
+    if not is_sqlite and bind:
+        try:
+            curr_schema = bind.execute(sa.text("SELECT current_schema()")).scalar()
+        except Exception:  # noqa: BLE001
+            curr_schema = None
+
     if insp is not None:
         if not insp.has_table("businesses"):
             raise RuntimeError(
                 "Migration 017 failed: table 'businesses' does not exist. "
                 "Ensure core multi-tenant schema (005_phase15_saas_multi_tenancy) has been applied."
             )
-        has_wm_table = insp.has_table("tenant_ingestion_watermarks")
+        has_wm_table = (
+            insp.has_table("tenant_ingestion_watermarks", schema=curr_schema)
+            if curr_schema
+            else insp.has_table("tenant_ingestion_watermarks")
+        )
         existing_indexes = (
-            {idx["name"] for idx in insp.get_indexes("tenant_ingestion_watermarks")}
-            if has_wm_table
-            else set()
+            {idx["name"] for idx in insp.get_indexes("tenant_ingestion_watermarks", schema=curr_schema)}
+            if (has_wm_table and curr_schema)
+            else ({idx["name"] for idx in insp.get_indexes("tenant_ingestion_watermarks")} if has_wm_table else set())
         )
     else:
         has_wm_table = False
@@ -185,18 +196,30 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
+    curr_schema = None
+    if bind and hasattr(bind, "dialect") and bind.dialect.name == "postgresql":
+        try:
+            curr_schema = bind.execute(sa.text("SELECT current_schema()")).scalar()
+        except Exception:  # noqa: BLE001
+            curr_schema = None
+
     try:
         insp = sa.inspect(bind)
     except Exception:  # noqa: BLE001
         insp = None
 
-    if insp is not None and not insp.has_table("tenant_ingestion_watermarks"):
+    has_table = (
+        insp.has_table("tenant_ingestion_watermarks", schema=curr_schema)
+        if (insp is not None and curr_schema)
+        else (insp.has_table("tenant_ingestion_watermarks") if insp is not None else True)
+    )
+    if not has_table:
         return
 
     existing_indexes = (
-        {idx["name"] for idx in insp.get_indexes("tenant_ingestion_watermarks")}
-        if insp is not None
-        else set()
+        {idx["name"] for idx in insp.get_indexes("tenant_ingestion_watermarks", schema=curr_schema)}
+        if (insp is not None and curr_schema)
+        else ({idx["name"] for idx in insp.get_indexes("tenant_ingestion_watermarks")} if insp is not None else set())
     )
 
     for idx_name in [

@@ -42,18 +42,19 @@ from sqlalchemy.orm import sessionmaker
 def normalize_pg_url(url: str) -> str:
     """Normalize generic postgresql:// or postgres:// to postgresql+psycopg:// preserving existing drivers."""
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
-    return url
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url.replace("@localhost:", "@127.0.0.1:")
 
 
 def get_pg_database_url() -> str:
     """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL and DATABASE_URL."""
+    port = os.getenv("POSTGRES_PORT", "5432" if os.getenv("CI") else "5433")
     raw_url = (
         os.getenv("TEST_DATABASE_URL")
         or os.getenv("DATABASE_URL")
-        or "postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db"
+        or f"postgresql+psycopg://nexus_user:nexus_password@localhost:{port}/nexus_test_db"
     )
     return normalize_pg_url(raw_url)
 
@@ -212,10 +213,12 @@ def test_pg_01_migration_and_pgvector_compatibility(pg_engine):
         ext_res = conn.execute(text("SELECT extname FROM pg_extension WHERE extname = 'vector'")).scalar()
         assert ext_res == "vector", "pgvector extension must be active in PostgreSQL."
 
-        # Verify Alembic head migration revision 015 or 016
+        # Verify Alembic head migration revision (current application head)
         alembic_rev = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
         assert alembic_rev is not None
-        assert alembic_rev in ("015_phase29_continuous_intelligence", "016_phase1c2_tenant_scoped_customer_identity", "017_phase1f2_authoritative_ingestion_watermark")
+        assert alembic_rev == "023_analyst_engine_user_id", (
+            f"Expected current application head to be '023_analyst_engine_user_id', got '{alembic_rev}'"
+        )
 
 
 def test_pg_02_failure_rollback_and_diagnostic_persistence(pg_client, pg_tenant, pg_session_factory):

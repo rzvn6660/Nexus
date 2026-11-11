@@ -132,7 +132,7 @@ class TenantCertificationPolicy:
         if business_id in env_real_set:
             return True
 
-        # Check database business name/attributes if session is provided
+        # Check database business attributes if session is provided
         if session is not None:
             biz = session.execute(
                 select(Business).where(Business.id == business_id)
@@ -141,13 +141,11 @@ class TenantCertificationPolicy:
                 name_clean = (biz.name or "").strip().lower()
                 if any(p in name_clean for p in cls.PROTECTED_REAL_BUSINESS_NAMES):
                     return True
-                # If explicitly marked as synthetic sandbox fixture, it is not a real tenant
-                if getattr(biz, "is_synthetic_sandbox", False):
+                # If explicitly marked as synthetic sandbox fixture or registered sandbox, it is not a real tenant
+                if getattr(biz, "is_synthetic_sandbox", False) or cls.is_sandbox_merchant(business_id, session=session):
                     return False
-                # If business ID or name denotes a test, fixture, or sandbox tenant
-                if any(x in biz.id.lower() for x in ["test", "persist", "recov", "mock", "fixture", "rh", "syn", "synthetic", "rehearsal", "analyst", "bench", "demo"]):
-                    return False
-                return not any(x in name_clean for x in ["test", "persist", "recov", "mock", "fixture", "sandbox", "rh", "syn", "synthetic", "rehearsal", "analyst", "benchmark", "demo"])
+                # If business ID denotes a test fixture ID
+                return not any(x in biz.id.lower() for x in ["test", "persist", "recov", "mock", "fixture", "rh", "syn", "synthetic", "rehearsal", "analyst", "bench", "demo"])
 
         return False
 
@@ -267,28 +265,79 @@ class TenantCertificationPolicy:
                 f"using synthetic sandbox or test-mode provenance ('{provenance}')."
             )
 
+    # Explicit in-memory registry of trusted synthetic sandbox test merchants (configured via trusted test fixtures)
+    _TRUSTED_SANDBOX_MERCHANTS: ClassVar[set[str]] = set()
+
+    @classmethod
+    def register_trusted_sandbox_merchant(cls, business_id: str) -> None:
+        """Register an explicit business_id as a trusted synthetic sandbox merchant (for test fixtures)."""
+        if business_id and business_id.strip():
+            cls._TRUSTED_SANDBOX_MERCHANTS.add(business_id.strip())
+
+    @classmethod
+    def unregister_trusted_sandbox_merchant(cls, business_id: str) -> None:
+        """Unregister a business_id from the trusted synthetic sandbox test registry."""
+        if business_id and business_id.strip():
+            cls._TRUSTED_SANDBOX_MERCHANTS.discard(business_id.strip())
+
+    @classmethod
+    def clear_trusted_sandbox_merchants(cls) -> None:
+        """Clear all trusted synthetic sandbox test merchant registrations."""
+        cls._TRUSTED_SANDBOX_MERCHANTS.clear()
+
     @classmethod
     def is_sandbox_merchant(
         cls,
         business_id: str,
         session: Session | None = None,
     ) -> bool:
-        """Check if business is a dedicated synthetic sandbox merchant."""
+        """
+        Check if business is an authorized dedicated synthetic sandbox merchant.
+
+        Strict Security Invariant:
+        Tenant names, labels, and external strings NEVER grant sandbox privileges.
+        Protected real operational tenants can NEVER be treated as sandbox merchants.
+
+        Sandbox privileges strictly require trusted persisted configuration or explicit fixture registration:
+        1. Explicit trusted test fixture registration via `register_trusted_sandbox_merchant`.
+        2. Database persisted `business_type` column set to 'sandbox', 'synthetic_test', or 'pilot'.
+        3. Database persisted `status` column set to 'sandbox' or 'synthetic'.
+        4. Explicit boolean attribute `is_synthetic_sandbox = True` on the Business model.
+        5. Persisted `metadata_json` with trusted flags `is_sandbox: True` or `tenant_type: 'sandbox'`.
+        """
         if not business_id or not business_id.strip():
             return False
+
+        # Invariant: A protected real operational tenant is NEVER a sandbox merchant under any circumstances
+        if cls.is_protected_real_tenant(business_id, session=session):
+            return False
+
+        # 1. Explicit trusted fixture registration
+        if business_id.strip() in cls._TRUSTED_SANDBOX_MERCHANTS:
+            return True
+
+        # 2. Persisted database configuration
         if session is not None:
             biz = session.execute(
                 select(Business).where(Business.id == business_id)
             ).scalar_one_or_none()
             if biz:
-                if any(x in (biz.name or "").lower() for x in ["sandbox", "synthetic", "pilot"]):
+                # Check persisted business_type column
+                b_type = (getattr(biz, "business_type", "") or "").strip().lower()
+                if b_type in ("sandbox", "synthetic_test", "pilot"):
                     return True
+                # Check persisted status column
+                b_status = (getattr(biz, "status", "") or "").strip().lower()
+                if b_status in ("sandbox", "synthetic"):
+                    return True
+                # Explicit boolean attribute on Business instance
+                if getattr(biz, "is_synthetic_sandbox", False) is True:
+                    return True
+                # Persisted metadata_json if present
                 biz_meta = getattr(biz, "metadata_json", None) or {}
-                if isinstance(biz_meta, dict) and (
-                    biz_meta.get("is_sandbox") is True
-                    or biz_meta.get("tenant_type") == "sandbox"
-                ):
+                if isinstance(biz_meta, dict) and (biz_meta.get("is_sandbox") is True or biz_meta.get("tenant_type") == "sandbox"):
                     return True
+
         return False
 
     @classmethod
@@ -300,13 +349,15 @@ class TenantCertificationPolicy:
         """
         Check if business is an actual real merchant (such as Apex Specialty Commerce or explicitly flagged real merchant).
         Dedicated sandbox merchants are explicitly excluded from real operational merchant status.
+        Protected real tenants are IMMUTABLE real operational merchants regardless of any sandbox flags.
         """
         if not business_id or not business_id.strip():
             return False
-        if cls.is_sandbox_merchant(business_id, session=session):
-            return False
+        # Protected real operational tenants take precedence over everything else
         if cls.is_protected_real_tenant(business_id, session=session):
             return True
+        if cls.is_sandbox_merchant(business_id, session=session):
+            return False
         if session is not None:
             biz = session.execute(
                 select(Business).where(Business.id == business_id)
@@ -316,6 +367,8 @@ class TenantCertificationPolicy:
                 if isinstance(biz_meta, dict) and (
                     biz_meta.get("is_real_merchant") or biz_meta.get("tenant_type") == "real_operational"
                 ):
+                    return True
+                if os.getenv("APP_ENV") == "production":
                     return True
         return False
 

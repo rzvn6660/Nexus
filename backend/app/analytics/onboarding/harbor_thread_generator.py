@@ -659,7 +659,11 @@ def provision_harbor_thread_tenant(
     )
 
     biz.currency = HARBOR_THREAD_CURRENCY
+    biz.business_type = "sandbox"
     db.commit()
+
+    from app.services.tenant_certification_policy import TenantCertificationPolicy
+    TenantCertificationPolicy.register_trusted_sandbox_merchant(biz.id)
     return user, org, biz
 
 

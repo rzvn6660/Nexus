@@ -399,8 +399,11 @@ def provision_sandbox_tenant(
 
     # Attach explicit sandbox and demonstration governance metadata
     biz.currency = "USD"
-    # Business model has no metadata_json column in core DB; we manage governance safely via policy
+    biz.business_type = "sandbox"
     db.commit()
+
+    from app.services.tenant_certification_policy import TenantCertificationPolicy
+    TenantCertificationPolicy.register_trusted_sandbox_merchant(biz.id)
     return user, org, biz
 
 

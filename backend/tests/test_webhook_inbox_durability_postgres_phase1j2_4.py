@@ -27,21 +27,47 @@ from app.services.webhook_inbox_service import WebhookInboxService
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-# Live PostgreSQL 16 staging database URI (psycopg v3 driver)
-POSTGRES_STAGING_URI = os.getenv(
-    "STAGING_DATABASE_URL",
-    os.getenv("DATABASE_URL", "postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:5433/nexus_staging_db"),
-)
+def normalize_pg_url(url: str) -> str:
+    """Normalize generic postgresql:// or postgres:// to postgresql+psycopg://."""
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url.replace("@localhost:", "@127.0.0.1:")
+
+
+def is_strict_postgres_required() -> bool:
+    """Check whether execution environment strictly mandates live PostgreSQL verification."""
+    return (
+        os.getenv("CI", "").strip().lower() in ("true", "1")
+        or os.getenv("REQUIRE_POSTGRES", "").strip().lower() in ("true", "1")
+    )
+
+
+def get_staging_pg_url() -> str:
+    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL, DATABASE_URL, STAGING_DATABASE_URL, and POSTGRES_PORT."""
+    port = os.getenv("POSTGRES_PORT", "5432" if os.getenv("CI") else "5433")
+    raw_url = (
+        os.getenv("TEST_DATABASE_URL")
+        or os.getenv("STAGING_DATABASE_URL")
+        or os.getenv("DATABASE_URL")
+        or f"postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:{port}/nexus_staging_db"
+    )
+    return normalize_pg_url(raw_url)
+
+
+POSTGRES_STAGING_URI = get_staging_pg_url()
 
 
 @pytest.fixture(scope="module")
 def pg_engine():
     """
     Session-level PostgreSQL engine connecting strictly to nexus_staging_db.
-    Fails closed (pytest.fail) if PostgreSQL cannot be reached. No SQLite or mocks.
+    Fails closed (pytest.fail) in strict mode/CI if PostgreSQL cannot be reached; skips in dev.
     """
+    url = get_staging_pg_url()
     try:
-        engine = create_engine(POSTGRES_STAGING_URI, pool_pre_ping=True)
+        engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 2})
         with engine.connect() as conn:
             banner = conn.execute(text("SELECT version();")).scalar()
             dialect = engine.dialect.name
@@ -53,7 +79,9 @@ def pg_engine():
             print(f"[POSTGRES SERVER BANNER] {banner}")
         return engine
     except Exception as e:
-        pytest.fail(f"BLOCKED: Cannot connect to genuine PostgreSQL database at {POSTGRES_STAGING_URI}: {e}")
+        if is_strict_postgres_required():
+            pytest.fail(f"BLOCKED: Cannot connect to genuine PostgreSQL database at {url}: {e}")
+        pytest.skip(f"Live PostgreSQL staging db unreachable on {url}: {e}")
 
 
 @pytest.fixture(scope="module")

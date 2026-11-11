@@ -81,24 +81,53 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sqlalchemy import Engine, create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
-POSTGRES_STAGING_URL = os.getenv(
-    "STAGING_DATABASE_URL",
-    os.getenv("DATABASE_URL", "postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:5433/nexus_staging_db"),
-)
+def normalize_pg_url(url: str) -> str:
+    """Normalize generic postgresql:// or postgres:// to postgresql+psycopg://."""
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url.replace("@localhost:", "@127.0.0.1:")
+
+
+def is_strict_postgres_required() -> bool:
+    """Check whether execution environment strictly mandates live PostgreSQL verification."""
+    return (
+        os.getenv("CI", "").strip().lower() in ("true", "1")
+        or os.getenv("REQUIRE_POSTGRES", "").strip().lower() in ("true", "1")
+    )
+
+
+def get_staging_pg_url() -> str:
+    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL, DATABASE_URL, STAGING_DATABASE_URL, and POSTGRES_PORT."""
+    port = os.getenv("POSTGRES_PORT", "5432" if os.getenv("CI") else "5433")
+    raw_url = (
+        os.getenv("TEST_DATABASE_URL")
+        or os.getenv("STAGING_DATABASE_URL")
+        or os.getenv("DATABASE_URL")
+        or f"postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:{port}/nexus_staging_db"
+    )
+    return normalize_pg_url(raw_url)
+
+
+POSTGRES_STAGING_URL = get_staging_pg_url()
 
 
 @pytest.fixture(scope="module")
 def pg_engine() -> Generator[Engine, None, None]:
     """Live PostgreSQL 16.15 staging engine fixture."""
-    engine = create_engine(POSTGRES_STAGING_URL, echo=False)
+    url = get_staging_pg_url()
     try:
+        engine = create_engine(url, echo=False, connect_args={"connect_timeout": 2})
         with engine.connect() as conn:
             ver = conn.execute(text("SELECT version()")).scalar()
             assert ver is not None and "PostgreSQL" in ver, f"Unexpected DB: {ver}"
+        yield engine
+        engine.dispose()
     except Exception as exc:  # noqa: BLE001
-        pytest.skip(f"Live PostgreSQL staging db unreachable on 127.0.0.1:5433: {exc}")
-    yield engine
-    engine.dispose()
+        if is_strict_postgres_required():
+            pytest.fail(f"Live PostgreSQL required but unreachable at {url}: {exc}")
+        pytest.skip(f"Live PostgreSQL staging db unreachable on {url}: {exc}")
 
 
 @pytest.fixture(scope="function")

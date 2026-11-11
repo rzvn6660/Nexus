@@ -56,26 +56,57 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
-# Live PostgreSQL 16.15 staging database connection string
-POSTGRES_STAGING_URI = os.getenv(
-    "STAGING_DATABASE_URL",
-    os.getenv("DATABASE_URL", "postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:5433/nexus_staging_db"),
-)
+def normalize_pg_url(url: str) -> str:
+    """Normalize generic postgresql:// or postgres:// to postgresql+psycopg://."""
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url.replace("@localhost:", "@127.0.0.1:")
+
+
+def is_strict_postgres_required() -> bool:
+    """Check whether execution environment strictly mandates live PostgreSQL verification."""
+    return (
+        os.getenv("CI", "").strip().lower() in ("true", "1")
+        or os.getenv("REQUIRE_POSTGRES", "").strip().lower() in ("true", "1")
+    )
+
+
+def get_staging_pg_url() -> str:
+    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL, DATABASE_URL, STAGING_DATABASE_URL, and POSTGRES_PORT."""
+    port = os.getenv("POSTGRES_PORT", "5432" if os.getenv("CI") else "5433")
+    raw_url = (
+        os.getenv("TEST_DATABASE_URL")
+        or os.getenv("STAGING_DATABASE_URL")
+        or os.getenv("DATABASE_URL")
+        or f"postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:{port}/nexus_staging_db"
+    )
+    return normalize_pg_url(raw_url)
+
+
+POSTGRES_STAGING_URI = get_staging_pg_url()
 
 
 @pytest.fixture(scope="module")
 def pg_engine():
     """Module-level PostgreSQL engine connecting strictly to nexus_staging_db."""
-    engine = create_engine(POSTGRES_STAGING_URI, pool_pre_ping=True)
-    with engine.connect() as conn:
-        banner = conn.execute(text("SELECT version();")).scalar()
-        dialect = engine.dialect.name
-        driver = engine.dialect.driver
-        version = engine.dialect.server_version_info
-        assert dialect == "postgresql", f"Must run on PostgreSQL, got: {dialect}"
-        print(f"\n[PHASE 1J.3 LIVE POSTGRES EVIDENCE] Dialect: {dialect} | Driver: {driver} | Version: {version}")
-        print(f"Banner: {banner}")
-    return engine
+    url = get_staging_pg_url()
+    try:
+        engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 2})
+        with engine.connect() as conn:
+            banner = conn.execute(text("SELECT version();")).scalar()
+            dialect = engine.dialect.name
+            driver = engine.dialect.driver
+            version = engine.dialect.server_version_info
+            assert dialect == "postgresql", f"Must run on PostgreSQL, got: {dialect}"
+            print(f"\n[PHASE 1J.3 LIVE POSTGRES EVIDENCE] Dialect: {dialect} | Driver: {driver} | Version: {version}")
+            print(f"Banner: {banner}")
+        return engine
+    except Exception as exc:
+        if is_strict_postgres_required():
+            pytest.fail(f"Live PostgreSQL required but unreachable at {url}: {exc}")
+        pytest.skip(f"Live PostgreSQL staging db unreachable at {url}: {exc}")
 
 
 @pytest.fixture

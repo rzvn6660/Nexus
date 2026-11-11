@@ -50,18 +50,20 @@ from app.models.tenant import (
 def normalize_pg_url(url: str) -> str:
     """Normalize generic postgresql:// or postgres:// to postgresql+psycopg://."""
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
-    return url
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url.replace("@localhost:", "@127.0.0.1:")
 
 
 def get_pg_database_url() -> str:
-    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL and DATABASE_URL."""
+    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL, DATABASE_URL, and STAGING_DATABASE_URL."""
+    port = os.getenv("POSTGRES_PORT", "5432" if os.getenv("CI") else "5433")
     raw_url = (
         os.getenv("TEST_DATABASE_URL")
         or os.getenv("DATABASE_URL")
-        or "postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db"
+        or os.getenv("STAGING_DATABASE_URL")
+        or f"postgresql+psycopg://nexus_user:nexus_password@localhost:{port}/nexus_test_db"
     )
     return normalize_pg_url(raw_url)
 
@@ -216,7 +218,7 @@ class TestPhase33BusinessAcceptance:
         hex_suffix = uuid4().hex[:8]
         AcceptanceContext.user_a_email = f"p33_owner_{hex_suffix}@apexretail.com"
         org_name = f"Apex Retail Group {hex_suffix}"
-        biz_name = f"Apex Specialty Commerce {hex_suffix}"
+        biz_name = f"Apex Global Retail Pilot {hex_suffix}"
 
         signup_payload = {
             "email": AcceptanceContext.user_a_email,
@@ -241,10 +243,16 @@ class TestPhase33BusinessAcceptance:
         AcceptanceContext.org_a_id = data["organization"]["id"]
         AcceptanceContext.biz_a_id = data["business"]["id"]
 
-        # Verify PostgreSQL database state directly
+        # Verify PostgreSQL database state directly and configure trusted persisted sandbox test configuration
         biz = pg_db.execute(select(Business).where(Business.id == AcceptanceContext.biz_a_id)).scalar_one()
         assert biz.organization_id == AcceptanceContext.org_a_id
         assert biz.status == "active"
+        biz.business_type = "sandbox"
+        pg_db.commit()
+
+        from app.services.tenant_certification_policy import TenantCertificationPolicy
+        TenantCertificationPolicy.register_trusted_sandbox_merchant(AcceptanceContext.biz_a_id)
+        assert TenantCertificationPolicy.is_sandbox_merchant(AcceptanceContext.biz_a_id, session=pg_db) is True
 
     # Step 2: Authentication & Token Verification
     def test_02_authenticate_and_verify_jwt_credentials(self, client: TestClient) -> None:
@@ -423,6 +431,68 @@ class TestPhase33BusinessAcceptance:
         re_items_data = re_ingest_items_resp.json()
         assert re_items_data["status"] == "COMPLETED"
         assert "idempotent no-op" in re_items_data["message"].lower()
+
+    # Step 4b: Unauthorized Real Merchant Ingestion Rejection & Sandbox Name Bypass Invariant
+    def test_04b_unauthorized_real_merchant_ingestion_rejected(self, client: TestClient, pg_db: Session) -> None:
+        """
+        Verify:
+        1. Operational real merchant without verified written authorization is rejected (HTTP 403).
+        2. Renaming a real merchant to include 'sandbox' CANNOT bypass authorization (HTTP 403).
+        3. Arbitrary tenant with 'sandbox' in name without trusted configuration is NOT granted sandbox privileges.
+        """
+        from app.services.tenant_certification_policy import TenantCertificationPolicy
+
+        hex_suffix = uuid4().hex[:8]
+        real_owner_email = f"p33_real_owner_{hex_suffix}@apexretail.com"
+        real_org_name = f"Apex Real Enterprise {hex_suffix}"
+        # Name explicitly contains 'sandbox' to verify renaming CANNOT bypass authorization
+        real_biz_name = f"Apex Specialty Commerce Sandbox Renamed {hex_suffix}"
+
+        signup_resp = client.post(
+            "/api/v1/auth/signup",
+            json={
+                "email": real_owner_email,
+                "password": "P33RealMerchantPass2026!",
+                "full_name": "Valerie Thorne",
+                "organization_name": real_org_name,
+                "business_name": real_biz_name,
+            },
+        )
+        assert signup_resp.status_code == 201, f"Real merchant signup failed: {signup_resp.text}"
+        signup_data = signup_resp.json()
+        real_token = signup_data["access_token"]
+        real_biz_id = signup_data["business"]["id"]
+
+        # Policy assertions: Name alone must NEVER grant sandbox status
+        assert TenantCertificationPolicy.is_protected_real_tenant(real_biz_id, session=pg_db) is True
+        assert TenantCertificationPolicy.is_sandbox_merchant(real_biz_id, session=pg_db) is False
+        assert TenantCertificationPolicy.is_real_operational_merchant(real_biz_id, session=pg_db) is True
+
+        real_headers = {
+            "Authorization": f"Bearer {real_token}",
+            "X-Business-ID": real_biz_id,
+        }
+
+        # Upload a minimal valid products CSV
+        prod_csv = b"sku,name,category,unit_price\nREAL-SKU-001,Real Product,General,19.99\n"
+        upload_resp = client.post(
+            "/api/v1/gateway/upload",
+            files={"file": ("products.csv", io.BytesIO(prod_csv), "text/csv")},
+            headers=real_headers,
+        )
+        assert upload_resp.status_code == 201, f"Upload failed: {upload_resp.text}"
+        dataset_id = upload_resp.json()["dataset_id"]
+
+        # Attempting ingestion for an unconsented real merchant (even with 'sandbox' in name) MUST fail closed with HTTP 403
+        ingest_resp = client.post(
+            f"/api/v1/gateway/datasets/{dataset_id}/ingest",
+            headers=real_headers,
+            json={"target_entity": "Product", "column_overrides": {}},
+        )
+        assert ingest_resp.status_code == 403, (
+            f"Expected HTTP 403 Forbidden for unconsented real merchant, got {ingest_resp.status_code}: {ingest_resp.text}"
+        )
+        assert "Import authorization denied" in ingest_resp.text or "written merchant authorization" in ingest_resp.text
 
     # Step 5: Canonical Rows and Relationships in PostgreSQL
     def test_05_verify_canonical_rows_and_relationships_in_postgresql(self, pg_db: Session) -> None:

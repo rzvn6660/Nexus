@@ -38,18 +38,20 @@ from sqlalchemy.orm import sessionmaker
 def normalize_pg_url(url: str) -> str:
     """Normalize generic postgresql:// or postgres:// to postgresql+psycopg://."""
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
-    return url
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url.replace("@localhost:", "@127.0.0.1:")
 
 
 def get_pg_database_url() -> str:
-    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL and DATABASE_URL."""
+    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL, DATABASE_URL, and STAGING_DATABASE_URL."""
+    port = os.getenv("POSTGRES_PORT", "5432" if os.getenv("CI") else "5433")
     raw_url = (
         os.getenv("TEST_DATABASE_URL")
         or os.getenv("DATABASE_URL")
-        or "postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_test_db"
+        or os.getenv("STAGING_DATABASE_URL")
+        or f"postgresql+psycopg://nexus_user:nexus_password@localhost:{port}/nexus_test_db"
     )
     return normalize_pg_url(raw_url)
 
@@ -100,9 +102,12 @@ def load_migration_module(migration_filename: str):
     return mod
 
 
+REHEARSAL_SCHEMA: str = f"rehearsal_017_{uuid4().hex[:8]}"
+
+
 @pytest.fixture(scope="module")
 def pg_engine():
-    """Module-scoped PostgreSQL engine connected to test database."""
+    """Module-scoped PostgreSQL engine connected to an isolated rehearsal schema."""
     if should_skip_postgres_tests():
         pytest.skip(
             "Live PostgreSQL daemon is not reachable on configured database URL. "
@@ -110,9 +115,40 @@ def pg_engine():
         )
 
     url = get_pg_database_url()
-    engine = create_engine(url, pool_pre_ping=True)
+    base_engine = create_engine(url, pool_pre_ping=True)
+
+    with base_engine.begin() as conn:
+        conn.execute(text(f"CREATE SCHEMA {REHEARSAL_SCHEMA}"))
+        conn.execute(
+            text(f"CREATE TABLE {REHEARSAL_SCHEMA}.alembic_version (version_num VARCHAR(64) NOT NULL PRIMARY KEY)")
+        )
+        conn.execute(
+            text(
+                f"INSERT INTO {REHEARSAL_SCHEMA}.alembic_version (version_num) "
+                f"VALUES ('016_phase1c2_tenant_scoped_customer_identity')"
+            )
+        )
+        conn.execute(
+            text(f"CREATE TABLE {REHEARSAL_SCHEMA}.organizations (LIKE public.organizations INCLUDING ALL)")
+        )
+        conn.execute(
+            text(f"CREATE TABLE {REHEARSAL_SCHEMA}.businesses (LIKE public.businesses INCLUDING ALL)")
+        )
+        conn.execute(
+            text(f"CREATE TABLE {REHEARSAL_SCHEMA}.ingestion_jobs (LIKE public.ingestion_jobs INCLUDING ALL)")
+        )
+
+    engine = create_engine(
+        url,
+        connect_args={"options": f"-c search_path={REHEARSAL_SCHEMA},public"},
+        pool_pre_ping=True,
+    )
     yield engine
     engine.dispose()
+
+    with base_engine.begin() as conn:
+        conn.execute(text(f"DROP SCHEMA IF EXISTS {REHEARSAL_SCHEMA} CASCADE"))
+    base_engine.dispose()
 
 
 @pytest.fixture
@@ -167,9 +203,16 @@ def test_01_postgres_connection_and_environment_guard():
         pytest.fail(f"REQUIRE_POSTGRES is set but PostgreSQL is unreachable: {err}")
 
 
-def test_02_postgres_alembic_chain_upgrade_to_017(pg_engine):
+def test_02_postgres_alembic_chain_upgrade_to_017(pg_engine, m017_module):
     """2. Verify Alembic migration chain upgrade reaches revision 017 on live PostgreSQL."""
     with pg_engine.connect() as conn:
+        ctx_up = MigrationContext.configure(conn)
+        with Operations.context(ctx_up), conn.begin():
+            m017_module.upgrade()
+            conn.execute(
+                text("UPDATE alembic_version SET version_num = '017_phase1f2_authoritative_ingestion_watermark'")
+            )
+
         insp = sa.inspect(conn)
         assert insp.has_table("alembic_version"), "Table 'alembic_version' must exist"
         assert insp.has_table("tenant_ingestion_watermarks"), "Table 'tenant_ingestion_watermarks' must exist"
@@ -232,7 +275,8 @@ def test_05_postgres_indexes_and_partial_unique_index_catalog(pg_engine):
             text("""
                 SELECT indexname, indexdef
                 FROM pg_catalog.pg_indexes
-                WHERE tablename = 'tenant_ingestion_watermarks';
+                WHERE tablename = 'tenant_ingestion_watermarks'
+                  AND schemaname = current_schema();
             """)
         )
         indexes = {row[0]: row[1] for row in res}
@@ -456,12 +500,16 @@ def test_10_postgres_downgrade_and_reupgrade_lifecycle(pg_engine, m017_module):
         ctx_down = MigrationContext.configure(down_conn)
         with Operations.context(ctx_down), down_conn.begin():
             m017_module.downgrade()
+            down_conn.execute(
+                text("UPDATE alembic_version SET version_num = '016_phase1c2_tenant_scoped_customer_identity'")
+            )
 
     # Verify table and indexes dropped from PostgreSQL catalogs
     with pg_engine.connect() as check_conn:
         insp = sa.inspect(check_conn)
-        assert not insp.has_table("tenant_ingestion_watermarks"), (
-            "Table 'tenant_ingestion_watermarks' must be dropped on downgrade"
+        curr_schema = check_conn.execute(text("SELECT current_schema()")).scalar()
+        assert not insp.has_table("tenant_ingestion_watermarks", schema=curr_schema), (
+            f"Table 'tenant_ingestion_watermarks' must be dropped from {curr_schema} on downgrade"
         )
 
     # 2. Re-upgrade 016 -> 017
@@ -469,13 +517,17 @@ def test_10_postgres_downgrade_and_reupgrade_lifecycle(pg_engine, m017_module):
         ctx_up = MigrationContext.configure(up_conn)
         with Operations.context(ctx_up), up_conn.begin():
             m017_module.upgrade()
+            up_conn.execute(
+                text("UPDATE alembic_version SET version_num = '017_phase1f2_authoritative_ingestion_watermark'")
+            )
 
     # Verify table and indexes restored in PostgreSQL catalogs
     with pg_engine.connect() as final_conn:
         insp = sa.inspect(final_conn)
-        assert insp.has_table("tenant_ingestion_watermarks"), (
-            "Table 'tenant_ingestion_watermarks' must be restored on re-upgrade"
+        curr_schema = final_conn.execute(text("SELECT current_schema()")).scalar()
+        assert insp.has_table("tenant_ingestion_watermarks", schema=curr_schema), (
+            f"Table 'tenant_ingestion_watermarks' must be restored in {curr_schema} on re-upgrade"
         )
-        indexes = {idx["name"]: idx for idx in insp.get_indexes("tenant_ingestion_watermarks")}
+        indexes = {idx["name"]: idx for idx in insp.get_indexes("tenant_ingestion_watermarks", schema=curr_schema)}
         assert "uq_tenant_watermarks_active_source" in indexes
         assert indexes["uq_tenant_watermarks_active_source"]["unique"] is True

@@ -26,22 +26,57 @@ from app.services.webhook_inbox_service import WebhookInboxService
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-STAGING_DB_URL = os.getenv(
-    "STAGING_DATABASE_URL",
-    os.getenv("DATABASE_URL", "postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:5433/nexus_staging_db"),
-)
+def normalize_pg_url(url: str) -> str:
+    """Normalize generic postgresql:// or postgres:// to postgresql+psycopg://."""
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url.replace("@localhost:", "@127.0.0.1:")
+
+
+def is_strict_postgres_required() -> bool:
+    """Check whether execution environment strictly mandates live PostgreSQL verification."""
+    return (
+        os.getenv("CI", "").strip().lower() in ("true", "1")
+        or os.getenv("REQUIRE_POSTGRES", "").strip().lower() in ("true", "1")
+    )
+
+
+def get_staging_pg_url() -> str:
+    """Resolve active PostgreSQL connection URL honoring TEST_DATABASE_URL, DATABASE_URL, STAGING_DATABASE_URL, and POSTGRES_PORT."""
+    port = os.getenv("POSTGRES_PORT", "5432" if os.getenv("CI") else "5433")
+    raw_url = (
+        os.getenv("TEST_DATABASE_URL")
+        or os.getenv("STAGING_DATABASE_URL")
+        or os.getenv("DATABASE_URL")
+        or f"postgresql+psycopg://nexus_staging_user:local_dev_password@127.0.0.1:{port}/nexus_staging_db"
+    )
+    return normalize_pg_url(raw_url)
+
+
+STAGING_DB_URL = get_staging_pg_url()
 
 
 @pytest.fixture(scope="module")
 def pg_session_factory():
     """Create session factory for staging PostgreSQL."""
+    url = get_staging_pg_url()
     try:
-        engine = create_engine(STAGING_DB_URL, pool_pre_ping=True, pool_size=10, max_overflow=20)
-        with engine.connect() as conn:
+        engine = create_engine(
+            url,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            connect_args={"connect_timeout": 2},
+        )
+        with engine.connect():
             pass
         SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
         return SessionLocal
     except Exception as e:
+        if is_strict_postgres_required():
+            pytest.fail(f"PostgreSQL staging database strictly required but unreachable at {url}: {e}")
         pytest.skip(f"PostgreSQL staging database not available: {e}")
 
 

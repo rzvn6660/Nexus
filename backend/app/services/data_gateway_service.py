@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -941,12 +942,15 @@ class DataGatewayService:
         Manages durable IngestionJob lifecycle (PENDING -> PROCESSING -> COMPLETED | FAILED).
         Prevents duplicate row insertion on repeated ingestion.
         """
-        dataset = db.execute(
-            select(UploadedDataset).where(
-                UploadedDataset.id == dataset_id,
-                UploadedDataset.business_id == business_id,
-            )
-        ).scalar_one_or_none()
+        # Concurrency safety: Lock the dataset row in PostgreSQL to serialize concurrent ingestion attempts
+        dataset_query = select(UploadedDataset).where(
+            UploadedDataset.id == dataset_id,
+            UploadedDataset.business_id == business_id,
+        )
+        bind = db.get_bind()
+        if bind is not None and getattr(bind.dialect, "name", "") == "postgresql":
+            dataset_query = dataset_query.with_for_update()
+        dataset = db.execute(dataset_query).scalar_one_or_none()
 
         if not dataset:
             raise HTTPException(
@@ -1073,7 +1077,7 @@ class DataGatewayService:
                 started_at=datetime.now(UTC),
             )
             db.add(job)
-        db.commit()
+        db.flush()
         job_id = job.id
         logger.info(
             "Ingestion job started: business_id=%s dataset_id=%s entity=%s job_id=%s",
@@ -2564,6 +2568,43 @@ class DataGatewayService:
                 failed_job.error_message = "Ingestion rejected due to schema or constraint validation."
                 db.commit()
             raise
+        except IntegrityError as integ_exc:
+            db.rollback()
+            # Concurrency check: Did another worker concurrently complete ingestion for this dataset?
+            completed_job = db.execute(
+                select(IngestionJob).where(
+                    IngestionJob.business_id == business_id,
+                    IngestionJob.dataset_id == dataset_id,
+                    IngestionJob.target_entity == entity,
+                    IngestionJob.status == "COMPLETED",
+                )
+            ).scalars().first()
+            if completed_job:
+                logger.info(
+                    "Ingestion concurrent deduplication: dataset %s already completed by job %s",
+                    dataset_id,
+                    completed_job.id,
+                )
+                return {
+                    "dataset_id": dataset.id,
+                    "job_id": completed_job.id,
+                    "entity": entity,
+                    "target_entity": entity,
+                    "records_persisted": completed_job.rows_processed,
+                    "status": "COMPLETED",
+                    "message": f"Dataset already ingested into {entity} (concurrent worker completed).",
+                }
+            safe_msg = f"Ingestion failed: {str(integ_exc).splitlines()[0]}"
+            failed_job = db.execute(select(IngestionJob).where(IngestionJob.id == job_id)).scalar_one_or_none()
+            if failed_job:
+                failed_job.status = "FAILED"
+                failed_job.completed_at = datetime.now(UTC)
+                failed_job.error_message = safe_msg[:500]
+                db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=safe_msg,
+            ) from integ_exc
         except Exception as exc:
             db.rollback()
             safe_msg = f"Ingestion failed: {str(exc).splitlines()[0]}"
