@@ -49,6 +49,26 @@ class Settings(BaseSettings):
             return v
         return []
 
+    # Rate Limiting & Reverse Proxy Security (NET-01 Hardening)
+    # Explicitly trusts local loopback and the designated Nginx reverse proxy service ('frontend').
+    # NOTE: The entire Docker bridge subnet (e.g. 172.19.0.0/16) is deliberately NOT trusted
+    # to prevent other containers on the bridge network from spoofing client IP headers.
+    TRUSTED_PROXIES: list[str] | str = [
+        "127.0.0.1",
+        "::1",
+        "frontend",
+    ]
+
+    @field_validator("TRUSTED_PROXIES", mode="before")
+    @classmethod
+    def assemble_trusted_proxies(cls, v: str | list[str]) -> list[str]:
+        """Parse comma-separated proxy IP/CIDR string into list."""
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, list):
+            return v
+        return ["127.0.0.1", "::1", "frontend"]
+
     # Database Configuration (PostgreSQL)
     DATABASE_URL: str = Field(
         default="postgresql+psycopg://nexus_user:nexus_password@localhost:5432/nexus_db",

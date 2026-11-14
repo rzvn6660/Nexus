@@ -375,8 +375,29 @@ def client(test_app) -> TestClient:
 @pytest.fixture(scope="function")
 def multi_period_db(db_session: Session) -> Session:
     """Populate database with multi-period retail data for financial verification."""
+    biz = db_session.execute(
+        select(Business).where(Business.id == "biz_test_suite")
+    ).scalar_one_or_none()
+    if not biz:
+        org = db_session.execute(
+            select(Organization).where(Organization.id == "org_test_suite")
+        ).scalar_one_or_none()
+        if not org:
+            org = Organization(id="org_test_suite", name="Test Suite Org", slug="test-suite-org")
+            db_session.add(org)
+            db_session.flush()
+        biz = Business(
+            id="biz_test_suite",
+            organization_id=org.id,
+            name="Test Suite Business",
+            status="active",
+        )
+        db_session.add(biz)
+        db_session.flush()
+
     # Customers
     c1 = Customer(
+        business_id="biz_test_suite",
         customer_code="CUST-001",
         name="Corp Buyer A",
         email="buyer@corpa.com",
@@ -385,6 +406,7 @@ def multi_period_db(db_session: Session) -> Session:
         acquisition_date=date(2023, 1, 10),
     )
     c2 = Customer(
+        business_id="biz_test_suite",
         customer_code="CUST-002",
         name="Retail Buyer B",
         email="buyer@retailb.com",
@@ -397,6 +419,7 @@ def multi_period_db(db_session: Session) -> Session:
 
     # Products
     p1 = Product(
+        business_id="biz_test_suite",
         sku="SKU-A",
         name="Widget A",
         category="Hardware",
@@ -406,6 +429,7 @@ def multi_period_db(db_session: Session) -> Session:
         active=True,
     )
     p2 = Product(
+        business_id="biz_test_suite",
         sku="SKU-B",
         name="Gadget B",
         category="Electronics",
@@ -419,12 +443,14 @@ def multi_period_db(db_session: Session) -> Session:
 
     # Inventory
     inv1 = Inventory(
+        business_id="biz_test_suite",
         product_id=p1.id,
         stock_quantity=50,
         reorder_threshold=10,
         warehouse_location="Warehouse North",
     )
     inv2 = Inventory(
+        business_id="biz_test_suite",
         product_id=p2.id,
         stock_quantity=3,
         reorder_threshold=10,
@@ -435,6 +461,7 @@ def multi_period_db(db_session: Session) -> Session:
 
     # May 2023 (Baseline period)
     s1 = Sale(
+        business_id="biz_test_suite",
         transaction_number="TXN-202305-01",
         customer_id=c1.id,
         transaction_date=datetime(2023, 5, 10, 10, 0, tzinfo=timezone.utc),
@@ -457,6 +484,7 @@ def multi_period_db(db_session: Session) -> Session:
     db_session.add(i1)
 
     s2 = Sale(
+        business_id="biz_test_suite",
         transaction_number="TXN-202305-02",
         customer_id=c2.id,
         transaction_date=datetime(2023, 5, 20, 14, 0, tzinfo=timezone.utc),
@@ -480,6 +508,7 @@ def multi_period_db(db_session: Session) -> Session:
 
     # June 2023 (Current period)
     s3 = Sale(
+        business_id="biz_test_suite",
         transaction_number="TXN-202306-01",
         customer_id=c1.id,
         transaction_date=datetime(2023, 6, 5, 11, 0, tzinfo=timezone.utc),
@@ -502,6 +531,7 @@ def multi_period_db(db_session: Session) -> Session:
     db_session.add(i3)
 
     s4 = Sale(
+        business_id="biz_test_suite",
         transaction_number="TXN-202306-02",
         customer_id=c1.id,
         transaction_date=datetime(2023, 6, 20, 16, 0, tzinfo=timezone.utc),
@@ -525,6 +555,7 @@ def multi_period_db(db_session: Session) -> Session:
 
     # Operating Expenses
     exp_may = Expense(
+        business_id="biz_test_suite",
         expense_date=date(2023, 5, 1),
         category="Rent",
         description="May Rent",
@@ -532,6 +563,7 @@ def multi_period_db(db_session: Session) -> Session:
         recurring=True,
     )
     exp_june = Expense(
+        business_id="biz_test_suite",
         expense_date=date(2023, 6, 1),
         category="Rent",
         description="June Rent",
@@ -546,11 +578,33 @@ def multi_period_db(db_session: Session) -> Session:
 @pytest.fixture(scope="function")
 def predictive_db_session(db_session: Session) -> Session:
     """Populate database with 12 consecutive months of retail sales for forecasting tests."""
-    for table in reversed(Base.metadata.sorted_tables):
-        db_session.execute(table.delete())
+    biz = db_session.execute(
+        select(Business).where(Business.id == "biz_test_suite")
+    ).scalar_one_or_none()
+    if not biz:
+        org = db_session.execute(
+            select(Organization).where(Organization.id == "org_test_suite")
+        ).scalar_one_or_none()
+        if not org:
+            org = Organization(id="org_test_suite", name="Test Suite Org", slug="test-suite-org")
+            db_session.add(org)
+            db_session.flush()
+        biz = Business(
+            id="biz_test_suite",
+            organization_id=org.id,
+            name="Test Suite Business",
+            status="active",
+        )
+        db_session.add(biz)
+        db_session.flush()
+
+    domain_models = [Expense, Inventory, SaleItem, Sale, Product, Customer]
+    for m in domain_models:
+        db_session.execute(m.__table__.delete())
     db_session.commit()
 
     c = Customer(
+        business_id="biz_test_suite",
         customer_code="CUST-PRED-1",
         name="Predictive Test Retailer",
         email="test_pred@example.com",
@@ -562,6 +616,7 @@ def predictive_db_session(db_session: Session) -> Session:
     db_session.flush()
 
     p1 = Product(
+        business_id="biz_test_suite",
         sku="SKU-PROD-A",
         name="Predictive Widget Alpha",
         category="Electronics",
@@ -571,6 +626,7 @@ def predictive_db_session(db_session: Session) -> Session:
         active=True,
     )
     p2 = Product(
+        business_id="biz_test_suite",
         sku="SKU-PROD-B",
         name="Predictive Widget Beta",
         category="Hardware",
@@ -598,6 +654,7 @@ def predictive_db_session(db_session: Session) -> Session:
         total_subtotal = subtotal1 + subtotal2
 
         s = Sale(
+            business_id="biz_test_suite",
             transaction_number=f"TXN-PRED-2023{month_idx:02d}",
             customer_id=c.id,
             transaction_date=dt,

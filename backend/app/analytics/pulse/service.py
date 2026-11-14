@@ -332,6 +332,9 @@ class PulseService:
         if not report:
             raise FileNotFoundError(f"Report '{report_id}' does not exist.")
 
+        if not business_id and not access_token:
+            raise PermissionError("Authorization required: either business_id or access_token must be provided.")
+
         if business_id and report.business_id != business_id:
             raise PermissionError(f"Access denied: You do not have permission to access report '{report_id}'.")
 
@@ -401,6 +404,9 @@ class PulseService:
         ).scalar_one_or_none()
         if not report:
             raise FileNotFoundError(f"Report '{report_id}' does not exist.")
+
+        if not business_id and not access_token:
+            raise PermissionError("Authorization required: either business_id or access_token must be provided.")
 
         if business_id and report.business_id != business_id:
             raise PermissionError(f"Access denied: You do not have permission to access report '{report_id}'.")

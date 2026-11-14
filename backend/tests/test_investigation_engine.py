@@ -50,7 +50,7 @@ def test_investigation_engine_clarification_on_ambiguous_term(multi_period_db: S
     assert "clarify" in response.explanation.lower() or "mean" in response.explanation.lower()
 
 
-def test_investigation_api_endpoint(client: TestClient, multi_period_db: Session):
+def test_investigation_api_endpoint(authenticated_client: TestClient, multi_period_db: Session):
     """Verify POST /api/v1/investigation/analyze returns compliant InvestigationResponse."""
     payload = {
         "query": "Why did revenue drop in July 2023?",
@@ -58,7 +58,7 @@ def test_investigation_api_endpoint(client: TestClient, multi_period_db: Session
         "reference_date": "2023-08-01",
     }
 
-    res = client.post("/api/v1/investigation/analyze", json=payload)
+    res = authenticated_client.post("/api/v1/investigation/analyze", json=payload)
     assert res.status_code == 200
 
     data = res.json()

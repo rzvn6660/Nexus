@@ -46,9 +46,9 @@ def test_forecasting_service_insufficient_data(db_session):
     assert any("insufficient" in r.lower() for r in result.data_quality.blocking_reasons)
 
 
-def test_forecast_api_natural_language_analyze(api_client: TestClient, predictive_db_session):
+def test_forecast_api_natural_language_analyze(authenticated_client: TestClient, predictive_db_session):
     """Verify POST /api/v1/forecast/analyze endpoint processes natural language request."""
-    response = api_client.post(
+    response = authenticated_client.post(
         "/api/v1/forecast/analyze",
         json={
             "query": "Forecast revenue for the next 3 months",
@@ -66,9 +66,9 @@ def test_forecast_api_natural_language_analyze(api_client: TestClient, predictiv
     assert "explanation" in data
 
 
-def test_forecast_api_structured_endpoint(api_client: TestClient, predictive_db_session):
+def test_forecast_api_structured_endpoint(authenticated_client: TestClient, predictive_db_session):
     """Verify POST /api/v1/forecast endpoint accepts structured request."""
-    response = api_client.post(
+    response = authenticated_client.post(
         "/api/v1/forecast",
         json={
             "target_metric": "sales",

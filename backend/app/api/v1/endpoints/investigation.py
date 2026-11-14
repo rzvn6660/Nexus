@@ -1,6 +1,6 @@
 """API endpoints for Phase 6 Diagnostic Investigation Engine."""
 
-from fastapi import APIRouter, Depends, Header, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -57,6 +57,17 @@ def analyze_investigation(
 ) -> InvestigationResponse:
     """Entrypoint for diagnostic investigation requests."""
     biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    if not biz_id:
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication credentials required to access diagnostic investigations.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context required: no business workspace associated with current user. Provide a valid X-Business-ID header.",
+        )
     engine = InvestigationEngine(db, business_id=biz_id)
     return engine.investigate(
         query=payload.query,

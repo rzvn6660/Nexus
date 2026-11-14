@@ -6,10 +6,12 @@ Enforces strict SQL injection prevention, connection timeouts, and
 tenant boundary verification.
 """
 
+import ipaddress
 import re
+import socket
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, ClassVar
 
 import psycopg
 from psycopg import sql
@@ -28,20 +30,177 @@ SAFE_IDENTIFIER_REGEX = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 class PostgreSQLOnboardingService:
     """Service for onboarding data from external PostgreSQL relational databases."""
 
-    @staticmethod
+    # Prohibited non-database ports to prevent cross-protocol SSRF attacks
+    PROHIBITED_PORTS: ClassVar[set[int]] = {
+        21, 22, 23, 25, 53, 69, 80, 110, 123, 135, 137, 138, 139, 143,
+        389, 443, 445, 636, 1025, 1433, 1521, 2049, 2375, 2376, 3000,
+        3001, 3306, 5000, 6379, 6380, 7000, 8000, 8001, 8025, 8080,
+        8443, 8500, 9000, 9042, 9092, 9200, 11211, 27017,
+    }
+
+    @classmethod
+    def validate_safe_external_host(
+        cls,
+        host: str,
+        port: int = 5432,
+        allow_local_for_testing: bool | None = None,
+    ) -> str | None:
+        """Validate target host against SSRF, internal networks, loopback, and cloud metadata.
+
+        Returns the validated IP address string to enable IP pinning (hostaddr) against DNS rebinding.
+        """
+        if not host or not isinstance(host, str):
+            raise ValueError("Database host cannot be empty.")
+        h = host.strip()
+        if not (1 <= port <= 65535):
+            raise ValueError(f"Invalid database port {port}. Must be between 1 and 65535.")
+
+        # Reject URL schemes, path traversal, credentials, or malformed characters
+        if any(char in h for char in ["/", "\\", "@", "?", "#", " ", "\t", "\r", "\n"]):
+            raise ValueError(f"Host '{host}' contains invalid characters or URL components.")
+        if "://" in h:
+            raise ValueError(f"Host '{host}' must not include a URL scheme.")
+
+        # Production safety invariant: local testing exceptions are STRICTLY FORBIDDEN in production/staging
+        from app.core.config import settings
+
+        is_production = (
+            getattr(settings, "APP_ENV", "").lower() in ("production", "prod", "staging")
+            or getattr(settings, "ENVIRONMENT", "").lower() in ("production", "prod", "staging")
+        )
+
+        if is_production:
+            allow_local = False
+        elif allow_local_for_testing is None:
+            import sys
+            allow_local = "pytest" in sys.modules
+        else:
+            allow_local = allow_local_for_testing
+
+        # Block non-database ports in non-test mode to prevent cross-protocol SSRF
+        if not allow_local and port in cls.PROHIBITED_PORTS:
+            raise ValueError(f"Port {port} is prohibited for external database onboarding.")
+
+        h_lower = h.lower()
+
+        # Cloud metadata is NEVER allowed under any circumstances
+        metadata_targets = {
+            "169.254.169.254",
+            "metadata.google.internal",
+            "instance-data",
+            "metadata",
+        }
+        if h_lower in metadata_targets:
+            raise ValueError(f"Access to cloud metadata service '{host}' is strictly prohibited.")
+
+        # Block well-known container and infrastructure names
+        container_names = {
+            "nexus_postgres_staging",
+            "nexus_postgres",
+            "postgres",
+            "nexus_redis_staging",
+            "nexus_redis",
+            "redis",
+            "nexus_backend_staging",
+            "backend",
+            "nexus_frontend_staging",
+            "frontend",
+            "nexus_scheduler_staging",
+            "scheduler",
+            "nexus_mailpit_local",
+            "mailpit",
+            "db",
+            "web",
+            "gateway",
+        }
+        if not allow_local and h_lower in container_names:
+            raise ValueError(f"Target host '{host}' is an internal container service and cannot be accessed.")
+
+        def _inspect_ip(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address, raw_str: str) -> None:
+            # Check IPv4-mapped IPv6 (e.g. ::ffff:169.254.169.254)
+            if getattr(ip_obj, "ipv4_mapped", None):
+                _inspect_ip(ip_obj.ipv4_mapped, raw_str)
+            if ip_obj.is_link_local:
+                raise ValueError(f"Target IP '{raw_str}' is a link-local/cloud metadata address and cannot be accessed.")
+            if not allow_local and ip_obj.is_loopback:
+                raise ValueError(f"Target IP '{raw_str}' is a loopback address and cannot be accessed.")
+            if not allow_local and ip_obj.is_private:
+                raise ValueError(f"Target IP '{raw_str}' is a private RFC1918/RFC4193 network address and cannot be accessed.")
+            if ip_obj.is_reserved or ip_obj.is_multicast or ip_obj.is_unspecified:
+                raise ValueError(f"Target IP '{raw_str}' is a reserved/multicast address.")
+            if str(ip_obj) == "169.254.169.254":
+                raise ValueError(f"Access to cloud metadata IP '{raw_str}' is strictly prohibited.")
+
+        # Try parsing direct IP
+        try:
+            ip = ipaddress.ip_address(h_lower)
+            _inspect_ip(ip, host)
+            return str(ip)
+        except ValueError as ex:
+            if "cannot be accessed" in str(ex) or "prohibited" in str(ex) or "reserved" in str(ex):
+                raise
+
+        if not allow_local and (h_lower == "localhost" or h_lower.endswith((".local", ".internal"))):
+            raise ValueError(f"Target host '{host}' is a local or internal domain name.")
+
+        # Resolve hostname to IPs
+        try:
+            addr_info = socket.getaddrinfo(h_lower, port, proto=socket.IPPROTO_TCP)
+        except Exception as exc:
+            if allow_local:
+                return None
+            raise ValueError(f"Failed to resolve host '{host}': {exc}") from exc
+
+        validated_ips: list[str] = []
+        for _, _, _, _, sockaddr in addr_info:
+            ip_str = sockaddr[0]
+            try:
+                resolved_ip = ipaddress.ip_address(ip_str)
+                _inspect_ip(resolved_ip, ip_str)
+                validated_ips.append(ip_str)
+            except ValueError as ex:
+                if "cannot be accessed" in str(ex) or "resolves to" in str(ex) or "prohibited" in str(ex) or "reserved" in str(ex):
+                    raise
+
+        return validated_ips[0] if validated_ips else None
+
+    @classmethod
     def _build_connection_string(
+        cls,
         host: str,
         port: int,
         database: str,
         user: str,
         password: str,
         sslmode: str = "prefer",
+        allow_local_for_testing: bool | None = None,
     ) -> str:
-        """Construct a safe connection string with timeout controls."""
-        return (
-            f"host={host} port={port} dbname={database} user={user} "
-            f"password={password} sslmode={sslmode} connect_timeout=5"
-        )
+        """Construct a safe connection string with timeout controls, parameter escaping, SSRF validation, and IP pinning."""
+        validated_ip = cls.validate_safe_external_host(host, port, allow_local_for_testing=allow_local_for_testing)
+
+        # Defense-in-depth: Prevent parameter breakout or attempt to inject raw connection keys
+        for param_name, param_val in [("database", database), ("user", user), ("sslmode", sslmode)]:
+            if "hostaddr" in str(param_val).lower() or "\n" in str(param_val) or "\r" in str(param_val):
+                raise ValueError(f"Parameter '{param_name}' contains illegal keywords or control characters.")
+
+        def _escape_param(val: str) -> str:
+            v = str(val).replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{v}'"
+
+        conn_parts = [
+            f"host={_escape_param(host)}",
+            f"port={int(port)}",
+            f"dbname={_escape_param(database)}",
+            f"user={_escape_param(user)}",
+            f"password={_escape_param(password)}",
+            f"sslmode={_escape_param(sslmode)}",
+            "connect_timeout=5",
+        ]
+        # IP Pinning against DNS Rebinding: enforce socket connection strictly to validated IP
+        if validated_ip:
+            conn_parts.append(f"hostaddr={_escape_param(validated_ip)}")
+
+        return " ".join(conn_parts)
 
     @classmethod
     def test_connection(
@@ -52,10 +211,13 @@ class PostgreSQLOnboardingService:
         user: str,
         password: str,
         sslmode: str = "prefer",
+        allow_local_for_testing: bool | None = None,
     ) -> dict[str, Any]:
         """Test reachability and authentication to target PostgreSQL database."""
-        conn_str = cls._build_connection_string(host, port, database, user, password, sslmode)
         try:
+            conn_str = cls._build_connection_string(
+                host, port, database, user, password, sslmode, allow_local_for_testing=allow_local_for_testing
+            )
             with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
                 cur.execute("SELECT version();")
                 row = cur.fetchone()
@@ -87,9 +249,12 @@ class PostgreSQLOnboardingService:
         user: str,
         password: str,
         sslmode: str = "prefer",
+        allow_local_for_testing: bool | None = None,
     ) -> list[dict[str, Any]]:
         """List user tables and their column schemas."""
-        conn_str = cls._build_connection_string(host, port, database, user, password, sslmode)
+        conn_str = cls._build_connection_string(
+            host, port, database, user, password, sslmode, allow_local_for_testing=allow_local_for_testing
+        )
         tables: list[dict[str, Any]] = []
         try:
             with psycopg.connect(conn_str) as conn:
@@ -149,12 +314,15 @@ class PostgreSQLOnboardingService:
         schema_name: str = "public",
         limit: int = 15,
         sslmode: str = "prefer",
+        allow_local_for_testing: bool | None = None,
     ) -> dict[str, Any]:
         """Fetch preview rows from target table with strict identifier validation."""
         if not SAFE_IDENTIFIER_REGEX.match(table_name) or not SAFE_IDENTIFIER_REGEX.match(schema_name):
             raise ValueError(f"Invalid table or schema name identifier: {schema_name}.{table_name}")
 
-        conn_str = cls._build_connection_string(host, port, database, user, password, sslmode)
+        conn_str = cls._build_connection_string(
+            host, port, database, user, password, sslmode, allow_local_for_testing=allow_local_for_testing
+        )
         try:
             with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
                 # Count total rows
@@ -216,6 +384,7 @@ class PostgreSQLOnboardingService:
         schema_name: str = "public",
         max_rows: int = 50_000,
         sslmode: str = "prefer",
+        allow_local_for_testing: bool | None = None,
     ) -> dict[str, Any]:
         """
         Extract records from external PostgreSQL table and ingest into NEXUS canonical models.
@@ -236,7 +405,9 @@ class PostgreSQLOnboardingService:
         except PermissionError as auth_err:
             raise PermissionError(str(auth_err))
 
-        conn_str = cls._build_connection_string(host, port, database, user, password, sslmode)
+        conn_str = cls._build_connection_string(
+            host, port, database, user, password, sslmode, allow_local_for_testing=allow_local_for_testing
+        )
 
         inserted_count = 0
         skipped_duplicates = 0

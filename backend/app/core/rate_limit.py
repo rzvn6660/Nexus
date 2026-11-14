@@ -257,11 +257,140 @@ class RateLimiter:
 auth_rate_limiter = RateLimiter()
 
 
+# In-memory DNS cache for hostname resolution in is_trusted_proxy.
+# Uses a short 5-second TTL so that dynamic Docker IP changes are detected
+# rapidly without incurring DNS lookup latency on every HTTP request.
+_RESOLVED_HOST_CACHE: dict[str, tuple[float, set]] = {}
+_DNS_CACHE_TTL_SECONDS: float = 5.0
+
+
+def clear_proxy_dns_cache() -> None:
+    """Clear cached proxy DNS resolutions — for testing and dynamic topology shifts."""
+    _RESOLVED_HOST_CACHE.clear()
+
+
+def is_trusted_proxy(ip_str: str, trusted_list: list[str]) -> bool:
+    """Check if an IP string matches any trusted proxy IP, CIDR network, or resolvable proxy hostname.
+
+    Security Invariant:
+    - Only exact IPs, CIDR blocks, or explicitly resolved proxy hostnames (e.g. 'frontend') are trusted.
+    - Subnets are never automatically trusted unless explicitly configured.
+    - Hostnames are resolved dynamically with a 5-second TTL to handle Docker IP changes safely.
+    """
+    import ipaddress
+    import socket
+    import time
+
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        now = time.monotonic()
+        for trusted in trusted_list:
+            t = trusted.strip()
+            if not t:
+                continue
+            try:
+                if "/" in t:
+                    if ip in ipaddress.ip_network(t, strict=False):
+                        return True
+                else:
+                    if ip == ipaddress.ip_address(t):
+                        return True
+            except ValueError:
+                # Not a literal IP/CIDR — try resolving hostname (e.g. 'frontend', 'localhost')
+                cached_time, cached_ips = _RESOLVED_HOST_CACHE.get(t, (0.0, set()))
+                if now - cached_time < _DNS_CACHE_TTL_SECONDS:
+                    resolved_ips = cached_ips
+                else:
+                    resolved_ips = set()
+                    try:
+                        resolved_addrs = socket.getaddrinfo(t, None, proto=socket.IPPROTO_TCP)
+                        for _, _, _, _, sockaddr in resolved_addrs:
+                            try:
+                                resolved_ips.add(ipaddress.ip_address(sockaddr[0]))
+                            except ValueError:
+                                continue
+                    except (socket.gaierror, OSError):
+                        pass
+                    _RESOLVED_HOST_CACHE[t] = (now, resolved_ips)
+
+                if ip in resolved_ips:
+                    return True
+    except ValueError:
+        return False
+    return False
+
+
 def get_client_ip(request: Request) -> str:
-    """Extract client IP from headers or client host."""
+    """
+    Extract verified client IP from trusted reverse proxy headers or socket address.
+
+    Security Contract:
+    1. Obtains direct peer socket address from request.client.host.
+    2. If request.client.host is NOT in TRUSTED_PROXIES, forwarded headers (X-Real-IP,
+       X-Forwarded-For) are completely IGNORED to prevent client header spoofing.
+    3. If request.client.host IS a trusted proxy:
+       a. Evaluates X-Forwarded-For right-to-left, traversing the trusted proxy chain
+          and returning the first untrusted upstream client IP.
+       b. If X-Forwarded-For is absent, falls back to X-Real-IP if valid syntax.
+    4. Validates IP syntax via ipaddress.ip_address on all candidates to prevent key injection.
+    5. Safely defaults to socket host or '127.0.0.1'.
+    """
+    import ipaddress
+
+    from app.core.config import settings
+
+    # Resolve direct socket peer
+    peer_ip = "127.0.0.1"
+    if request.client and request.client.host:
+        raw_peer = request.client.host.strip()
+        try:
+            ipaddress.ip_address(raw_peer)
+            peer_ip = raw_peer
+        except ValueError:
+            logger.warning("SECURITY: Malformed peer socket address: %s", raw_peer)
+            return "127.0.0.1"
+
+    # Get configured trusted proxies
+    trusted_proxies = getattr(settings, "TRUSTED_PROXIES", ["127.0.0.1", "::1"])
+    if isinstance(trusted_proxies, str):
+        trusted_proxies = [p.strip() for p in trusted_proxies.split(",") if p.strip()]
+
+    # If direct connection did not arrive from a trusted proxy, DO NOT trust forwarded headers!
+    if not is_trusted_proxy(peer_ip, trusted_proxies):
+        return peer_ip
+
+    # Peer is a trusted proxy -> inspect forwarded headers
+    # X-Forwarded-For takes precedence for multi-hop proxy chains
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        return forwarded.split(",")[0].strip()
-    if request.client and request.client.host:
-        return request.client.host
-    return "127.0.0.1"
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        # Traverse right-to-left (from closest proxy to origin client)
+        for candidate in reversed(parts):
+            try:
+                ipaddress.ip_address(candidate)
+                # If this hop is also a trusted proxy, keep walking back
+                if is_trusted_proxy(candidate, trusted_proxies):
+                    continue
+                # Found the first non-trusted IP in the chain — this is the client IP
+                return candidate
+            except ValueError:
+                continue
+        # If all hops were trusted proxies, return the leftmost valid one
+        if parts:
+            try:
+                ipaddress.ip_address(parts[0])
+                return parts[0]
+            except ValueError:
+                pass
+
+    # X-Real-IP fallback (single reverse proxy hop)
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        candidate = real_ip.strip()
+        try:
+            ipaddress.ip_address(candidate)
+            return candidate
+        except ValueError:
+            logger.warning("SECURITY: Malformed X-Real-IP header rejected: %s", candidate)
+
+    return peer_ip

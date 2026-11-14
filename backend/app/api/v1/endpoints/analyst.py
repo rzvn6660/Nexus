@@ -10,7 +10,7 @@ from app.analytics.analyst.models import SkillDomain, SkillMetadata
 from app.analytics.analyst.service import AnalystService
 from app.analytics.onboarding.postgres_service import PostgreSQLOnboardingService
 from app.api.deps import get_db_session
-from app.core.auth import get_current_user, verify_user_business_access
+from app.core.auth import TenantContext, get_auth_context, get_current_user, verify_user_business_access
 from app.models.tenant import Business, OrganizationMembership, UserIdentity
 
 router = APIRouter()
@@ -176,9 +176,14 @@ def get_analysis_run(
 @router.post("/onboard/postgres/test", summary="Test External PostgreSQL Connection")
 def test_postgres_connection(
     payload: PostgresConnectionConfig,
-    current_user: UserIdentity = Depends(get_current_user),
+    tenant_ctx: TenantContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     """Verify network connectivity and credentials to an external PostgreSQL database."""
+    if tenant_ctx.role not in ("owner", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privilege required: only workspace owners or admins can configure external database integrations.",
+        )
     return PostgreSQLOnboardingService.test_connection(
         host=payload.host,
         port=payload.port,
@@ -186,15 +191,21 @@ def test_postgres_connection(
         user=payload.user,
         password=payload.password,
         sslmode=payload.sslmode,
+        allow_local_for_testing=False,
     )
 
 
 @router.post("/onboard/postgres/inspect", summary="Inspect PostgreSQL Schema and Tables")
 def inspect_postgres_tables(
     payload: PostgresConnectionConfig,
-    current_user: UserIdentity = Depends(get_current_user),
+    tenant_ctx: TenantContext = Depends(get_auth_context),
 ) -> List[Dict[str, Any]]:
     """List available user tables and their column schemas in target PostgreSQL database."""
+    if tenant_ctx.role not in ("owner", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privilege required: only workspace owners or admins can configure external database integrations.",
+        )
     try:
         return PostgreSQLOnboardingService.inspect_tables(
             host=payload.host,
@@ -203,6 +214,7 @@ def inspect_postgres_tables(
             user=payload.user,
             password=payload.password,
             sslmode=payload.sslmode,
+            allow_local_for_testing=False,
         )
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -211,9 +223,14 @@ def inspect_postgres_tables(
 @router.post("/onboard/postgres/preview", summary="Preview External PostgreSQL Table Sample Rows")
 def preview_postgres_table(
     payload: PostgresTablePreviewRequest,
-    current_user: UserIdentity = Depends(get_current_user),
+    tenant_ctx: TenantContext = Depends(get_auth_context),
 ) -> Dict[str, Any]:
     """Fetch sample rows and column telemetry for mapping preparation."""
+    if tenant_ctx.role not in ("owner", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privilege required: only workspace owners or admins can configure external database integrations.",
+        )
     try:
         return PostgreSQLOnboardingService.preview_table(
             host=payload.host,
@@ -225,6 +242,7 @@ def preview_postgres_table(
             schema_name=payload.schema_name,
             limit=payload.limit,
             sslmode=payload.sslmode,
+            allow_local_for_testing=False,
         )
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -233,19 +251,22 @@ def preview_postgres_table(
 @router.post("/onboard/postgres/ingest", summary="Ingest External PostgreSQL Table to Canonical Entity")
 def ingest_postgres_table(
     payload: PostgresIngestRequest,
-    x_business_id: Optional[str] = Header(None, alias="X-Business-ID"),
-    current_user: UserIdentity = Depends(get_current_user),
+    tenant_ctx: TenantContext = Depends(get_auth_context),
     db: Session = Depends(get_db_session),
 ) -> Dict[str, Any]:
     """
     Commit mapped tabular records from external PostgreSQL table into NEXUS canonical models.
     Enforces tenant boundaries, deduplication, and atomic rollback on failure.
     """
-    biz_id = _resolve_business_id(db, current_user, x_business_id)
+    if tenant_ctx.role not in ("owner", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrative privilege required: only workspace owners or admins can configure external database integrations.",
+        )
     try:
         return PostgreSQLOnboardingService.ingest_table_to_canonical(
             db=db,
-            business_id=biz_id,
+            business_id=tenant_ctx.business.id,
             host=payload.host,
             port=payload.port,
             database=payload.database,
@@ -257,6 +278,7 @@ def ingest_postgres_table(
             schema_name=payload.schema_name,
             max_rows=payload.max_rows,
             sslmode=payload.sslmode,
+            allow_local_for_testing=False,
         )
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))

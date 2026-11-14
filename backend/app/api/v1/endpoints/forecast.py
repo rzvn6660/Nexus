@@ -122,6 +122,17 @@ def analyze_forecast_query(
         )
 
     biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    if not biz_id:
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication credentials required to access forecasting.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context required: no business workspace associated with current user. Provide a valid X-Business-ID header.",
+        )
     service = ForecastingService(db, business_id=biz_id)
     result = service.generate_forecast(
         target_metric=target_metric,
@@ -179,6 +190,17 @@ def generate_structured_forecast(
     policy_str = payload.model_policy.value if isinstance(payload.model_policy, ModelPolicy) else str(payload.model_policy)
 
     biz_id = _resolve_tenant_business_id(db, current_user, x_business_id)
+    if not biz_id:
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication credentials required to access forecasting.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant context required: no business workspace associated with current user. Provide a valid X-Business-ID header.",
+        )
     service = ForecastingService(db, business_id=biz_id)
     result = service.generate_forecast(
         target_metric=payload.target_metric,
