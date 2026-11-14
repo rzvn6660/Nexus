@@ -151,8 +151,53 @@ def run_smoke_test(client_getter, require_healthy: bool = False) -> None:
 
     # Step 7: Predictive Time-Series Forecasting
     print_step(7, "Testing Predictive Intelligence & Forecasting")
-    resp = client.post("/api/v1/forecast/analyze", json={"query": "Forecast revenue for next 3 months", "reference_date": "2026-09-01"})
-    check(resp.status_code == 200, f"HTTP 200 OK (got {resp.status_code})")
+    auth_headers = getattr(client, "auth_headers", None)
+    expired_headers = getattr(client, "expired_token_headers", None)
+    unauthorized_tenant_headers = getattr(client, "unauthorized_tenant_headers", None)
+
+    # Negative Test 1: Unauthenticated request rejected with HTTP 401
+    resp_unauth = client.post(
+        "/api/v1/forecast/analyze",
+        json={"query": "Forecast revenue for next 3 months", "reference_date": "2026-09-01"},
+    )
+    check(resp_unauth.status_code == 401, f"Security Gate: Unauthenticated forecast rejected with HTTP 401 (got {resp_unauth.status_code})")
+
+    # Negative Test 2: Invalid/forged token rejected with HTTP 401
+    resp_invalid = client.post(
+        "/api/v1/forecast/analyze",
+        json={"query": "Forecast revenue for next 3 months", "reference_date": "2026-09-01"},
+        headers={"Authorization": "Bearer invalid.forged.jwt.token"},
+    )
+    check(resp_invalid.status_code == 401, f"Security Gate: Invalid token rejected with HTTP 401 (got {resp_invalid.status_code})")
+
+    # Negative Test 3: Expired token rejected with HTTP 401
+    if expired_headers:
+        resp_exp = client.post(
+            "/api/v1/forecast/analyze",
+            json={"query": "Forecast revenue for next 3 months", "reference_date": "2026-09-01"},
+            headers=expired_headers,
+        )
+        check(resp_exp.status_code == 401, f"Security Gate: Expired token rejected with HTTP 401 (got {resp_exp.status_code})")
+
+    # Negative Test 4: Cross-tenant unauthorized access rejected with HTTP 403 Forbidden
+    if unauthorized_tenant_headers:
+        resp_idor = client.post(
+            "/api/v1/forecast/analyze",
+            json={"query": "Forecast revenue for next 3 months", "reference_date": "2026-09-01"},
+            headers=unauthorized_tenant_headers,
+        )
+        check(resp_idor.status_code in [403, 404], f"Security Gate: Cross-tenant access rejected with HTTP {resp_idor.status_code}")
+
+    # Authenticated Request: Authorized test-user request reaches forecasting logic
+    if not auth_headers:
+        raise AssertionError("Smoke test requires authentication credentials for protected forecasting endpoint. In live mode, provide --token or credentials.")
+
+    resp = client.post(
+        "/api/v1/forecast/analyze",
+        json={"query": "Forecast revenue for next 3 months", "reference_date": "2026-09-01"},
+        headers=auth_headers,
+    )
+    check(resp.status_code == 200, f"Authenticated forecast: HTTP 200 OK (got {resp.status_code})")
     fc_data = resp.json()
     check(fc_data.get("target_metric") in ["revenue", "sales"], f"Target metric: {fc_data.get('target_metric')}")
     check(len(fc_data.get("predictions", [])) == 3, f"Forecast horizon: {len(fc_data.get('predictions', []))} periods")
@@ -160,8 +205,50 @@ def run_smoke_test(client_getter, require_healthy: bool = False) -> None:
 
     # Step 8: Diagnostic Investigation
     print_step(8, "Testing Diagnostic Causal Investigation")
-    resp = client.post("/api/v1/investigation/analyze", json={"query": "Why did revenue decline?", "reference_date": "2026-09-01"})
-    check(resp.status_code == 200, f"HTTP 200 OK (got {resp.status_code})")
+
+    # Negative Test 1: Unauthenticated request rejected with HTTP 401
+    resp_unauth_inv = client.post(
+        "/api/v1/investigation/analyze",
+        json={"query": "Why did revenue decline?", "reference_date": "2026-09-01"},
+    )
+    check(resp_unauth_inv.status_code == 401, f"Security Gate: Unauthenticated investigation rejected with HTTP 401 (got {resp_unauth_inv.status_code})")
+
+    # Negative Test 2: Invalid/forged token rejected with HTTP 401
+    resp_invalid_inv = client.post(
+        "/api/v1/investigation/analyze",
+        json={"query": "Why did revenue decline?", "reference_date": "2026-09-01"},
+        headers={"Authorization": "Bearer invalid.forged.jwt.token"},
+    )
+    check(resp_invalid_inv.status_code == 401, f"Security Gate: Invalid token rejected with HTTP 401 (got {resp_invalid_inv.status_code})")
+
+    # Negative Test 3: Expired token rejected with HTTP 401
+    if expired_headers:
+        resp_exp_inv = client.post(
+            "/api/v1/investigation/analyze",
+            json={"query": "Why did revenue decline?", "reference_date": "2026-09-01"},
+            headers=expired_headers,
+        )
+        check(resp_exp_inv.status_code == 401, f"Security Gate: Expired token rejected with HTTP 401 (got {resp_exp_inv.status_code})")
+
+    # Negative Test 4: Cross-tenant unauthorized access rejected with HTTP 403 Forbidden
+    if unauthorized_tenant_headers:
+        resp_idor_inv = client.post(
+            "/api/v1/investigation/analyze",
+            json={"query": "Why did revenue decline?", "reference_date": "2026-09-01"},
+            headers=unauthorized_tenant_headers,
+        )
+        check(resp_idor_inv.status_code in [403, 404], f"Security Gate: Cross-tenant access rejected with HTTP {resp_idor_inv.status_code}")
+
+    # Authenticated Request: Authorized test-user request reaches investigation logic
+    if not auth_headers:
+        raise AssertionError("Smoke test requires authentication credentials for protected investigation endpoint. In live mode, provide --token or credentials.")
+
+    resp = client.post(
+        "/api/v1/investigation/analyze",
+        json={"query": "Why did revenue decline?", "reference_date": "2026-09-01"},
+        headers=auth_headers,
+    )
+    check(resp.status_code == 200, f"Authenticated investigation: HTTP 200 OK (got {resp.status_code})")
     inv_data = resp.json()
     check("summary" in inv_data, "Executive summary generated")
     check("hypotheses" in inv_data, "Tested hypotheses present")
@@ -170,7 +257,11 @@ def run_smoke_test(client_getter, require_healthy: bool = False) -> None:
 
     # Step 9: Agentic LangGraph Pipeline
     print_step(9, "Testing Multi-Agent LangGraph Pipeline")
-    resp = client.post("/api/v1/agent/analyze", json={"query": "What was net revenue last month?", "reference_date": "2026-09-01"})
+    resp = client.post(
+        "/api/v1/agent/analyze",
+        json={"query": "What was net revenue last month?", "reference_date": "2026-09-01"},
+        headers=auth_headers,
+    )
     check(resp.status_code == 200, f"HTTP 200 OK (got {resp.status_code})")
     agent_data = resp.json()
     check(agent_data.get("status") in ["completed", "success", "clarification_needed"], f"Agent status: {agent_data.get('status')}")
@@ -191,11 +282,15 @@ def run_smoke_test(client_getter, require_healthy: bool = False) -> None:
     fake_exe = b"MZ\x90\x00Binary"
     files = {"file": ("malicious.exe", fake_exe, "application/octet-stream")}
     data_form = {"dataset": "products"}
-    resp = client.post("/api/v1/data/ingest/csv", data=data_form, files=files)
+    resp = client.post("/api/v1/data/ingest/csv", data=data_form, files=files, headers=auth_headers)
     check(resp.status_code == 400, f"Invalid file format rejected: HTTP {resp.status_code}")
 
-    # Forecast horizon limit
-    resp = client.post("/api/v1/forecast/analyze", json={"query": "Forecast revenue for next 48 months"})
+    # Forecast horizon limit (authenticated)
+    resp = client.post(
+        "/api/v1/forecast/analyze",
+        json={"query": "Forecast revenue for next 48 months"},
+        headers=auth_headers,
+    )
     check(resp.status_code == 422, f"Out-of-bounds horizon rejected: HTTP {resp.status_code}")
     passed_steps += 1
 
@@ -310,6 +405,17 @@ def create_in_process_client():
         business_summary_json={"total_sales": 100},
     )
     session.add(sem)
+
+    # Seed isolated secondary tenant to test cross-tenant IDOR access rejection
+    org_other = Organization(id="org_other_tenant", name="Other Tenant Org", slug="other-tenant-org")
+    session.add(org_other)
+    biz_other = Business(
+        id="biz_other_tenant",
+        organization_id=org_other.id,
+        name="Other Tenant Business",
+        status="active",
+    )
+    session.add(biz_other)
     session.commit()
 
     def override_get_db():
@@ -321,21 +427,95 @@ def create_in_process_client():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_db_session] = override_get_db
 
-    return TestClient(
+    from app.services.auth_service import AuthService
+    from datetime import timedelta
+
+    auth_token = AuthService.create_access_token(
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        organization_id=org.id,
+        business_id=biz.id,
+    )
+
+    expired_token = AuthService.create_access_token(
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        organization_id=org.id,
+        business_id=biz.id,
+        expires_delta=timedelta(seconds=-30),
+    )
+
+    client = TestClient(
         app,
         headers={"X-API-Key": settings.API_KEY},
     )
+    client.auth_token = auth_token
+    client.auth_headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "X-Business-ID": biz.id,
+    }
+    client.expired_token_headers = {
+        "Authorization": f"Bearer {expired_token}",
+        "X-Business-ID": biz.id,
+    }
+    client.unauthorized_tenant_headers = {
+        "Authorization": f"Bearer {auth_token}",
+        "X-Business-ID": biz_other.id,
+    }
+
+    return client
 
 
 def main():
     parser = argparse.ArgumentParser(description="NEXUS Production Smoke Test")
     parser.add_argument("--base-url", type=str, default=None, help="Base URL of live deployment (e.g. http://localhost:8000)")
     parser.add_argument("--require-healthy", action="store_true", default=False, help="Strictly mandate database health == 'healthy' (fails on degraded)")
+    parser.add_argument("--token", type=str, default=None, help="Bearer authentication token for live deployment")
+    parser.add_argument("--api-key", type=str, default=None, help="API key for live deployment")
+    parser.add_argument("--email", type=str, default=None, help="User email for live deployment login")
+    parser.add_argument("--password", type=str, default=None, help="User password for live deployment login")
+    parser.add_argument("--business-id", type=str, default=None, help="Target business workspace ID for live deployment")
     args = parser.parse_args()
 
     if args.base_url:
         import httpx
-        client_getter = lambda: httpx.Client(base_url=args.base_url, timeout=30.0)
+
+        def create_live_client():
+            client = httpx.Client(base_url=args.base_url, timeout=30.0)
+            if args.api_key:
+                client.headers["X-API-Key"] = args.api_key
+
+            token = args.token or os.getenv("SMOKE_TEST_TOKEN") or os.getenv("NEXUS_AUTH_TOKEN")
+            biz_id = args.business_id or os.getenv("SMOKE_TEST_BUSINESS_ID")
+
+            email = args.email or os.getenv("SMOKE_TEST_EMAIL")
+            password = args.password or os.getenv("SMOKE_TEST_PASSWORD")
+
+            if not token and email and password:
+                login_resp = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+                if login_resp.status_code == 200:
+                    data = login_resp.json()
+                    token = data.get("access_token")
+                    if not biz_id and data.get("business"):
+                        biz_id = data["business"].get("id")
+
+            if token:
+                auth_h = {"Authorization": f"Bearer {token}"}
+                if biz_id:
+                    auth_h["X-Business-ID"] = biz_id
+                client.auth_headers = auth_h
+                client.expired_token_headers = {"Authorization": "Bearer expired.token.live", "X-Business-ID": biz_id or "biz_unknown"}
+                client.unauthorized_tenant_headers = {"Authorization": f"Bearer {token}", "X-Business-ID": "biz_unauthorized_idor_test"}
+            else:
+                client.auth_headers = None
+                client.expired_token_headers = None
+                client.unauthorized_tenant_headers = None
+
+            return client
+
+        client_getter = create_live_client
     else:
         client_getter = create_in_process_client
 
